@@ -25,7 +25,7 @@ export default function Tasks({ isAdmin = false, session }) {
     }
 
     setLoading(true);
-    let query = supabase.from("events").select("*");
+    let query = supabase.from("events").select("*, members!oc_st_id(name)");
 
     if (!isAdmin && session?.stId) {
       const { data: memberOc } = await supabase
@@ -226,7 +226,7 @@ export default function Tasks({ isAdmin = false, session }) {
               <span className="card-title">Select Event</span>
               {selectedEventInfo && (
                 <span className="badge badge-purple">
-                  OC President: {selectedEventInfo.oc_st_id || "Unassigned"}
+                  OC President: {selectedEventInfo.members?.name || selectedEventInfo.oc_st_id || "Unassigned"}
                 </span>
               )}
             </div>

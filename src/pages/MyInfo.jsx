@@ -4,6 +4,53 @@ import { supabase } from "../supabaseClient";
 export default function MyInfo({ session }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editModal, setEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ profile_image_url: "", linkedin_url: "" });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const openEditModal = () => {
+    setEditForm({
+      profile_image_url: profile.profile_image_url || "",
+      linkedin_url: profile.linkedin_url || ""
+    });
+    setMsg(null);
+    setEditModal(true);
+  };
+
+  const closeEditModal = () => {
+    setEditModal(false);
+    setMsg(null);
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const { error } = await supabase
+        .from("members")
+        .update({
+          profile_image_url: editForm.profile_image_url.trim() || null,
+          linkedin_url: editForm.linkedin_url.trim() || null
+        })
+        .eq("st_id", session.stId);
+
+      if (error) throw error;
+
+      setProfile(prev => ({
+        ...prev,
+        profile_image_url: editForm.profile_image_url.trim() || null,
+        linkedin_url: editForm.linkedin_url.trim() || null
+      }));
+
+      setMsg({ type: "success", text: "Profile updated successfully!" });
+      setTimeout(closeEditModal, 800);
+    } catch (err) {
+      setMsg({ type: "error", text: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!session.stId) return;
@@ -85,31 +132,95 @@ export default function MyInfo({ session }) {
       </div>
 
       <div className="card mb-3" style={{ marginBottom: 24 }}>
-        <div className="card-header">
+        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span className="card-title">Personal Profile</span>
-          <span className="badge badge-purple">{profile.st_id}</span>
+          <div className="flex gap-2" style={{ alignItems: "center" }}>
+            <button className="btn btn-ghost btn-sm" onClick={openEditModal}>
+              ✏️ Edit Profile
+            </button>
+            <span className="badge badge-purple">{profile.st_id}</span>
+          </div>
         </div>
-        <div className="form-row form-row-2">
-          <div className="form-group">
-            <label>Full Name</label>
-            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4, color: "var(--text)" }}>
-              {profile.name}
+        
+        <div style={{ display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flexShrink: 0 }}>
+            {profile.profile_image_url ? (
+              <img 
+                src={profile.profile_image_url} 
+                alt={profile.name} 
+                style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profile.name);
+                }}
+              />
+            ) : (
+              <div style={{ width: "90px", height: "90px", borderRadius: "50%", background: "var(--bg3)", border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "var(--text3)" }}>
+                👤
+              </div>
+            )}
+          </div>
+          
+          <div style={{ flex: 1, minWidth: "200px" }}>
+            <div className="form-row form-row-2">
+              <div className="form-group">
+                <label>Full Name</label>
+                <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4, color: "var(--text)" }}>
+                  {profile.name}
+                </div>
+              </div>
+              <div className="form-group" style={{ textAlign: "right" }}>
+                <label>Academic Level</label>
+                <div style={{ marginTop: 4 }}>
+                  {profile.level ? (
+                    <span className="badge badge-gray" style={{ fontSize: 13, padding: "4px 10px" }}>Year {profile.level}</span>
+                  ) : (
+                    <span className="text-muted">Not specified</span>
+                  )}
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Student Position</label>
+                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, color: "var(--text2)" }}>
+                  {profile.st_position || "Regular Member"}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="form-group" style={{ textAlign: "right" }}>
-            <label>Academic Level</label>
-            <div style={{ marginTop: 4 }}>
-              {profile.level ? (
-                <span className="badge badge-gray" style={{ fontSize: 13, padding: "4px 10px" }}>Year {profile.level}</span>
+        </div>
+
+        {/* Contact and links */}
+        <div className="form-row form-row-3" style={{ background: "var(--bg3)", padding: "12px 16px", borderRadius: "var(--r)", marginTop: "20px", border: "1px solid var(--border)" }}>
+          <div className="form-group">
+            <label>📧 Email Address</label>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+              {profile.email ? (
+                <a href={`mailto:${profile.email}`} style={{ color: "var(--accent2)", textDecoration: "none" }}>{profile.email}</a>
               ) : (
-                <span className="text-muted">Not specified</span>
+                <span className="text-muted">Not provided</span>
               )}
             </div>
           </div>
           <div className="form-group">
-            <label>Student Position</label>
-            <div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, color: "var(--text2)" }}>
-              {profile.st_position || "Regular Member"}
+            <label>📞 Mobile Number</label>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+              {profile.mobile_number ? (
+                <a href={`tel:${profile.mobile_number}`} style={{ color: "var(--text)", textDecoration: "none" }}>{profile.mobile_number}</a>
+              ) : (
+                <span className="text-muted">Not provided</span>
+              )}
+            </div>
+          </div>
+          <div className="form-group">
+            <label>🔗 LinkedIn Profile</label>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+              {profile.linkedin_url ? (
+                <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  View LinkedIn ↗
+                </a>
+              ) : (
+                <span className="text-muted">Not provided</span>
+              )}
             </div>
           </div>
         </div>
@@ -225,6 +336,49 @@ export default function MyInfo({ session }) {
           )}
         </div>
       </div>
+
+      {editModal && (
+        <div className="modal-overlay" style={{ zIndex: 110 }} onClick={e => e.target === e.currentTarget && closeEditModal()}>
+          <div className="modal">
+            <div className="modal-header">
+              <h2 className="modal-title">Edit Profile Details</h2>
+              <button className="modal-close" onClick={closeEditModal}>x</button>
+            </div>
+
+            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+
+            <div className="form-group" style={{ marginBottom: 15 }}>
+              <label>Profile Image URL</label>
+              <input 
+                placeholder="e.g. https://example.com/photo.jpg" 
+                value={editForm.profile_image_url} 
+                onChange={e => setEditForm({ ...editForm, profile_image_url: e.target.value })} 
+              />
+              <span className="text-muted text-sm" style={{ marginTop: 4 }}>
+                Provide a URL to an image hosted online (e.g. on Discord, Imgur, or your website).
+              </span>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 20 }}>
+              <label>LinkedIn Profile URL</label>
+              <input 
+                placeholder="e.g. https://linkedin.com/in/username" 
+                value={editForm.linkedin_url} 
+                onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })} 
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={closeEditModal} disabled={saving}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleSaveProfile} disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import StudentProfileModal from "../components/StudentProfileModal";
 
-const EMPTY_FORM = { st_id: "", name: "", level: "", st_position: "", email: "" };
+const EMPTY_FORM = { st_id: "", name: "", level: "", st_position: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "" };
 
 function parseCSV(text) {
   const lines = [];
@@ -40,7 +40,7 @@ function parseCSV(text) {
 }
 
 function mapHeaders(headers) {
-  const mapping = { st_id: -1, name: -1, level: -1, st_position: -1, email: -1 };
+  const mapping = { st_id: -1, name: -1, level: -1, st_position: -1, email: -1, mobile_number: -1, profile_image_url: -1, linkedin_url: -1 };
   headers.forEach((h, index) => {
     const clean = h.trim().toLowerCase().replace(/[\s_-]/g, "");
     if (["stid", "studentid", "id", "stno", "studentno", "regno", "registrationno"].includes(clean)) {
@@ -53,6 +53,12 @@ function mapHeaders(headers) {
       if (mapping.st_position === -1) mapping.st_position = index;
     } else if (["email", "mail", "emailaddress"].includes(clean)) {
       if (mapping.email === -1) mapping.email = index;
+    } else if (["mobile", "mobilenumber", "phone", "phonenumber", "tel", "contact", "contactnumber"].includes(clean)) {
+      if (mapping.mobile_number === -1) mapping.mobile_number = index;
+    } else if (["profileimage", "profileimageurl", "image", "imageurl", "photo", "photourl", "avatar"].includes(clean)) {
+      if (mapping.profile_image_url === -1) mapping.profile_image_url = index;
+    } else if (["linkedin", "linkedinurl", "linkedinprofile", "linkedinprofileurl"].includes(clean)) {
+      if (mapping.linkedin_url === -1) mapping.linkedin_url = index;
     }
   });
   return mapping;
@@ -110,7 +116,21 @@ export default function Members({ isAdmin = false }) {
   useEffect(() => { load(page, search); }, [page, search, viewFilter]);
 
   const openAdd = () => { setForm(EMPTY_FORM); setEditTarget(null); setModal(true); setMsg(null); };
-  const openEdit = (m) => { setForm({ st_id: m.st_id, name: m.name, level: m.level || "", st_position: m.st_position || "", email: m.email || "" }); setEditTarget(m.st_id); setModal(true); setMsg(null); };
+  const openEdit = (m) => {
+    setForm({
+      st_id: m.st_id,
+      name: m.name,
+      level: m.level || "",
+      st_position: m.st_position || "",
+      email: m.email || "",
+      mobile_number: m.mobile_number || "",
+      profile_image_url: m.profile_image_url || "",
+      linkedin_url: m.linkedin_url || ""
+    });
+    setEditTarget(m.st_id);
+    setModal(true);
+    setMsg(null);
+  };
   const closeModal = () => { setModal(false); setMsg(null); };
 
   const promoteAll = async () => {
@@ -149,10 +169,10 @@ export default function Members({ isAdmin = false }) {
   };
 
   const downloadTemplate = () => {
-    const headers = ["st_id", "name", "email", "level", "st_position"];
+    const headers = ["st_id", "name", "email", "level", "st_position", "mobile_number", "profile_image_url", "linkedin_url"];
     const rows = [
-      ["2022/12345", "John Doe", "john.doe@example.com", "2", "Member"],
-      ["2023/54321", "Jane Smith", "jane.smith@example.com", "1", "Committee Member"]
+      ["2022/12345", "John Doe", "john.doe@example.com", "2", "Member", "+94771234567", "https://example.com/john.jpg", "https://linkedin.com/in/johndoe"],
+      ["2023/54321", "Jane Smith", "jane.smith@example.com", "1", "Committee Member", "+94777654321", "https://example.com/jane.jpg", "https://linkedin.com/in/janesmith"]
     ];
     const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -191,6 +211,9 @@ export default function Members({ isAdmin = false }) {
         const email = mapping.email !== -1 ? row[mapping.email]?.trim() : "";
         const levelRaw = mapping.level !== -1 ? row[mapping.level]?.trim() : "";
         const st_position = mapping.st_position !== -1 ? row[mapping.st_position]?.trim() : "";
+        const mobile_number = mapping.mobile_number !== -1 ? row[mapping.mobile_number]?.trim() : "";
+        const profile_image_url = mapping.profile_image_url !== -1 ? row[mapping.profile_image_url]?.trim() : "";
+        const linkedin_url = mapping.linkedin_url !== -1 ? row[mapping.linkedin_url]?.trim() : "";
         
         let rowValid = true;
         if (!st_id) {
@@ -218,7 +241,10 @@ export default function Members({ isAdmin = false }) {
           name: name || "",
           email: email || null,
           level: level,
-          st_position: st_position || null
+          st_position: st_position || null,
+          mobile_number: mobile_number || null,
+          profile_image_url: profile_image_url || null,
+          linkedin_url: linkedin_url || null
         };
         
         if (rowValid) {
@@ -338,7 +364,10 @@ export default function Members({ isAdmin = false }) {
       name: form.name.trim(), 
       email: form.email.trim() || null,
       level: form.level ? parseInt(form.level) : null, 
-      st_position: form.st_position.trim() || null 
+      st_position: form.st_position.trim() || null,
+      mobile_number: form.mobile_number.trim() || null,
+      profile_image_url: form.profile_image_url.trim() || null,
+      linkedin_url: form.linkedin_url.trim() || null
     };
     let error;
     if (editTarget) {
@@ -477,6 +506,22 @@ export default function Members({ isAdmin = false }) {
                 <input placeholder="e.g. President, Secretary..." value={form.st_position} onChange={e => setForm({...form, st_position: e.target.value})} />
               </div>
             </div>
+            <div className="form-row form-row-2">
+              <div className="form-group">
+                <label>Mobile Number</label>
+                <input placeholder="e.g. +94771234567" value={form.mobile_number} onChange={e => setForm({...form, mobile_number: e.target.value})} />
+              </div>
+              <div className="form-group">
+                <label>LinkedIn Profile URL</label>
+                <input placeholder="e.g. https://linkedin.com/in/..." value={form.linkedin_url} onChange={e => setForm({...form, linkedin_url: e.target.value})} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Profile Image URL</label>
+                <input placeholder="e.g. https://example.com/avatar.jpg" value={form.profile_image_url} onChange={e => setForm({...form, profile_image_url: e.target.value})} />
+              </div>
+            </div>
 
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
@@ -591,6 +636,36 @@ export default function Members({ isAdmin = false }) {
                       )}
                     </strong>
                   </div>
+                  <div className="csv-mapping-item">
+                    <span>Mobile Number</span>
+                    <strong>
+                      {parsedData.mapping.mobile_number !== -1 ? (
+                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.mobile_number]}</span>
+                      ) : (
+                        <span className="badge badge-gray">Not Mapped</span>
+                      )}
+                    </strong>
+                  </div>
+                  <div className="csv-mapping-item">
+                    <span>LinkedIn URL</span>
+                    <strong>
+                      {parsedData.mapping.linkedin_url !== -1 ? (
+                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.linkedin_url]}</span>
+                      ) : (
+                        <span className="badge badge-gray">Not Mapped</span>
+                      )}
+                    </strong>
+                  </div>
+                  <div className="csv-mapping-item">
+                    <span>Photo URL</span>
+                    <strong>
+                      {parsedData.mapping.profile_image_url !== -1 ? (
+                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.profile_image_url]}</span>
+                      ) : (
+                        <span className="badge badge-gray">Not Mapped</span>
+                      )}
+                    </strong>
+                  </div>
                 </div>
 
                 {(parsedData.mapping.st_id === -1 || parsedData.mapping.name === -1) ? (
@@ -638,6 +713,9 @@ export default function Members({ isAdmin = false }) {
                           <th>Email</th>
                           <th>Level</th>
                           <th>Position</th>
+                          <th>Mobile</th>
+                          <th>LinkedIn</th>
+                          <th>Photo URL</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -647,6 +725,9 @@ export default function Members({ isAdmin = false }) {
                           const email = parsedData.mapping.email !== -1 ? row[parsedData.mapping.email] : "";
                           const level = parsedData.mapping.level !== -1 ? row[parsedData.mapping.level] : "";
                           const position = parsedData.mapping.st_position !== -1 ? row[parsedData.mapping.st_position] : "";
+                          const mobile = parsedData.mapping.mobile_number !== -1 ? row[parsedData.mapping.mobile_number] : "";
+                          const linkedin = parsedData.mapping.linkedin_url !== -1 ? row[parsedData.mapping.linkedin_url] : "";
+                          const photo = parsedData.mapping.profile_image_url !== -1 ? row[parsedData.mapping.profile_image_url] : "";
                           return (
                             <tr key={idx}>
                               <td className="mono">{st_id || <span className="text-red">Missing</span>}</td>
@@ -654,6 +735,9 @@ export default function Members({ isAdmin = false }) {
                               <td>{email || "-"}</td>
                               <td>{level || "-"}</td>
                               <td>{position || "-"}</td>
+                              <td>{mobile || "-"}</td>
+                              <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={linkedin}>{linkedin || "-"}</td>
+                              <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={photo}>{photo || "-"}</td>
                             </tr>
                           );
                         })}
@@ -702,7 +786,7 @@ export default function Members({ isAdmin = false }) {
                   />
                   <div className="csv-dropzone-icon">📥</div>
                   <div className="csv-dropzone-text">Drag & drop your CSV file here, or click to browse</div>
-                  <div className="csv-dropzone-sub">Supported columns: st_id, name, level, st_position</div>
+                  <div className="csv-dropzone-sub">Supported columns: st_id, name, email, level, st_position, mobile_number, profile_image_url, linkedin_url</div>
                 </div>
 
                 <div className="flex justify-between items-center" style={{ marginTop: "16px" }}>

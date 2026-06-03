@@ -79,22 +79,77 @@ export default function StudentProfileModal({ stId, onClose }) {
           <button className="modal-close" onClick={onClose}>x</button>
         </div>
         
-        <div className="form-row form-row-2" style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px", marginBottom: "16px" }}>
-          <div>
-            <label>Full Name</label>
-            <div style={{ fontSize: "18px", fontWeight: "700", marginTop: "4px" }}>{profileTarget.name}</div>
-            {profileTarget.st_position && (
-              <span className="badge badge-purple" style={{ marginTop: "6px" }}>{profileTarget.st_position}</span>
+        <div style={{ display: "flex", gap: "20px", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "20px", marginBottom: "20px" }}>
+          <div style={{ flexShrink: 0 }}>
+            {profileTarget.profile_image_url ? (
+              <img 
+                src={profileTarget.profile_image_url} 
+                alt={profileTarget.name} 
+                style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profileTarget.name);
+                }}
+              />
+            ) : (
+              <div style={{ width: "90px", height: "90px", borderRadius: "50%", background: "var(--bg3)", border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "var(--text3)" }}>
+                👤
+              </div>
             )}
           </div>
-          <div style={{ textAlign: "right" }}>
-            <label>Student ID</label>
-            <div className="mono" style={{ fontSize: "15px", marginTop: "4px", color: "var(--text)" }}>{profileTarget.st_id}</div>
-            <div style={{ marginTop: "6px" }}>
-              {profileTarget.level ? (
-                <span className="badge badge-gray">Year {profileTarget.level}</span>
+          
+          <div style={{ flex: 1, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+            <div>
+              <label>Full Name</label>
+              <div style={{ fontSize: "20px", fontWeight: "800", marginTop: "4px", color: "var(--text)" }}>{profileTarget.name}</div>
+              {profileTarget.st_position && (
+                <span className="badge badge-purple" style={{ marginTop: "6px" }}>{profileTarget.st_position}</span>
+              )}
+            </div>
+            <div style={{ textAlign: "right", minWidth: "120px" }}>
+              <label>Student ID</label>
+              <div className="mono" style={{ fontSize: "15px", marginTop: "4px", color: "var(--text)" }}>{profileTarget.st_id}</div>
+              <div style={{ marginTop: "6px" }}>
+                {profileTarget.level ? (
+                  <span className="badge badge-gray">Year {profileTarget.level}</span>
+                ) : (
+                  <span className="text-muted">-</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-row form-row-3" style={{ background: "var(--bg3)", padding: "12px 16px", borderRadius: "var(--r)", marginBottom: "20px", border: "1px solid var(--border)" }}>
+          <div className="form-group">
+            <label>📧 Email Address</label>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+              {profileTarget.email ? (
+                <a href={`mailto:${profileTarget.email}`} style={{ color: "var(--accent2)", textDecoration: "none" }}>{profileTarget.email}</a>
               ) : (
-                <span className="text-muted">-</span>
+                <span className="text-muted">Not provided</span>
+              )}
+            </div>
+          </div>
+          <div className="form-group">
+            <label>📞 Mobile Number</label>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+              {profileTarget.mobile_number ? (
+                <a href={`tel:${profileTarget.mobile_number}`} style={{ color: "var(--text)", textDecoration: "none" }}>{profileTarget.mobile_number}</a>
+              ) : (
+                <span className="text-muted">Not provided</span>
+              )}
+            </div>
+          </div>
+          <div className="form-group">
+            <label>🔗 LinkedIn Profile</label>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+              {profileTarget.linkedin_url ? (
+                <a href={profileTarget.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  View LinkedIn ↗
+                </a>
+              ) : (
+                <span className="text-muted">Not provided</span>
               )}
             </div>
           </div>

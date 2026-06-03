@@ -3,6 +3,9 @@
 
 -- Add email column to members table if not exists
 alter table members add column if not exists email varchar(255) unique;
+alter table members add column if not exists mobile_number varchar(50);
+alter table members add column if not exists profile_image_url text;
+alter table members add column if not exists linkedin_url text;
 
 -- Add application date range to events
 alter table events add column if not exists apply_start_date date;
@@ -230,6 +233,11 @@ drop policy if exists "staff update members" on members;
 create policy "staff update members" on members for update to authenticated using (public.is_staff()) with check (public.is_staff());
 drop policy if exists "staff delete members" on members;
 create policy "staff delete members" on members for delete to authenticated using (public.is_staff());
+
+drop policy if exists "members update own" on members;
+create policy "members update own" on members for update to authenticated
+using (st_id = (select st_id from profiles where id = auth.uid()))
+with check (st_id = (select st_id from profiles where id = auth.uid()));
 
 drop policy if exists "public read functions" on functions;
 create policy "public read functions" on functions for select using (true);

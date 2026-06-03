@@ -4,16 +4,24 @@ const SQL = `-- Run this in Supabase SQL Editor (supabase.com â†’ your project â
 
 -- 1. Members
 CREATE TABLE IF NOT EXISTS members (
-  st_id       VARCHAR(50) PRIMARY KEY,
-  name        VARCHAR(255) NOT NULL,
-  email       VARCHAR(255) UNIQUE,
-  level       INT,
-  st_position VARCHAR(100)
+  st_id             VARCHAR(50) PRIMARY KEY,
+  name              VARCHAR(255) NOT NULL,
+  email             VARCHAR(255) UNIQUE,
+  level             INT,
+  st_position       VARCHAR(100),
+  mobile_number     VARCHAR(50),
+  profile_image_url TEXT,
+  linkedin_url      TEXT
 );
 
 -- If your members table already exists, run this once:
 ALTER TABLE members
 ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+
+ALTER TABLE members
+ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50),
+ADD COLUMN IF NOT EXISTS profile_image_url TEXT,
+ADD COLUMN IF NOT EXISTS linkedin_url TEXT;
 
 
 -- 2. Functions (departments / sub-teams)
@@ -60,6 +68,7 @@ DROP COLUMN IF EXISTS role_id;
 DO $$
 DECLARE
   pk_name text;
+  con_exists boolean;
 BEGIN
   SELECT conname INTO pk_name
   FROM pg_constraint
@@ -103,7 +112,14 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 -- Seed some default roles
 INSERT INTO roles (role_name) VALUES ('Admin'), ('Editor'), ('Member')
-ON CONFLICT DO NOTHING;`;
+ON CONFLICT DO NOTHING;
+
+-- 8. Allow members to update their own contact details
+ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "members update own" ON members;
+CREATE POLICY "members update own" ON members FOR UPDATE TO authenticated
+USING (st_id = (SELECT st_id FROM profiles WHERE id = auth.uid()))
+WITH CHECK (st_id = (SELECT st_id FROM profiles WHERE id = auth.uid()));`;
 
 const ENV = `VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`;
