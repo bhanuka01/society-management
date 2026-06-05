@@ -11,6 +11,7 @@ import Access from "./pages/Access";
 import MyInfo from "./pages/MyInfo";
 import Messages from "./pages/Messages";
 import Tasks from "./pages/Tasks";
+import Landing from "./pages/Landing";
 import "./App.css";
 
 const NAV_ITEMS = [
@@ -230,6 +231,94 @@ export default function App() {
     setSession({ role: "guest", stId: "", name: "", email: "", userId: "" });
     setPage("about");
   };
+
+  if (session.role === "guest") {
+    return (
+      <>
+        <Landing
+          onLoginClick={() => {
+            setAuthMode("login");
+            setShowLogin(true);
+            setLoginError("");
+          }}
+          onRegisterClick={() => {
+            setAuthMode("register");
+            setShowLogin(true);
+            setLoginError("");
+          }}
+        />
+        {showLogin && (
+          <div className="modal-overlay" onClick={() => setShowLogin(false)}>
+            <div className="modal" style={{ maxWidth: "450px" }} onClick={(e) => e.stopPropagation()}>
+              <form className="login-card" onSubmit={handleLogin} style={{ padding: 0, border: "none", background: "none" }}>
+                <div className="page-header">
+                  <h1 className="page-title">{authMode === "login" ? "Login" : "Register"}</h1>
+                  <p className="page-subtitle">{authMode === "login" ? "Email access for members, editors, and admins" : "Member or staff registration"}</p>
+                </div>
+                {loginError && <div className="alert alert-error">{loginError}</div>}
+                <div className="auth-tabs">
+                  <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
+                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ ...login, role: "member", email: "", password: "", name: "" }); setLoginError(""); }}>Register</button>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Role</label>
+                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "" })}>
+                      <option value="member">Member</option>
+                      <option value="editor">Editor</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                {authMode === "register" && (
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Full Name</label>
+                      <input
+                        placeholder="Your full name"
+                        value={login.name}
+                        onChange={e => setLogin({ ...login, name: e.target.value })}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                )}
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        placeholder="e.g. member@domain.com"
+                        value={login.email}
+                        onChange={e => setLogin({ ...login, email: e.target.value })}
+                        autoFocus={authMode === "login"}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Password</label>
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={login.password}
+                        onChange={e => setLogin({ ...login, password: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </>
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowLogin(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={authSaving}>{authSaving ? "Please wait..." : authMode === "login" ? "Login" : "Register"}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="app-shell">

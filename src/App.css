@@ -372,7 +372,16 @@ tbody tr:hover td { background: var(--surface2); }
 .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 label { font-size: 11px; font-family: var(--mono); color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; }
-input, select, textarea {
+input,
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='search'],
+input[type='tel'],
+input[type='url'],
+select,
+textarea {
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: var(--r);
@@ -383,7 +392,16 @@ input, select, textarea {
   outline: none;
   transition: border-color 0.15s;
 }
-input:focus, select:focus, textarea:focus {
+input:focus,
+input[type='text']:focus,
+input[type='email']:focus,
+input[type='password']:focus,
+input[type='number']:focus,
+input[type='search']:focus,
+input[type='tel']:focus,
+input[type='url']:focus,
+select:focus,
+textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
 }
