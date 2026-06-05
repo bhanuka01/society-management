@@ -392,6 +392,48 @@ textarea {
   outline: none;
   transition: border-color 0.15s;
 }
+
+/* Tailwind Play/forms can inject production styles after Vite's CSS bundle. */
+.form-group input,
+.form-group select,
+.form-group textarea,
+.login-card input,
+.login-card select,
+.login-card textarea,
+.modal input,
+.modal select,
+.modal textarea {
+  appearance: auto;
+  background-color: var(--bg3) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  color-scheme: dark;
+}
+
+.form-group input::placeholder,
+.login-card input::placeholder,
+.modal input::placeholder,
+.form-group textarea::placeholder,
+.login-card textarea::placeholder,
+.modal textarea::placeholder {
+  color: var(--text3) !important;
+  opacity: 1;
+}
+
+.form-group select option,
+.login-card select option,
+.modal select option {
+  background: var(--bg2);
+  color: var(--text);
+}
+
+.form-group input:-webkit-autofill,
+.login-card input:-webkit-autofill,
+.modal input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  box-shadow: 0 0 0 1000px var(--bg3) inset;
+  caret-color: var(--text);
+}
 input:focus,
 input[type='text']:focus,
 input[type='email']:focus,
