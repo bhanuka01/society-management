@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export default function Landing({ onLoginClick, onRegisterClick }) {
+export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, onRegisterClick }) {
   const glowRef = useRef(null);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function Landing({ onLoginClick, onRegisterClick }) {
   };
 
   return (
-    <div className="bg-[#0B0A11] text-white min-h-screen font-body-md overflow-x-hidden selection:bg-primary-container selection:text-white">
+    <div className={`landing-page ${theme === "light" ? "landing-light" : ""} bg-[#0B0A11] text-white min-h-screen font-body-md overflow-x-hidden selection:bg-primary-container selection:text-white`}>
       <style>{`
         .glass-card {
           background: rgba(24, 23, 34, 0.6);
@@ -95,12 +95,25 @@ export default function Landing({ onLoginClick, onRegisterClick }) {
             Contact
           </button>
         </div>
-        <button
-          onClick={onLoginClick}
-          className="bg-[#ff6b00] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#ff8a00] active:scale-95 transition-all shadow-[0_0_15px_rgba(255,107,0,0.2)]"
-        >
-          Join Society
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="theme-switch landing-theme-switch"
+            onClick={onThemeToggle}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            <span className="theme-switch-track">
+              <span className="theme-switch-thumb">{theme === "dark" ? "D" : "L"}</span>
+            </span>
+            <span>{theme === "dark" ? "Dark" : "Light"}</span>
+          </button>
+          <button
+            onClick={onLoginClick}
+            className="bg-[#ff6b00] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#ff8a00] active:scale-95 transition-all shadow-[0_0_15px_rgba(255,107,0,0.2)]"
+          >
+            Join Society
+          </button>
+        </div>
       </nav>
 
       {/* Hero Section */}

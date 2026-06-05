@@ -18,6 +18,7 @@
   --text: #e8e8f0;
   --text2: #9090a8;
   --text3: #606075;
+  --color-scheme: dark;
   --mono: 'Inter', sans-serif;
   --sans: 'Inter', sans-serif;
   --r: 8px;
@@ -26,11 +27,33 @@
   --sidebar-collapsed: 60px;
 }
 
+[data-theme='light'] {
+  --bg: #f5f6fb;
+  --bg2: #ffffff;
+  --bg3: #eef1f7;
+  --surface: #ffffff;
+  --surface2: #f0f3f9;
+  --border: #d9deea;
+  --border2: #c7cedd;
+  --accent: #5b4be8;
+  --accent2: #3f33b8;
+  --accent-dim: rgba(91, 75, 232, 0.12);
+  --gold: #b88300;
+  --green: #168847;
+  --red: #c43838;
+  --amber: #b35d05;
+  --text: #171923;
+  --text2: #51576a;
+  --text3: #747b91;
+  --color-scheme: light;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   background: var(--bg);
   color: var(--text);
+  color-scheme: var(--color-scheme);
   font-family: var(--sans);
   font-size: 14px;
   line-height: 1.6;
@@ -167,6 +190,58 @@ body {
   font-size: 10px;
   font-family: var(--mono);
   color: var(--text3);
+}
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  margin-top: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--text2);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.theme-switch:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+.theme-switch-track {
+  width: 34px;
+  height: 18px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-shrink: 0;
+}
+.theme-switch-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  line-height: 1;
+  transition: transform 0.15s, background 0.15s;
+}
+[data-theme='light'] .theme-switch-thumb {
+  transform: translateX(16px);
 }
 
 /* ── MAIN ── */
@@ -380,6 +455,11 @@ input[type='number'],
 input[type='search'],
 input[type='tel'],
 input[type='url'],
+input[type='date'],
+input[type='datetime-local'],
+input[type='month'],
+input[type='time'],
+input[type='week'],
 select,
 textarea {
   background: var(--bg3);
@@ -393,7 +473,42 @@ textarea {
   transition: border-color 0.15s;
 }
 
-/* Tailwind Play/forms can inject production styles after Vite's CSS bundle. */
+/* Keep production/runtime reset styles from washing form controls back to white. */
+.app-shell input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.app-shell select,
+.app-shell textarea,
+.modal-overlay input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.modal-overlay select,
+.modal-overlay textarea {
+  background-color: var(--bg3) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r) !important;
+  color: var(--text) !important;
+  color-scheme: var(--color-scheme);
+  font-family: var(--sans) !important;
+  font-size: 13px !important;
+  min-height: 38px;
+  padding: 9px 12px !important;
+}
+
+.app-shell textarea,
+.modal-overlay textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.app-shell input:disabled,
+.app-shell select:disabled,
+.app-shell textarea:disabled,
+.modal-overlay input:disabled,
+.modal-overlay select:disabled,
+.modal-overlay textarea:disabled {
+  background-color: var(--surface) !important;
+  color: var(--text3) !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .form-group input,
 .form-group select,
 .form-group textarea,
@@ -407,7 +522,7 @@ textarea {
   background-color: var(--bg3) !important;
   border-color: var(--border) !important;
   color: var(--text) !important;
-  color-scheme: dark;
+  color-scheme: var(--color-scheme);
 }
 
 .form-group input::placeholder,
@@ -518,7 +633,7 @@ select option { background: var(--bg2); }
   flex: 1;
   min-width: 180px;
 }
-.search-input-wrap input { width: 100%; padding-left: 32px; }
+.search-input-wrap input { width: 100%; padding-left: 32px !important; }
 .search-icon {
   position: absolute;
   left: 10px;
@@ -699,6 +814,14 @@ select option { background: var(--bg2); }
     margin-top: 0;
     min-height: 30px;
     padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .sidebar-footer .theme-switch {
+    width: auto;
+    min-height: 30px;
+    margin: 0 0 6px;
+    padding: 6px 10px;
     font-size: 12px;
   }
 
@@ -924,6 +1047,70 @@ select option { background: var(--bg2); }
   border: 1px solid var(--border);
   border-radius: var(--r2);
   padding: 28px;
+}
+
+.landing-theme-switch {
+  width: auto;
+  min-width: 92px;
+  margin-top: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: white;
+}
+
+.landing-page.landing-light {
+  background: #f7f8fc !important;
+  color: #171923 !important;
+}
+.landing-page.landing-light nav,
+.landing-page.landing-light footer,
+.landing-page.landing-light section {
+  background-color: #f7f8fc !important;
+  border-color: rgba(20, 28, 45, 0.1) !important;
+}
+.landing-page.landing-light .hero-glow {
+  background: radial-gradient(circle at 50% 100%, rgba(255, 107, 0, 0.12) 0%, transparent 60%) !important;
+}
+.landing-page.landing-light .glass-card,
+.landing-page.landing-light #cta > div > div {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(20, 28, 45, 0.1) !important;
+  box-shadow: 0 18px 40px rgba(20, 28, 45, 0.08);
+}
+.landing-page.landing-light h1,
+.landing-page.landing-light h2,
+.landing-page.landing-light h3,
+.landing-page.landing-light h4,
+.landing-page.landing-light .text-white,
+.landing-page.landing-light .text-on-surface {
+  color: #171923 !important;
+}
+.landing-page.landing-light p,
+.landing-page.landing-light .text-\[\#94A3B8\],
+.landing-page.landing-light .text-text-secondary,
+.landing-page.landing-light footer a,
+.landing-page.landing-light footer button {
+  color: #596173 !important;
+}
+.landing-page.landing-light .bg-white\/5,
+.landing-page.landing-light .bg-white\/10 {
+  background-color: rgba(20, 28, 45, 0.08) !important;
+}
+.landing-page.landing-light .border-white\/5,
+.landing-page.landing-light .border-white\/10,
+.landing-page.landing-light .border-white\/20 {
+  border-color: rgba(20, 28, 45, 0.12) !important;
+}
+.landing-page.landing-light .landing-theme-switch {
+  background: #ffffff;
+  border-color: #d9deea;
+  color: #171923;
+}
+.landing-page.landing-light .bg-white {
+  background: #171923 !important;
+}
+.landing-page.landing-light .text-black {
+  color: #ffffff !important;
 }
 
 /* ── CSV BULK IMPORT ── */

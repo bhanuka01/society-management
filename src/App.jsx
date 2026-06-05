@@ -39,6 +39,7 @@ const ROLE_LABELS = {
 const canEdit = (role) => role === "admin" || role === "editor";
 
 export default function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const [page, setPage] = useState("about");
   const [connected, setConnected] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -49,6 +50,12 @@ export default function App() {
   const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "" });
   const [loginError, setLoginError] = useState("");
   const [authSaving, setAuthSaving] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     supabase.from("members").select("count", { count: "exact", head: true })
@@ -232,10 +239,14 @@ export default function App() {
     setPage("about");
   };
 
+  const toggleTheme = () => setTheme(current => current === "dark" ? "light" : "dark");
+
   if (session.role === "guest") {
     return (
       <>
         <Landing
+          theme={theme}
+          onThemeToggle={toggleTheme}
           onLoginClick={() => {
             setAuthMode("login");
             setShowLogin(true);
@@ -357,6 +368,17 @@ export default function App() {
         {sidebarOpen && (
           <div className="sidebar-footer">
             <p>{authLoading ? "Checking access..." : session.role === "guest" ? "Members can watch only" : `${ROLE_LABELS[session.role]} mode${session.name ? `: ${session.name}` : ""}`}</p>
+            <button
+              type="button"
+              className="theme-switch"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              <span className="theme-switch-track">
+                <span className="theme-switch-thumb">{theme === "dark" ? "D" : "L"}</span>
+              </span>
+              <span>{theme === "dark" ? "Dark" : "Light"}</span>
+            </button>
             <button
               className={`btn ${session.role !== "guest" ? "btn-ghost" : "btn-primary"} auth-btn`}
               onClick={session.role !== "guest" ? handleLogout : () => setShowLogin(true)}
