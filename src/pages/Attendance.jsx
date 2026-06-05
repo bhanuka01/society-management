@@ -195,106 +195,102 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
         </div>
       )}
 
-      {events.length === 0 ? (
-        <div className="card"><div className="empty-state"><div className="icon">*</div><p>Create an event first, then seed attendance.</p></div></div>
-      ) : (
-        <>
-          <div className="card mb-3" style={{ marginBottom: 16 }}>
-            <div className="card-header">
-              <span className="card-title">Event Attendance</span>
-              {selectedEventInfo && <span className="badge badge-gray">{selectedEventInfo.date}</span>}
-            </div>
-            <div className="flex gap-2" style={{ flexWrap: "wrap", alignItems: "center" }}>
-              <select value={selectedEvent} onChange={e => { setPage(0); setSelectedEvent(e.target.value); }} style={{ flex: 1, minWidth: 200 }}>
-                {events.map(e => (
-                  <option key={e.event_id} value={e.event_id}>{e.name} - {e.date} ({e.event_id})</option>
-                ))}
-              </select>
-              {isAdmin && <button className="btn btn-ghost btn-sm" onClick={addMemberToEvent}>+ Add Member</button>}
-            </div>
-          </div>
-
-          {total > 0 && (
-            <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>
-              <div className="stat-card green">
-                <div className="stat-label">Present</div>
-                <div className="stat-value">{yesCount}</div>
-                <div className="stat-sub">marked YES</div>
+      {session.role !== "member" && (
+        events.length === 0 ? (
+          <div className="card"><div className="empty-state"><div className="icon">*</div><p>Create an event first, then seed attendance.</p></div></div>
+        ) : (
+          <>
+            <div className="card mb-3" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Event Attendance</span>
+                {selectedEventInfo && <span className="badge badge-gray">{selectedEventInfo.date}</span>}
               </div>
-              <div className="stat-card red">
-                <div className="stat-label">Absent</div>
-                <div className="stat-value">{noCount}</div>
-                <div className="stat-sub">marked NO</div>
-              </div>
-              <div className="stat-card gold">
-                <div className="stat-label">Attendance Rate</div>
-                <div className="stat-value">{pct}%</div>
-                <div className="stat-sub">of {total} members</div>
-              </div>
-            </div>
-          )}
-
-          {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
-
-          <div className="toolbar">
-            {session.role === "member" && (
-              <select value={viewMode} onChange={e => setViewMode(e.target.value)} style={{ width: 150 }}>
-                <option value="all">All Members</option>
-                <option value="mine">Only Me</option>
-              </select>
-            )}
-            <div className="search-input-wrap">
-              <span className="search-icon">?</span>
-              <input placeholder="Search by ID or status..." value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} />
-            </div>
-            {isAdmin && (
-              <>
-                <button className="btn btn-success btn-sm" onClick={() => markAll("YES")} disabled={saving._all}>All Present</button>
-                <button className="btn btn-danger btn-sm" onClick={() => markAll("NO")} disabled={saving._all}>All Absent</button>
-              </>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="loader"><div className="spinner" /></div>
-          ) : total === 0 ? (
-            <div className="card"><div className="empty-state"><div className="icon">*</div><p>No attendance records. Use "Seed Att." on the Events page first.</p></div></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>ST ID</th><th>Name</th><th>Level</th><th>Status</th>{isAdmin && <th>Toggle</th>}</tr>
-                </thead>
-                <tbody>
-                  {visibleAttendance.map(a => (
-                    <tr key={a.st_id}>
-                      <td className="mono">{a.st_id}</td>
-                      <td><strong>{a.members?.name || "-"}</strong></td>
-                      <td>{a.members?.level ? <span className="badge badge-purple">Y{a.members.level}</span> : "-"}</td>
-                      <td>
-                        <span className={`badge ${a.attend === "YES" ? "badge-green" : "badge-red"}`}>
-                          {a.attend}
-                        </span>
-                      </td>
-                      {isAdmin && (
-                        <td>
-                          <button
-                            className={`btn btn-sm ${a.attend === "YES" ? "btn-danger" : "btn-success"}`}
-                            onClick={() => toggle(a.st_id, a.attend)}
-                            disabled={saving[a.st_id]}
-                          >
-                            {saving[a.st_id] ? "..." : a.attend === "YES" ? "Mark Absent" : "Mark Present"}
-                          </button>
-                        </td>
-                      )}
-                    </tr>
+              <div className="flex gap-2" style={{ flexWrap: "wrap", alignItems: "center" }}>
+                <select value={selectedEvent} onChange={e => { setPage(0); setSelectedEvent(e.target.value); }} style={{ flex: 1, minWidth: 200 }}>
+                  {events.map(e => (
+                    <option key={e.event_id} value={e.event_id}>{e.name} - {e.date} ({e.event_id})</option>
                   ))}
-                </tbody>
-              </table>
-              <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
+                </select>
+                {isAdmin && <button className="btn btn-ghost btn-sm" onClick={addMemberToEvent}>+ Add Member</button>}
+              </div>
             </div>
-          )}
-        </>
+
+            {total > 0 && (
+              <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>
+                <div className="stat-card green">
+                  <div className="stat-label">Present</div>
+                  <div className="stat-value">{yesCount}</div>
+                  <div className="stat-sub">marked YES</div>
+                </div>
+                <div className="stat-card red">
+                  <div className="stat-label">Absent</div>
+                  <div className="stat-value">{noCount}</div>
+                  <div className="stat-sub">marked NO</div>
+                </div>
+                <div className="stat-card gold">
+                  <div className="stat-label">Attendance Rate</div>
+                  <div className="stat-value">{pct}%</div>
+                  <div className="stat-sub">of {total} members</div>
+                </div>
+              </div>
+            )}
+
+            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+
+            <div className="toolbar">
+              <div className="search-input-wrap">
+                <span className="search-icon">?</span>
+                <input placeholder="Search by ID or status..." value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} />
+              </div>
+              {isAdmin && (
+                <>
+                  <button className="btn btn-success btn-sm" onClick={() => markAll("YES")} disabled={saving._all}>All Present</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => markAll("NO")} disabled={saving._all}>All Absent</button>
+                </>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="loader"><div className="spinner" /></div>
+            ) : total === 0 ? (
+              <div className="card"><div className="empty-state"><div className="icon">*</div><p>No attendance records. Use "Seed Att." on the Events page first.</p></div></div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>ST ID</th><th>Name</th><th>Level</th><th>Status</th>{isAdmin && <th>Toggle</th>}</tr>
+                  </thead>
+                  <tbody>
+                    {visibleAttendance.map(a => (
+                      <tr key={a.st_id}>
+                        <td className="mono">{a.st_id}</td>
+                        <td><strong>{a.members?.name || "-"}</strong></td>
+                        <td>{a.members?.level ? <span className="badge badge-purple">Y{a.members.level}</span> : "-"}</td>
+                        <td>
+                          <span className={`badge ${a.attend === "YES" ? "badge-green" : "badge-red"}`}>
+                            {a.attend}
+                          </span>
+                        </td>
+                        {isAdmin && (
+                          <td>
+                            <button
+                              className={`btn btn-sm ${a.attend === "YES" ? "btn-danger" : "btn-success"}`}
+                              onClick={() => toggle(a.st_id, a.attend)}
+                              disabled={saving[a.st_id]}
+                            >
+                              {saving[a.st_id] ? "..." : a.attend === "YES" ? "Mark Absent" : "Mark Present"}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
+              </div>
+            )}
+          </>
+        )
       )}
     </div>
   );
