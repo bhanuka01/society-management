@@ -90,8 +90,12 @@ CREATE TABLE IF NOT EXISTS members (
   st_id       VARCHAR(50) PRIMARY KEY,
   name        VARCHAR(255) NOT NULL,
   level       INT,
-  st_position VARCHAR(100)
+  st_position VARCHAR(100),
+  member_function VARCHAR(100)
 );
+
+ALTER TABLE members
+ADD COLUMN IF NOT EXISTS member_function VARCHAR(100);
 
 -- 2. Functions / departments / sub-teams
 CREATE TABLE IF NOT EXISTS functions (

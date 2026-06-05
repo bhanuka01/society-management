@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS members (
   email             VARCHAR(255) UNIQUE,
   level             INT,
   st_position       VARCHAR(100),
+  member_function   VARCHAR(100),
   mobile_number     VARCHAR(50),
   profile_image_url TEXT,
   linkedin_url      TEXT
@@ -17,6 +18,9 @@ CREATE TABLE IF NOT EXISTS members (
 -- If your members table already exists, run this once:
 ALTER TABLE members
 ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+
+ALTER TABLE members
+ADD COLUMN IF NOT EXISTS member_function VARCHAR(100);
 
 ALTER TABLE members
 ADD COLUMN IF NOT EXISTS mobile_number VARCHAR(50),

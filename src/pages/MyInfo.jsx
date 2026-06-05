@@ -185,6 +185,12 @@ export default function MyInfo({ session }) {
                   {profile.st_position || "Regular Member"}
                 </div>
               </div>
+              <div className="form-group">
+                <label>Member Function</label>
+                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, color: "var(--text2)" }}>
+                  {profile.member_function || "Not assigned"}
+                </div>
+              </div>
             </div>
           </div>
         </div>

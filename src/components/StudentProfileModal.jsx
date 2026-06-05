@@ -105,6 +105,9 @@ export default function StudentProfileModal({ stId, onClose }) {
               {profileTarget.st_position && (
                 <span className="badge badge-purple" style={{ marginTop: "6px" }}>{profileTarget.st_position}</span>
               )}
+              {profileTarget.member_function && (
+                <span className="badge badge-gray" style={{ marginTop: "6px", marginLeft: "6px" }}>{profileTarget.member_function}</span>
+              )}
             </div>
             <div style={{ textAlign: "right", minWidth: "120px" }}>
               <label>Student ID</label>
@@ -116,6 +119,15 @@ export default function StudentProfileModal({ stId, onClose }) {
                   <span className="text-muted">-</span>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-row" style={{ background: "var(--bg3)", padding: "12px 16px", borderRadius: "var(--r)", marginBottom: "12px", border: "1px solid var(--border)" }}>
+          <div className="form-group">
+            <label>Member Function</label>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+              {profileTarget.member_function || <span className="text-muted">Not assigned</span>}
             </div>
           </div>
         </div>

@@ -391,3 +391,5 @@ with check (
 alter publication supabase_realtime add table tasks;
 
 
+ALTER TABLE members
+ADD COLUMN IF NOT EXISTS member_function VARCHAR(100);
