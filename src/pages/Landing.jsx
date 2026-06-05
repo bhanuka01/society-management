@@ -8,7 +8,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
       if (glowRef.current) {
         const x = (e.clientX / window.innerWidth) * 100;
         const y = (e.clientY / window.innerHeight) * 100;
-        glowRef.current.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(255, 107, 0, 0.09) 0%, transparent 40%)`;
+        glowRef.current.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(0, 98, 255, 0.09) 0%, transparent 40%)`;
       }
     };
 
@@ -55,42 +55,42 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         }
         .glass-card:hover {
           transform: translateY(-6px) scale(1.01);
-          border-color: rgba(255, 107, 0, 0.25);
+          border-color: rgba(0, 98, 255, 0.25);
           box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
         }
         .hero-glow {
-          background: radial-gradient(circle at 50% 100%, rgba(255, 107, 0, 0.2) 0%, transparent 60%);
+          background: radial-gradient(circle at 50% 100%, rgba(0, 98, 255, 0.2) 0%, transparent 60%);
         }
       `}</style>
 
       {/* TopNavBar */}
       <nav className="fixed top-0 w-full z-50 flex justify-between items-center px-6 md:px-12 py-4 bg-[#14121a]/85 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-3">
-          <img alt="ADSS Logo" className="h-10 w-auto" src="/logo.png" />
+          <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
           <span className="font-headline-md text-2xl font-bold text-on-surface hidden md:block">ADSS Ruhuna</span>
         </div>
         <div className="hidden md:flex items-center gap-8">
           <button
             onClick={() => scrollToSection("features")}
-            className="font-body-md text-text-secondary hover:text-[#ffb693] transition-colors duration-300 cursor-pointer"
+            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
           >
             Events
           </button>
           <button
             onClick={() => scrollToSection("cta")}
-            className="font-body-md text-text-secondary hover:text-[#ffb693] transition-colors duration-300 cursor-pointer"
+            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
           >
             Membership
           </button>
           <button
             onClick={() => scrollToSection("features")}
-            className="font-body-md text-text-secondary hover:text-[#ffb693] transition-colors duration-300 cursor-pointer"
+            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
           >
             Insights
           </button>
           <button
             onClick={() => scrollToSection("footer")}
-            className="font-body-md text-text-secondary hover:text-[#ffb693] transition-colors duration-300 cursor-pointer"
+            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
           >
             Contact
           </button>
@@ -109,7 +109,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           </button>
           <button
             onClick={onLoginClick}
-            className="bg-[#ff6b00] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#ff8a00] active:scale-95 transition-all shadow-[0_0_15px_rgba(255,107,0,0.2)]"
+            className="bg-[#0062ff] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#0052d4] active:scale-95 transition-all shadow-[0_0_15px_rgba(0,98,255,0.2)]"
           >
             Join Society
           </button>
@@ -122,11 +122,11 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff22 1px, transparent 1px)", backgroundSize: "40px 40px" }}></div>
         <div className="container mx-auto px-6 relative z-10 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-8 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[#ff6b00] animate-pulse"></span>
+            <span className="w-2 h-2 rounded-full bg-[#0062ff] animate-pulse"></span>
             <span className="text-xs font-semibold uppercase tracking-widest text-[#94A3B8]">New Academic Session 2024/25</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight leading-tight">
-            Where Data Meets <br /><span className="text-[#ff6b00]">Decision-Making</span>
+            Where Data Meets <br /><span className="text-[#0062ff]">Decision-Making</span>
           </h1>
           <p className="text-lg md:text-xl text-[#94A3B8] max-w-2xl mx-auto mb-12 leading-relaxed">
             Explore how data-driven insights guide smarter business, financial, and risk-based decisions within the University of Ruhuna's premier tech society.
@@ -134,7 +134,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto sm:max-w-none">
             <button
               onClick={() => scrollToSection("features")}
-              className="w-full sm:w-auto px-8 py-4 bg-[#ff6b00] text-white rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(255,107,0,0.4)] transition-all"
+              className="w-full sm:w-auto px-8 py-4 bg-[#0062ff] text-white rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(0,98,255,0.4)] transition-all"
             >
               Explore Society <span className="material-symbols-outlined text-lg">arrow_forward</span>
             </button>
@@ -175,13 +175,13 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             {/* Large Card */}
             <div className="md:col-span-8 glass-card rounded-3xl p-10 flex flex-col justify-between group">
               <div>
-                <span className="material-symbols-outlined text-4xl text-[#ffb693] mb-6">event_available</span>
+                <span className="material-symbols-outlined text-4xl text-[#85b5ff] mb-6">event_available</span>
                 <h3 className="text-2xl md:text-3xl font-bold mb-4">Event Excellence</h3>
                 <p className="text-[#94A3B8] text-base">Seamless management and real-time attendance tracking for all society workshops and seminars.</p>
               </div>
               <div className="mt-12 flex gap-4">
-                <div className="h-12 w-full bg-white/5 rounded-lg border border-white/5 group-hover:border-[#ffb693]/30 transition-all"></div>
-                <div className="h-12 w-12 bg-[#ffb693]/20 rounded-lg flex items-center justify-center text-[#ffb693] flex-shrink-0">
+                <div className="h-12 w-full bg-white/5 rounded-lg border border-white/5 group-hover:border-[#85b5ff]/30 transition-all"></div>
+                <div className="h-12 w-12 bg-[#85b5ff]/20 rounded-lg flex items-center justify-center text-[#85b5ff] flex-shrink-0">
                   <span className="material-symbols-outlined">analytics</span>
                 </div>
               </div>
@@ -201,12 +201,12 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             </div>
             {/* Bottom Cards */}
             <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-[#FF8A00] mb-6">query_stats</span>
+              <span className="material-symbols-outlined text-4xl text-[#0062ff] mb-6">query_stats</span>
               <h3 className="text-2xl font-bold mb-4">Attendance Insights</h3>
               <p className="text-[#94A3B8] text-base">Data-driven analysis of member engagement and participation across all activities.</p>
             </div>
             <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-[#ffb693] mb-6">checklist_rtl</span>
+              <span className="material-symbols-outlined text-4xl text-[#85b5ff] mb-6">checklist_rtl</span>
               <h3 className="text-2xl font-bold mb-4">Task Orchestration</h3>
               <p className="text-[#94A3B8] text-base">Efficient coordination of society goals, board tasks, and academic projects.</p>
             </div>
@@ -219,7 +219,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div className="container mx-auto px-6 max-w-5xl">
           <div className="relative bg-[#181722] rounded-[48px] p-12 md:p-24 overflow-hidden text-center border border-white/5">
             {/* Background Decoration */}
-            <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-[#ffb693]/5 blur-[120px] rounded-full pointer-events-none"></div>
+            <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-[#85b5ff]/5 blur-[120px] rounded-full pointer-events-none"></div>
             <div className="absolute -bottom-1/2 -left-1/4 w-[600px] h-[600px] bg-[#00C2FF]/5 blur-[120px] rounded-full pointer-events-none"></div>
             <div className="relative z-10 max-w-3xl mx-auto">
               <h2 className="text-4xl md:text-6xl font-bold mb-8">Join the Future of Data Science</h2>
@@ -248,7 +248,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div className="w-full py-16 px-6 md:px-12 max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
           <div className="max-w-md">
             <div className="flex items-center gap-3 mb-6">
-              <img alt="ADSS Logo" className="h-10 w-auto" src="/logo.png" />
+              <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
               <span className="text-2xl font-bold text-white">ADSS Ruhuna</span>
             </div>
             <p className="text-[#94A3B8] text-base mb-8 leading-relaxed">Empowering the next generation of Actuaries and Data Scientists at the University of Ruhuna through education, research, and industry engagement.</p>

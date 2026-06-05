@@ -739,7 +739,7 @@ select option { background: var(--bg2); }
 .spinner {
   width: 28px; height: 28px;
   border: 2px solid var(--border);
-  border-top-color: var(--accent);
+  border-top-color: #0062ff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
