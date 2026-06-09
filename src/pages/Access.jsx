@@ -10,16 +10,22 @@ export default function Access({ role = "guest", session = {} }) {
   const [msg, setMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [regEnabled, setRegEnabled] = useState(true);
+  const [updatingReg, setUpdatingReg] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [inviteRes, profileRes] = await Promise.all([
+    const [inviteRes, profileRes, settingsRes] = await Promise.all([
       supabase.from("access_invites").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, email, full_name, role, created_at").in("role", ["admin", "editor"]).order("created_at", { ascending: false }),
+      supabase.from("system_settings").select("value").eq("key", "registration_enabled").maybeSingle()
     ]);
     if (inviteRes.error) setMsg({ type: "error", text: inviteRes.error.message });
     else setInvites(inviteRes.data || []);
     setProfiles(profileRes.data || []);
+    if (settingsRes.data) {
+      setRegEnabled(settingsRes.data.value === "true");
+    }
     setLoading(false);
   };
 
@@ -83,6 +89,24 @@ export default function Access({ role = "guest", session = {} }) {
   };
 
 
+  const toggleRegistration = async (checked) => {
+    setUpdatingReg(true);
+    setMsg(null);
+    const val = checked ? "true" : "false";
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert({ key: "registration_enabled", value: val }, { onConflict: "key" });
+
+    setUpdatingReg(false);
+    if (error) {
+      setMsg({ type: "error", text: "Failed to update registration setting: " + error.message });
+    } else {
+      setRegEnabled(checked);
+      setMsg({ type: "success", text: `General registration has been turned ${checked ? "ON" : "OFF"}.` });
+    }
+  };
+
+
   const revokeInvite = async (id) => {
     if (!confirm("Revoke this registration access?")) return;
     const { error } = await supabase.from("access_invites").delete().eq("id", id);
@@ -125,6 +149,52 @@ export default function Access({ role = "guest", session = {} }) {
       </div>
 
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+
+      <div className="card" style={{ marginBottom: 16, border: "1px solid rgba(0, 98, 255, 0.15)", background: "rgba(0, 98, 255, 0.03)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "12px" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>General Member Registration</h3>
+            <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text-secondary)" }}>
+              Enable or disable new user signups from the public landing page.
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "14px", fontWeight: "700", color: regEnabled ? "var(--green)" : "var(--text-secondary)" }}>
+              {regEnabled ? "Active (ON)" : "Disabled (OFF)"}
+            </span>
+            <label className="switch" style={{ position: "relative", display: "inline-block", width: "50px", height: "26px" }}>
+              <input 
+                type="checkbox" 
+                checked={regEnabled} 
+                disabled={updatingReg}
+                onChange={e => toggleRegistration(e.target.checked)}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span className="slider" style={{
+                position: "absolute",
+                cursor: "pointer",
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: regEnabled ? "#0062ff" : "#ccc",
+                transition: ".4s",
+                borderRadius: "34px",
+                border: "1px solid rgba(255,255,255,0.1)"
+              }}>
+                <span style={{
+                  position: "absolute",
+                  content: '""',
+                  height: "20px", width: "20px",
+                  left: regEnabled ? "26px" : "3px",
+                  bottom: "2px",
+                  backgroundColor: "white",
+                  transition: ".4s",
+                  borderRadius: "50%",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                }} />
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">

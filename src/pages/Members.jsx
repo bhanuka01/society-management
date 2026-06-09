@@ -3,7 +3,7 @@ import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import StudentProfileModal from "../components/StudentProfileModal";
 
-const EMPTY_FORM = { st_id: "", name: "", level: "", st_position: "", member_function: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "" };
+const EMPTY_FORM = { st_id: "", name: "", level: "", st_position: "", member_function: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "", role: "member" };
 
 function parseCSV(text) {
   const lines = [];
@@ -90,11 +90,53 @@ export default function Members({ isAdmin = false }) {
 
   // Member Profile State
   const [profileTarget, setProfileTarget] = useState(null);
+  const [editProfileTarget, setEditProfileTarget] = useState(null);
 
   const load = async (pageToLoad = page, searchText = search) => {
     setLoading(true);
     const from = pageToLoad * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
+
+    if (viewFilter === "pending") {
+      const { data, count, error } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, role, st_id, status, created_at, members(mobile_number, level)")
+        .in("status", ["pending", "rejected"])
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        alert("Error fetching pending registrations: " + error.message);
+        setMembers([]);
+        setTotal(0);
+      } else {
+        const mappedData = (data || []).map(p => ({
+          st_id: p.st_id,
+          name: p.full_name,
+          email: p.email,
+          role: p.role,
+          level: p.members?.level || 1,
+          mobile_number: p.members?.mobile_number || "",
+          profile_id: p.id,
+          status: p.status
+        }));
+
+        const q = searchText.trim().toLowerCase();
+        let filtered = mappedData;
+        if (q) {
+          filtered = mappedData.filter(m =>
+            (m.st_id || "").toLowerCase().includes(q) ||
+            (m.name || "").toLowerCase().includes(q) ||
+            (m.email || "").toLowerCase().includes(q)
+          );
+        }
+
+        setMembers(filtered);
+        setTotal(filtered.length);
+      }
+      setLoading(false);
+      return;
+    }
+
     let query = supabase
       .from("members")
       .select("*", { count: "exact" })
@@ -134,7 +176,26 @@ export default function Members({ isAdmin = false }) {
     setModal(true);
     setMsg(null);
   };
-  const closeModal = () => { setModal(false); setMsg(null); };
+  const openEditPending = (m) => {
+    setForm({
+      st_id: m.st_id,
+      name: m.name,
+      level: m.level || "",
+      st_position: "",
+      member_function: "",
+      email: m.email || "",
+      mobile_number: m.mobile_number || "",
+      profile_image_url: "",
+      linkedin_url: "",
+      role: m.role || "member"
+    });
+    setEditTarget(m.st_id);
+    setEditProfileTarget({ profile_id: m.profile_id, role: m.role });
+    setModal(true);
+    setMsg(null);
+  };
+
+  const closeModal = () => { setModal(false); setMsg(null); setEditProfileTarget(null); };
 
   const promoteAll = async () => {
     if (!confirm("Are you sure you want to promote all active members to the next level? Level 4 members will become Alumni (Level 5).")) return;
@@ -364,6 +425,73 @@ export default function Members({ isAdmin = false }) {
       setMsg({ type: "error", text: "ST ID and Name are required." }); return;
     }
     setSaving(true);
+
+    if (editProfileTarget) {
+      const stIdChanged = form.st_id.trim() !== editTarget;
+      
+      if (stIdChanged) {
+        // 1. Check if the new st_id is already in members
+        const { data: exists } = await supabase
+          .from("members")
+          .select("st_id")
+          .eq("st_id", form.st_id.trim())
+          .maybeSingle();
+          
+        if (exists) {
+          setMsg({ type: "error", text: `Student ID ${form.st_id} is already in use.` });
+          setSaving(false);
+          return;
+        }
+        
+        // 2. Set profile st_id to null first to bypass foreign key constraint
+        await supabase
+          .from("profiles")
+          .update({ st_id: null })
+          .eq("id", editProfileTarget.profile_id);
+      }
+      
+      // 3. Update member details
+      const { error: memberErr } = await supabase
+        .from("members")
+        .update({
+          st_id: form.st_id.trim(),
+          name: form.name.trim(),
+          email: form.email.trim() || null,
+          level: form.level ? parseInt(form.level) : null,
+          mobile_number: form.mobile_number.trim() || null
+        })
+        .eq("st_id", editTarget);
+        
+      if (memberErr) {
+        setMsg({ type: "error", text: "Error updating member: " + memberErr.message });
+        setSaving(false);
+        return;
+      }
+      
+      // 4. Update profile details
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .update({
+          st_id: form.st_id.trim(),
+          full_name: form.name.trim(),
+          email: form.email.trim(),
+          role: form.role
+        })
+        .eq("id", editProfileTarget.profile_id);
+        
+      if (profileErr) {
+        setMsg({ type: "error", text: "Error updating profile: " + profileErr.message });
+        setSaving(false);
+        return;
+      }
+      
+      setSaving(false);
+      setMsg({ type: "success", text: "Pending registration details updated." });
+      load(page, search);
+      setTimeout(() => { closeModal(); }, 800);
+      return;
+    }
+
     const payload = { 
       st_id: form.st_id.trim(), 
       name: form.name.trim(), 
@@ -395,6 +523,82 @@ export default function Members({ isAdmin = false }) {
     else load(page, search);
   };
 
+  const handleApprove = async (m) => {
+    if (!confirm(`Approve registration for ${m.name} as a ${m.role}?`)) return;
+    setLoading(true);
+
+    const { error: profileErr } = await supabase
+      .from("profiles")
+      .update({ status: "approved", role: m.role })
+      .eq("id", m.profile_id);
+
+    if (profileErr) {
+      alert("Error approving profile: " + profileErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const { error: memberErr } = await supabase
+      .from("members")
+      .update({ 
+        st_position: m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin",
+        member_function: m.role === "member" ? "General" : "Staff"
+      })
+      .eq("st_id", m.st_id);
+
+    if (memberErr) {
+      console.error("Error updating member details: ", memberErr.message);
+    }
+
+    alert(`Approved ${m.name} successfully!`);
+    load(page, search);
+  };
+
+  const handleReject = async (m) => {
+    if (!confirm(`Reject registration for ${m.name}? They will see a rejection notification when attempting to log in.`)) return;
+    setLoading(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ status: "rejected" })
+      .eq("id", m.profile_id);
+
+    if (error) {
+      alert("Error rejecting registration: " + error.message);
+    } else {
+      alert(`Rejected registration for ${m.name}.`);
+    }
+    load(page, search);
+  };
+
+  const handleDeletePending = async (m) => {
+    if (!confirm(`Permanently delete registration and details for ${m.name} from the database? This cannot be undone.`)) return;
+    setLoading(true);
+
+    const { error: profileErr } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("id", m.profile_id);
+
+    if (profileErr) {
+      alert("Error deleting profile: " + profileErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const { error: memberErr } = await supabase
+      .from("members")
+      .delete()
+      .eq("st_id", m.st_id);
+
+    if (memberErr) {
+      console.error("Error deleting member row: ", memberErr.message);
+    }
+
+    alert(`Deleted registration for ${m.name} completely.`);
+    load(page, search);
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -418,6 +622,7 @@ export default function Members({ isAdmin = false }) {
             <option value="active">Active Members</option>
             <option value="alumni">Alumni (Level 5+)</option>
             <option value="all">All Members</option>
+            <option value="pending">Pending Approvals</option>
           </select>
         </div>
 
@@ -437,35 +642,76 @@ export default function Members({ isAdmin = false }) {
           <table>
             <thead>
               <tr>
-                <th>ST ID</th><th>Name</th><th>Email</th><th>Level</th><th>Position</th><th>Function</th>{isAdmin && <th>Actions</th>}
+                <th>ST ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                {viewFilter === "pending" ? <th>Requested Role</th> : <th>Level</th>}
+                {viewFilter === "pending" ? <th>Phone</th> : <th>Position</th>}
+                {viewFilter === "pending" ? <th>Year</th> : <th>Function</th>}
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {members.length === 0 ? (
-                <tr><td colSpan={isAdmin ? 7 : 6}><div className="empty-state"><div className="icon">*</div><p>No members found</p></div></td></tr>
+                <tr><td colSpan={viewFilter === "pending" ? 7 : (isAdmin ? 7 : 6)}><div className="empty-state"><div className="icon">*</div><p>No members found</p></div></td></tr>
               ) : members.map(m => (
                 <tr key={m.st_id}>
                   <td className="mono">{m.st_id}</td>
                   <td>
-                    <strong 
-                      className="clickable-member" 
-                      onClick={() => openViewProfile(m.st_id)}
-                      style={{ cursor: "pointer", color: "var(--accent2)" }}
-                    >
-                      {m.name}
-                    </strong>
+                    {viewFilter === "pending" ? (
+                      <strong>{m.name}</strong>
+                    ) : (
+                      <strong 
+                        className="clickable-member" 
+                        onClick={() => openViewProfile(m.st_id)}
+                        style={{ cursor: "pointer", color: "var(--accent2)" }}
+                      >
+                        {m.name}
+                      </strong>
+                    )}
                   </td>
                   <td>{m.email || <span className="text-muted">-</span>}</td>
-                  <td>{m.level ? <span className="badge badge-purple">Year {m.level}</span> : <span className="text-muted">-</span>}</td>
-                  <td>{m.st_position || <span className="text-muted">-</span>}</td>
-                  <td>{m.member_function || <span className="text-muted">-</span>}</td>
-                  {isAdmin && (
-                    <td>
-                      <div className="flex gap-2">
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(m)}>Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(m.st_id)}>Delete</button>
-                      </div>
-                    </td>
+                  {viewFilter === "pending" ? (
+                    <>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <span className="badge badge-purple">{m.role}</span>
+                          <span className="badge" style={{ 
+                            backgroundColor: m.status === "rejected" ? "rgba(220, 38, 38, 0.15)" : "rgba(245, 158, 11, 0.15)", 
+                            color: m.status === "rejected" ? "var(--red)" : "var(--amber)",
+                            border: m.status === "rejected" ? "1px solid rgba(220, 38, 38, 0.2)" : "1px solid rgba(245, 158, 11, 0.2)"
+                          }}>
+                            {m.status === "rejected" ? "Rejected" : "Pending"}
+                          </span>
+                        </div>
+                      </td>
+                      <td>{m.mobile_number || <span className="text-muted">-</span>}</td>
+                      <td><span className="badge badge-purple">Year {m.level}</span></td>
+                      <td>
+                        <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+                          <button className="btn btn-ghost btn-sm" style={{ color: "var(--green)" }} onClick={() => handleApprove(m)}>Approve</button>
+                          {m.status === "pending" && (
+                            <button className="btn btn-ghost btn-sm" style={{ color: "var(--amber)" }} onClick={() => handleReject(m)}>Reject</button>
+                          )}
+                          <button className="btn btn-ghost btn-sm" onClick={() => openEditPending(m)}>Edit</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDeletePending(m)}>Delete</button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td>{m.level ? <span className="badge badge-purple">Year {m.level}</span> : <span className="text-muted">-</span>}</td>
+                      <td>{m.st_position || <span className="text-muted">-</span>}</td>
+                      <td>{m.member_function || <span className="text-muted">-</span>}</td>
+                      {isAdmin && (
+                        <td>
+                          <div className="flex gap-2">
+                            <button className="btn btn-ghost btn-sm" onClick={() => openEdit(m)}>Edit</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(m.st_id)}>Delete</button>
+                          </div>
+                        </td>
+                      )}
+                    </>
                   )}
                 </tr>
               ))}
@@ -488,7 +734,7 @@ export default function Members({ isAdmin = false }) {
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label>ST ID *</label>
-                <input placeholder="e.g. 2022/12984" value={form.st_id} onChange={e => setForm({...form, st_id: e.target.value})} disabled={!!editTarget} />
+                <input placeholder="e.g. 2022/12984" value={form.st_id} onChange={e => setForm({...form, st_id: e.target.value})} disabled={!!editTarget && !editProfileTarget} />
               </div>
               <div className="form-group">
                 <label>Level / Year</label>
@@ -507,18 +753,33 @@ export default function Members({ isAdmin = false }) {
                 <input type="email" placeholder="Student email address" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
               </div>
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Student Position</label>
-                <input placeholder="e.g. President, Secretary..." value={form.st_position} onChange={e => setForm({...form, st_position: e.target.value})} />
+            {editProfileTarget ? (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Requested Role / Access Level</label>
+                  <select value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
+                    <option value="member">Member</option>
+                    <option value="editor">Editor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Member Function</label>
-                <input placeholder="e.g. Logistics, Marketing, Finance..." value={form.member_function} onChange={e => setForm({...form, member_function: e.target.value})} />
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Student Position</label>
+                    <input placeholder="e.g. President, Secretary..." value={form.st_position} onChange={e => setForm({...form, st_position: e.target.value})} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Member Function</label>
+                    <input placeholder="e.g. Logistics, Marketing, Finance..." value={form.member_function} onChange={e => setForm({...form, member_function: e.target.value})} />
+                  </div>
+                </div>
+              </>
+            )}
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label>Mobile Number</label>

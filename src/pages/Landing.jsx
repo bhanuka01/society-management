@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, onRegisterClick }) {
+export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, onRegisterClick, regEnabled = true }) {
   const glowRef = useRef(null);
 
   useEffect(() => {
@@ -133,17 +133,20 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto sm:max-w-none">
             <button
-              onClick={() => scrollToSection("features")}
+              onClick={onLoginClick}
+              // onClick={() => scrollToSection("features")}
               className="w-full sm:w-auto px-8 py-4 bg-[#0062ff] text-white rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(0,98,255,0.4)] transition-all"
             >
-              Explore Society <span className="material-symbols-outlined text-lg">arrow_forward</span>
+              Login Society <span className="material-symbols-outlined text-lg">arrow_forward</span>
             </button>
-            <button
-              onClick={onRegisterClick}
-              className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/20 text-white rounded-xl font-bold text-body-md hover:bg-white/5 transition-all"
-            >
-              Join Membership
-            </button>
+            {regEnabled && (
+              <button
+                onClick={onRegisterClick}
+                className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/20 text-white rounded-xl font-bold text-body-md hover:bg-white/5 transition-all"
+              >
+                Join Membership
+              </button>
+            )}
           </div>
         </div>
 
@@ -225,12 +228,21 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
               <h2 className="text-4xl md:text-6xl font-bold mb-8">Join the Future of Data Science</h2>
               <p className="text-lg text-[#94A3B8] mb-12 leading-relaxed">Become a part of the most influential society at the Faculty of Science, University of Ruhuna. Connect with peers, learn from experts, and shape your career.</p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                <button
-                  onClick={onRegisterClick}
-                  className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-bold text-lg hover:bg-white/95 transition-all transform hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
-                >
-                  Register Today
-                </button>
+                {regEnabled ? (
+                  <button
+                    onClick={onRegisterClick}
+                    className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-bold text-lg hover:bg-white/95 transition-all transform hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
+                  >
+                    Register Today
+                  </button>
+                ) : (
+                  <button
+                    onClick={onLoginClick}
+                    className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-bold text-lg hover:bg-white/95 transition-all transform hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
+                  >
+                    Login to Portal
+                  </button>
+                )}
                 <button
                   onClick={() => scrollToSection("footer")}
                   className="w-full sm:w-auto px-10 py-5 bg-transparent border border-white/20 text-white rounded-2xl font-bold text-lg hover:bg-white/5 transition-all"

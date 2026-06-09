@@ -43,13 +43,14 @@ export default function App() {
   const [page, setPage] = useState("about");
   const [connected, setConnected] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [session, setSession] = useState({ role: "guest", stId: "", name: "", email: "", userId: "" });
+  const [session, setSession] = useState({ role: "guest", stId: "", name: "", email: "", userId: "", status: "approved" });
   const [authLoading, setAuthLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [authMode, setAuthMode] = useState("login");
-  const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "" });
+  const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "", level: "1", phone: "" });
   const [loginError, setLoginError] = useState("");
   const [authSaving, setAuthSaving] = useState(false);
+  const [regEnabled, setRegEnabled] = useState(true);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -60,6 +61,11 @@ export default function App() {
   useEffect(() => {
     supabase.from("members").select("count", { count: "exact", head: true })
       .then(({ error }) => setConnected(!error));
+
+    supabase.from("system_settings").select("value").eq("key", "registration_enabled").maybeSingle()
+      .then(({ data }) => {
+        if (data) setRegEnabled(data.value === "true");
+      });
   }, []);
 
   useEffect(() => {
@@ -78,20 +84,23 @@ export default function App() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("id, email, full_name, role, st_id")
+        .select("id, email, full_name, role, st_id, status")
         .eq("id", user.id)
         .maybeSingle();
 
       if (alive) {
         const userRole = data?.role || "member";
+        const userStatus = data?.status || "approved";
         setSession({
           role: userRole,
           stId: data?.st_id || "",
           name: data?.full_name || user.email || "",
           email: data?.email || user.email || "",
           userId: user.id,
+          status: userStatus,
         });
         setPage(prev => {
+          if (userStatus === "pending") return "about";
           if (prev === "about") {
             return userRole === "member" ? "attendance" : "dashboard";
           }
@@ -154,7 +163,8 @@ export default function App() {
         return;
       }
 
-      if (memberRows && memberRows.length > 0) {
+      const isPreRegistered = memberRows && memberRows.length > 0;
+      if (isPreRegistered) {
         const memberData = memberRows[0];
         v_st_id = memberData.st_id;
         if (!v_name) {
@@ -162,19 +172,22 @@ export default function App() {
         }
       }
 
-      if (role === "member") {
-        if (!v_st_id) {
-          setLoginError("Your email is not registered as a member. Please contact an admin.");
-          setAuthSaving(false);
-          return;
-        }
-      } else {
-        // Staff validation
-        const { data: canRegister, error: inviteError } = await supabase
-          .rpc("can_register_staff", { p_email: email, p_role: role });
+      // Check if staff invite exists
+      const { data: canRegisterStaff } = await supabase
+        .rpc("can_register_staff", { p_email: email, p_role: role });
 
-        if (inviteError || !canRegister) {
-          setLoginError("Registration is not enabled for this email and role.");
+      // If general registration is off, and they are not pre-registered nor invited staff, block it
+      if (!regEnabled && !isPreRegistered && !canRegisterStaff) {
+        setLoginError("General registration is currently closed.");
+        setAuthSaving(false);
+        return;
+      }
+
+      // If they are registering a new user not in the members table, and they are not invited staff,
+      // they must provide student ID and phone number.
+      if (!isPreRegistered && !canRegisterStaff) {
+        if (!login.stId.trim() || !login.phone.trim()) {
+          setLoginError("Student ID and Phone Number are required for registration.");
           setAuthSaving(false);
           return;
         }
@@ -183,7 +196,15 @@ export default function App() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password: login.password,
-        options: { data: { full_name: v_name, role } },
+        options: {
+          data: {
+            full_name: v_name,
+            role,
+            st_id: isPreRegistered ? v_st_id : login.stId.trim(),
+            level: login.level || "1",
+            mobile_number: isPreRegistered ? null : login.phone.trim()
+          }
+        },
       });
 
       if (error) {
@@ -192,17 +213,40 @@ export default function App() {
         return;
       }
 
-      if (data.user) {
-        await supabase
-          .from("profiles")
-          .upsert({ id: data.user.id, email, full_name: v_name, role, st_id: v_st_id }, { onConflict: "id" });
-      }
-
       setAuthSaving(false);
-      setLoginError(data.session ? "" : "Check your email to confirm your account, then login.");
+      setLoginError(data.session ? "" : "Registration request submitted. Check your email to confirm your account, then login.");
       if (data.session) {
         setShowLogin(false);
-        setPage(role === "member" ? "attendance" : role === "admin" ? "dashboard" : "members");
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("status, role")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+        const userStatus = profile?.status || "approved";
+        const userRole = profile?.role || role;
+
+        if (userStatus === "pending") {
+          setSession({
+            role: userRole,
+            stId: isPreRegistered ? v_st_id : login.stId.trim(),
+            name: v_name,
+            email,
+            userId: data.user.id,
+            status: "pending"
+          });
+          setPage("about");
+        } else {
+          setSession({
+            role: userRole,
+            stId: isPreRegistered ? v_st_id : login.stId.trim(),
+            name: v_name,
+            email,
+            userId: data.user.id,
+            status: "approved"
+          });
+          setPage(userRole === "member" ? "attendance" : userRole === "admin" ? "dashboard" : "members");
+        }
       }
       return;
     }
@@ -241,12 +285,100 @@ export default function App() {
 
   const toggleTheme = () => setTheme(current => current === "dark" ? "light" : "dark");
 
+  if (session.userId && session.status === "pending") {
+    return (
+      <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "2rem" }}>
+        <div className="card" style={{ maxWidth: "500px", width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.3)", border: "1px solid var(--border)" }}>
+          <div className="page-header" style={{ marginBottom: "2rem" }}>
+            <div className="icon" style={{ fontSize: "3rem", color: "var(--amber)", marginBottom: "1rem" }}>⏳</div>
+            <h1 className="page-title">Registration Pending</h1>
+            <p className="page-subtitle">Your account is currently under review by an administrator or editor</p>
+          </div>
+
+          <div className="alert alert-info" style={{ textAlign: "left", marginBottom: "2.5rem", padding: "1.25rem", borderRadius: "12px", background: "rgba(0, 122, 255, 0.08)", border: "1px solid rgba(0, 122, 255, 0.15)" }}>
+            <p style={{ margin: "0 0 8px 0", fontSize: "14px" }}><strong>Name:</strong> {session.name}</p>
+            <p style={{ margin: "0 0 8px 0", fontSize: "14px" }}><strong>Student ID:</strong> {session.stId}</p>
+            <p style={{ margin: "0 0 8px 0", fontSize: "14px" }}><strong>Email:</strong> {session.email}</p>
+            <p style={{ margin: 0, fontSize: "14px" }}><strong>Requested Role:</strong> <span className="badge badge-purple" style={{ verticalAlign: "middle" }}>{session.role.toUpperCase()}</span></p>
+          </div>
+
+          <p style={{ color: "var(--text-secondary)", fontSize: "14px", marginBottom: "2rem", lineHeight: "1.6" }}>
+            Once approved, you will be granted access to the society dashboard. Thank you for your patience!
+          </p>
+
+          <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+            <button className="btn btn-primary" type="button" onClick={async () => {
+              setAuthLoading(true);
+              const { data } = await supabase.auth.getSession();
+              if (data?.session?.user) {
+                const { data: profile } = await supabase
+                  .from("profiles")
+                  .select("status, role, st_id, full_name, email")
+                  .eq("id", data.session.user.id)
+                  .maybeSingle();
+
+                if (profile) {
+                  setSession(s => ({
+                    ...s,
+                    status: profile.status || "approved",
+                    role: profile.role || "member",
+                    stId: profile.st_id || "",
+                    name: profile.full_name || s.name,
+                    email: profile.email || s.email,
+                  }));
+                  if (profile.status !== "pending") {
+                    setPage(profile.role === "member" ? "attendance" : profile.role === "admin" ? "dashboard" : "members");
+                  }
+                }
+              }
+              setAuthLoading(false);
+            }}>
+              Refresh Status
+            </button>
+            <button className="btn btn-ghost" type="button" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (session.userId && session.status === "rejected") {
+    return (
+      <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "2rem" }}>
+        <div className="card" style={{ maxWidth: "500px", width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.3)", border: "1px solid var(--border)" }}>
+          <div className="page-header" style={{ marginBottom: "2rem" }}>
+            <div className="icon" style={{ fontSize: "3rem", color: "var(--red)", marginBottom: "1rem" }}>❌</div>
+            <h1 className="page-title">Registration Rejected</h1>
+            <p className="page-subtitle">Your registration request has been rejected by the administrator or editor</p>
+          </div>
+
+          <div className="alert alert-error" style={{ textAlign: "center", marginBottom: "2.5rem", padding: "1.25rem", borderRadius: "12px" }}>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: "700" }}>Your registration has been rejected.</p>
+          </div>
+
+          <p style={{ color: "var(--text-secondary)", fontSize: "14px", marginBottom: "2rem", lineHeight: "1.6" }}>
+            Please contact the society administrators if you believe this was in error or if you need to submit correct information.
+          </p>
+
+          <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+            <button className="btn btn-ghost" type="button" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (session.role === "guest") {
     return (
       <>
         <Landing
           theme={theme}
           onThemeToggle={toggleTheme}
+          regEnabled={regEnabled}
           onLoginClick={() => {
             setAuthMode("login");
             setShowLogin(true);
@@ -269,12 +401,12 @@ export default function App() {
                 {loginError && <div className="alert alert-error">{loginError}</div>}
                 <div className="auth-tabs">
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ ...login, role: "member", email: "", password: "", name: "" }); setLoginError(""); }}>Register</button>
+                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "" }); setLoginError(""); }}>Register</button>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Role</label>
-                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "" })}>
+                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "" })}>
                       <option value="member">Member</option>
                       <option value="editor">Editor</option>
                       <option value="admin">Admin</option>
@@ -282,17 +414,61 @@ export default function App() {
                   </div>
                 </div>
                 {authMode === "register" && (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Full Name</label>
-                      <input
-                        placeholder="Your full name"
-                        value={login.name}
-                        onChange={e => setLogin({ ...login, name: e.target.value })}
-                        autoFocus
-                      />
+                  <>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Full Name</label>
+                        <input
+                          placeholder="Your full name"
+                          value={login.name}
+                          onChange={e => setLogin({ ...login, name: e.target.value })}
+                          autoFocus
+                          required
+                        />
+                      </div>
                     </div>
-                  </div>
+                    {(!regEnabled && login.role === "member") ? (
+                      <div className="form-row">
+                        <div className="alert alert-error" style={{ width: "100%", margin: 0 }}>
+                          General registration is currently closed. If you have been invited as staff, please select Editor or Admin.
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="form-row form-row-2">
+                          <div className="form-group">
+                            <label>Student ID (ST ID)</label>
+                            <input
+                              placeholder="e.g. 2022/12345"
+                              value={login.stId}
+                              onChange={e => setLogin({ ...login, stId: e.target.value })}
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Year / Level</label>
+                            <select value={login.level} onChange={e => setLogin({ ...login, level: e.target.value })}>
+                              <option value="1">Year 1</option>
+                              <option value="2">Year 2</option>
+                              <option value="3">Year 3</option>
+                              <option value="4">Year 4</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Phone Number</label>
+                            <input
+                              placeholder="e.g. +94771234567"
+                              value={login.phone}
+                              onChange={e => setLogin({ ...login, phone: e.target.value })}
+                              required
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
                 <>
                   <div className="form-row">
@@ -321,7 +497,7 @@ export default function App() {
                 </>
                 <div className="modal-actions">
                   <button type="button" className="btn btn-ghost" onClick={() => setShowLogin(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={authSaving}>{authSaving ? "Please wait..." : authMode === "login" ? "Login" : "Register"}</button>
+                  <button type="submit" className="btn btn-primary" disabled={authSaving || (authMode === "register" && !regEnabled && login.role === "member")}>{authSaving ? "Please wait..." : authMode === "login" ? "Login" : "Register"}</button>
                 </div>
               </form>
             </div>
@@ -401,12 +577,12 @@ export default function App() {
                 {loginError && <div className="alert alert-error">{loginError}</div>}
                 <div className="auth-tabs">
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ ...login, role: "member", email: "", password: "", name: "" }); setLoginError(""); }}>Register</button>
+                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "" }); setLoginError(""); }}>Register</button>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Role</label>
-                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "" })}>
+                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "" })}>
                       <option value="member">Member</option>
                       <option value="editor">Editor</option>
                       <option value="admin">Admin</option>
@@ -414,17 +590,61 @@ export default function App() {
                   </div>
                 </div>
                 {authMode === "register" && (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Full Name</label>
-                      <input
-                        placeholder="Your full name"
-                        value={login.name}
-                        onChange={e => setLogin({ ...login, name: e.target.value })}
-                        autoFocus
-                      />
+                  <>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Full Name</label>
+                        <input
+                          placeholder="Your full name"
+                          value={login.name}
+                          onChange={e => setLogin({ ...login, name: e.target.value })}
+                          autoFocus
+                          required
+                        />
+                      </div>
                     </div>
-                  </div>
+                    {(!regEnabled && login.role === "member") ? (
+                      <div className="form-row">
+                        <div className="alert alert-error" style={{ width: "100%", margin: 0 }}>
+                          General registration is currently closed. If you have been invited as staff, please select Editor or Admin.
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="form-row form-row-2">
+                          <div className="form-group">
+                            <label>Student ID (ST ID)</label>
+                            <input
+                              placeholder="e.g. 2022/12345"
+                              value={login.stId}
+                              onChange={e => setLogin({ ...login, stId: e.target.value })}
+                              required
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label>Year / Level</label>
+                            <select value={login.level} onChange={e => setLogin({ ...login, level: e.target.value })}>
+                              <option value="1">Year 1</option>
+                              <option value="2">Year 2</option>
+                              <option value="3">Year 3</option>
+                              <option value="4">Year 4</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Phone Number</label>
+                            <input
+                              placeholder="e.g. +94771234567"
+                              value={login.phone}
+                              onChange={e => setLogin({ ...login, phone: e.target.value })}
+                              required
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
                 <>
                   <div className="form-row">
@@ -453,7 +673,7 @@ export default function App() {
                 </>
                 <div className="modal-actions">
                   <button type="button" className="btn btn-ghost" onClick={() => setShowLogin(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={authSaving}>{authSaving ? "Please wait..." : authMode === "login" ? "Login" : "Register"}</button>
+                  <button type="submit" className="btn btn-primary" disabled={authSaving || (authMode === "register" && !regEnabled && login.role === "member")}>{authSaving ? "Please wait..." : authMode === "login" ? "Login" : "Register"}</button>
                 </div>
               </form>
             </div>
