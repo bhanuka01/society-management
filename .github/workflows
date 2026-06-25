@@ -1,0 +1,40 @@
+name: Keep Supabase Alive
+on:
+  schedule:
+    - cron: '0 0 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake Supabase via REST query
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          response=$(curl -s -o response_body.txt -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/?apikey=${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}")
+          echo "HTTP Status: $response"
+          cat response_body.txt
+
+      - name: Run a lightweight DB query via RPC
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          response=$(curl -s -o response_body.txt -w "%{http_code}" \
+            -X POST "${SUPABASE_URL}/rest/v1/rpc/now" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "HTTP Status: $response"
+          cat response_body.txt
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Supabase is alive!"
+          else
+            echo "⚠️ Status $response — Supabase may be waking up or RPC not available"
+          fi
