@@ -175,3 +175,11 @@ END;
 $$;
 
 NOTIFY pgrst, 'reload schema';
+
+CREATE OR REPLACE FUNCTION now()
+RETURNS timestamptz
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT NOW();
+$$;
