@@ -278,7 +278,17 @@ export default function Events({ isAdmin = false, session }) {
 
             <div className="form-group" style={{ marginBottom: 15 }}>
               <label>Preferred Position (Optional)</label>
-              <input placeholder="e.g. Lead Coordinator, Member" value={applyForm.oc_position} onChange={e => setApplyForm({ ...applyForm, oc_position: e.target.value })} />
+              <select value={applyForm.oc_position} onChange={e => setApplyForm({ ...applyForm, oc_position: e.target.value })}>
+                <option value="">-- Choose preferred position --</option>
+                <option value="OC President">OC President</option>
+                <option value="OC Secretary">OC Secretary</option>
+                <option value="Content & Communication">Content & Communication</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Session Moderating">Session Moderating</option>
+                <option value="Public Relations">Public Relations</option>
+                <option value="Technical & Platform Management">Technical & Platform Management</option>
+                <option value="Event & Logistics">Event & Logistics</option>
+              </select>
             </div>
 
             <div className="modal-actions">

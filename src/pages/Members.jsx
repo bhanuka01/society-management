@@ -100,7 +100,7 @@ export default function Members({ isAdmin = false }) {
     if (viewFilter === "pending") {
       const { data, count, error } = await supabase
         .from("profiles")
-        .select("id, email, full_name, role, st_id, status, created_at, members(mobile_number, level)")
+        .select("id, email, full_name, role, st_id, status, created_at, members(mobile_number, level, member_function)")
         .in("status", ["pending", "rejected"])
         .order("created_at", { ascending: false });
 
@@ -116,6 +116,7 @@ export default function Members({ isAdmin = false }) {
           role: p.role,
           level: p.members?.level || 1,
           mobile_number: p.members?.mobile_number || "",
+          member_function: p.members?.member_function || "",
           profile_id: p.id,
           status: p.status
         }));
@@ -542,7 +543,7 @@ export default function Members({ isAdmin = false }) {
       .from("members")
       .update({ 
         st_position: m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin",
-        member_function: m.role === "member" ? "General" : "Staff"
+        member_function: m.role === "member" ? (m.member_function && m.member_function !== "Pending Review" ? m.member_function : "General") : "Staff"
       })
       .eq("st_id", m.st_id);
 

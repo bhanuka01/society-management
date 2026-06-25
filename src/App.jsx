@@ -47,7 +47,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [authMode, setAuthMode] = useState("login");
-  const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "", level: "1", phone: "" });
+  const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "", level: "1", phone: "", memberFunction: "Finance" });
   const [loginError, setLoginError] = useState("");
   const [authSaving, setAuthSaving] = useState(false);
   const [regEnabled, setRegEnabled] = useState(true);
@@ -202,7 +202,8 @@ export default function App() {
             role,
             st_id: isPreRegistered ? v_st_id : login.stId.trim(),
             level: login.level || "1",
-            mobile_number: isPreRegistered ? null : login.phone.trim()
+            mobile_number: isPreRegistered ? null : login.phone.trim(),
+            member_function: isPreRegistered ? null : (role === "member" ? login.memberFunction : null)
           }
         },
       });
@@ -401,12 +402,12 @@ export default function App() {
                 {loginError && <div className="alert alert-error">{loginError}</div>}
                 <div className="auth-tabs">
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "" }); setLoginError(""); }}>Register</button>
+                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>Register</button>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Role</label>
-                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "" })}>
+                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" })}>
                       <option value="member">Member</option>
                       <option value="editor">Editor</option>
                       <option value="admin">Admin</option>
@@ -419,7 +420,7 @@ export default function App() {
                       <div className="form-group">
                         <label>Full Name</label>
                         <input
-                          placeholder="Your full name"
+                          placeholder="A.B. Pathum Nissanka"
                           value={login.name}
                           onChange={e => setLogin({ ...login, name: e.target.value })}
                           autoFocus
@@ -464,6 +465,19 @@ export default function App() {
                               onChange={e => setLogin({ ...login, phone: e.target.value })}
                               required
                             />
+                          </div>
+                        </div>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Member Function</label>
+                            <select value={login.memberFunction} onChange={e => setLogin({ ...login, memberFunction: e.target.value })}>
+                              <option value="Finance">Finance</option>
+                              <option value="Marketing">Marketing</option>
+                              <option value="Operation & Academic Management">Operation & Academic Management</option>
+                              <option value="Personal Development">Personal Development</option>
+                              <option value="Public Relations">Public Relations</option>
+                              <option value="Research & Analyst">Research & Analyst</option>
+                            </select>
                           </div>
                         </div>
                       </>
@@ -577,12 +591,12 @@ export default function App() {
                 {loginError && <div className="alert alert-error">{loginError}</div>}
                 <div className="auth-tabs">
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "" }); setLoginError(""); }}>Register</button>
+                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>Register</button>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Role</label>
-                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "" })}>
+                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" })}>
                       <option value="member">Member</option>
                       <option value="editor">Editor</option>
                       <option value="admin">Admin</option>
@@ -595,7 +609,7 @@ export default function App() {
                       <div className="form-group">
                         <label>Full Name</label>
                         <input
-                          placeholder="Your full name"
+                          placeholder="A.B. Pathum Nissanka"
                           value={login.name}
                           onChange={e => setLogin({ ...login, name: e.target.value })}
                           autoFocus
@@ -640,6 +654,19 @@ export default function App() {
                               onChange={e => setLogin({ ...login, phone: e.target.value })}
                               required
                             />
+                          </div>
+                        </div>
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label>Member Function</label>
+                            <select value={login.memberFunction} onChange={e => setLogin({ ...login, memberFunction: e.target.value })}>
+                              <option value="Finance">Finance</option>
+                              <option value="Marketing">Marketing</option>
+                              <option value="Operation & Academic Management">Operation & Academic Management</option>
+                              <option value="Personal Development">Personal Development</option>
+                              <option value="Public Relations">Public Relations</option>
+                              <option value="Research & Analyst">Research & Analyst</option>
+                            </select>
                           </div>
                         </div>
                       </>

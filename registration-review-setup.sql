@@ -13,6 +13,11 @@ INSERT INTO system_settings (key, value)
 VALUES ('registration_enabled', 'true')
 ON CONFLICT (key) DO NOTHING;
 
+-- Seed auto-approve setting (default disabled)
+INSERT INTO system_settings (key, value)
+VALUES ('registration_auto_approve', 'false')
+ON CONFLICT (key) DO NOTHING;
+
 -- 2. Add status column to profiles table
 ALTER TABLE profiles 
 ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved' 
@@ -38,6 +43,7 @@ WITH CHECK (public.is_admin());
 
 -- 4. Update profiles policies to allow staff to update/delete profiles
 DROP POLICY IF EXISTS "profiles update own or admin" ON profiles;
+DROP POLICY IF EXISTS "profiles update staff or own" ON profiles;
 CREATE POLICY "profiles update staff or own" ON profiles 
 FOR UPDATE TO authenticated
 USING (id = auth.uid() or public.is_staff())
@@ -68,6 +74,7 @@ DECLARE
   v_name varchar(255);
   v_status text;
   v_reg_enabled text;
+  v_auto_approve text;
 BEGIN
   requested_role := coalesce(new.raw_user_meta_data ->> 'role', 'member');
 
@@ -93,7 +100,7 @@ BEGIN
 
   -- Determine status:
   -- If email is in members table (v_st_id is not null) or they are invited staff, they are auto-approved.
-  -- Otherwise, they are pending review.
+  -- Otherwise, we check if auto-approve is enabled for regular members.
   IF v_st_id IS NOT NULL OR (requested_role IN ('editor', 'admin') AND public.can_register_staff(new.email, requested_role)) THEN
     v_status := 'approved';
     IF v_st_id IS NULL THEN
@@ -103,7 +110,16 @@ BEGIN
       v_name := coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), new.email);
     END IF;
   ELSE
-    v_status := 'pending';
+    -- Check system setting for auto-approval
+    SELECT value INTO v_auto_approve FROM system_settings WHERE key = 'registration_auto_approve';
+    
+    -- Only auto-approve if setting is true AND they are registering as a member
+    IF v_auto_approve = 'true' AND requested_role = 'member' THEN
+      v_status := 'approved';
+    ELSE
+      v_status := 'pending';
+    END IF;
+
     v_st_id := coalesce(new.raw_user_meta_data ->> 'st_id', '');
     v_name := coalesce(new.raw_user_meta_data ->> 'full_name', '');
     
@@ -111,7 +127,7 @@ BEGIN
       RAISE EXCEPTION 'Student ID is required for registration.';
     END IF;
 
-    -- Check if st_id is already in members table
+    -- Check if st_id is already in members table (fixed lower(st_id) bug)
     IF exists (SELECT 1 FROM members WHERE lower(st_id) = lower(v_st_id)) THEN
       RAISE EXCEPTION 'Student ID % is already registered.', v_st_id;
     END IF;
@@ -124,8 +140,8 @@ BEGIN
       lower(new.email),
       coalesce(nullif(new.raw_user_meta_data ->> 'level', ''), '1')::integer,
       new.raw_user_meta_data ->> 'mobile_number',
-      'Pending Review',
-      'Pending Review'
+      CASE WHEN v_status = 'approved' THEN 'Member' ELSE 'Pending Review' END,
+      coalesce(nullif(new.raw_user_meta_data ->> 'member_function', ''), CASE WHEN v_status = 'approved' THEN 'General' ELSE 'Pending Review' END)
     );
   END IF;
 
