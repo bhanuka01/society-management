@@ -51,6 +51,7 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
   const [authSaving, setAuthSaving] = useState(false);
   const [regEnabled, setRegEnabled] = useState(true);
+  const [viewAsMember, setViewAsMember] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -76,6 +77,7 @@ export default function App() {
       if (!user) {
         if (alive) {
           setSession({ role: "guest", stId: "", name: "", email: "", userId: "" });
+          setViewAsMember(false);
           setPage("about");
           setAuthLoading(false);
         }
@@ -99,6 +101,7 @@ export default function App() {
           userId: user.id,
           status: userStatus,
         });
+        setViewAsMember(false);
         setPage(prev => {
           if (userStatus === "pending") return "about";
           if (prev === "about") {
@@ -124,11 +127,13 @@ export default function App() {
 
   const pages = { dashboard: Dashboard, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks };
   const PageComponent = pages[page];
-  const isEditor = canEdit(session.role);
-  const visibleNavItems = session.role === "guest"
+  const isRealStaff = canEdit(session.role);
+  const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
+  const isEditor = canEdit(effectiveRole);
+  const visibleNavItems = effectiveRole === "guest"
     ? NAV_ITEMS.filter(item => item.id === "about")
     : NAV_ITEMS.filter(item => {
-      if (item.id === "access") return session.role === "admin";
+      if (item.id === "access") return effectiveRole === "admin";
       if (item.id === "my_info") return !!session.stId;
       if (item.id === "members") return isEditor;
       return isEditor || item.id !== "dashboard";
@@ -236,6 +241,7 @@ export default function App() {
             userId: data.user.id,
             status: "pending"
           });
+          setViewAsMember(false);
           setPage("about");
         } else {
           setSession({
@@ -246,6 +252,7 @@ export default function App() {
             userId: data.user.id,
             status: "approved"
           });
+          setViewAsMember(false);
           setPage(userRole === "member" ? "attendance" : userRole === "admin" ? "dashboard" : "members");
         }
       }
@@ -281,10 +288,27 @@ export default function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSession({ role: "guest", stId: "", name: "", email: "", userId: "" });
+    setViewAsMember(false);
     setPage("about");
   };
 
   const toggleTheme = () => setTheme(current => current === "dark" ? "light" : "dark");
+
+  const handleToggleViewAsMember = () => {
+    setViewAsMember(prev => {
+      const nextVal = !prev;
+      if (nextVal) {
+        if (page === "dashboard" || page === "members" || page === "access") {
+          setPage("attendance");
+        }
+      } else {
+        if (page === "attendance") {
+          setPage(session.role === "admin" ? "dashboard" : "members");
+        }
+      }
+      return nextVal;
+    });
+  };
 
   if (session.userId && session.status === "pending") {
     return (
@@ -327,6 +351,7 @@ export default function App() {
                     name: profile.full_name || s.name,
                     email: profile.email || s.email,
                   }));
+                  setViewAsMember(false);
                   if (profile.status !== "pending") {
                     setPage(profile.role === "member" ? "attendance" : profile.role === "admin" ? "dashboard" : "members");
                   }
@@ -557,7 +582,28 @@ export default function App() {
 
         {sidebarOpen && (
           <div className="sidebar-footer">
-            <p>{authLoading ? "Checking access..." : session.role === "guest" ? "Members can watch only" : `${ROLE_LABELS[session.role]} mode${session.name ? `: ${session.name}` : ""}`}</p>
+            <p>
+              {authLoading
+                ? "Checking access..."
+                : session.role === "guest"
+                ? "Members can watch only"
+                : viewAsMember
+                ? `${ROLE_LABELS[session.role]} (Viewing as Member)`
+                : `${ROLE_LABELS[session.role]} mode${session.name ? `: ${session.name}` : ""}`}
+            </p>
+            {isRealStaff && (
+              <button
+                type="button"
+                className={`role-switch ${viewAsMember ? "active" : ""}`}
+                onClick={handleToggleViewAsMember}
+                aria-label={viewAsMember ? "Switch to staff view" : "Switch to member view"}
+              >
+                <span className="role-switch-track">
+                  <span className="role-switch-thumb">{viewAsMember ? "M" : "S"}</span>
+                </span>
+                <span>{viewAsMember ? "View: Member" : "View: Staff"}</span>
+              </button>
+            )}
             <button
               type="button"
               className="theme-switch"
@@ -705,7 +751,7 @@ export default function App() {
               </form>
             </div>
           ) : (
-            <PageComponent onNavigate={setPage} isAdmin={isEditor} role={session.role} session={session} />
+            <PageComponent onNavigate={setPage} isAdmin={isEditor} role={effectiveRole} session={session} />
           )}
         </div>
       </main>
