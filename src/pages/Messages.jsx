@@ -13,6 +13,11 @@ export default function Messages({ isAdmin, session }) {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
+  const [allChannels, setAllChannels] = useState([]);
+  const fetchChannelsRef = useRef(null);
+  const pageRef = useRef(0);
+
+  pageRef.current = page;
 
   // Debounce search query
   useEffect(() => {
@@ -26,10 +31,35 @@ export default function Messages({ isAdmin, session }) {
     if (!session.stId) return;
     setLoadingChannels(true);
     
+    // 1. Fetch recent direct and broadcast messages involving current user
+    const { data: recentMessages } = await supabase
+      .from("messages")
+      .select("sender_st_id, receiver_st_id, created_at")
+      .or(`sender_st_id.eq.${session.stId},receiver_st_id.eq.${session.stId}`)
+      .order("created_at", { ascending: false });
+
+    // 2. Build recency map and find latest broadcast timestamp
+    const lastMessageTimeMap = {};
+    let broadcastTime = 0;
+    if (recentMessages) {
+      for (const msg of recentMessages) {
+        if (msg.receiver_st_id === null) {
+          if (!broadcastTime) {
+            broadcastTime = new Date(msg.created_at).getTime();
+          }
+        } else {
+          const partnerId = msg.sender_st_id === session.stId ? msg.receiver_st_id : msg.sender_st_id;
+          if (partnerId && !lastMessageTimeMap[partnerId]) {
+            lastMessageTimeMap[partnerId] = new Date(msg.created_at).getTime();
+          }
+        }
+      }
+    }
+
     let loadedChannels = [];
     
-    // Everyone sees the Broadcast channel on the first page
-    if (pageNum === 0 && (!debouncedSearch || "📢 announcements (all)".includes(debouncedSearch.toLowerCase()))) {
+    // Everyone sees the Broadcast channel if search matches or is empty
+    if (!debouncedSearch || "📢 announcements (all)".includes(debouncedSearch.toLowerCase())) {
       loadedChannels.push({
         id: "broadcast",
         name: "📢 Announcements (All)",
@@ -37,49 +67,36 @@ export default function Messages({ isAdmin, session }) {
       });
     }
 
-    let moreAvailable = false;
-    const PAGE_SIZE = 5;
-    const start = pageNum * PAGE_SIZE;
-    const end = start + PAGE_SIZE - 1;
-
+    let list = [];
     if (isAdmin) {
       // Staff see all members
-      let query = supabase
-        .from("members")
-        .select("st_id, name", { count: "exact" })
-        .order("name")
-        .range(start, end);
+      let query = supabase.from("members").select("st_id, name");
         
       if (debouncedSearch) {
         query = query.ilike("name", `%${debouncedSearch}%`);
       }
 
-      const { data: members, count, error } = await query;
+      const { data: members, error } = await query;
       if (!error && members) {
-        loadedChannels = [
-          ...loadedChannels,
-          ...members.map(m => ({
-            id: m.st_id,
-            name: `${m.name} (${m.st_id})`,
-            isBroadcast: false
-          }))
-        ];
-        moreAvailable = start + PAGE_SIZE < count;
+        list = members.map(m => ({
+          id: m.st_id,
+          name: `${m.name} (${m.st_id})`,
+          isBroadcast: false
+        }));
       }
     } else {
       // Members see staff members to chat with
       let query = supabase
         .from("profiles")
-        .select("st_id, full_name, role", { count: "exact" })
+        .select("st_id, full_name, role")
         .in("role", ["admin", "editor"])
-        .not("st_id", "is", null)
-        .range(start, end);
+        .not("st_id", "is", null);
 
       if (debouncedSearch) {
         query = query.ilike("full_name", `%${debouncedSearch}%`);
       }
 
-      const { data: staffProfiles, count, error } = await query;
+      const { data: staffProfiles, error } = await query;
       if (!error && staffProfiles) {
         const uniqueStaff = [];
         const seenIds = new Set();
@@ -89,34 +106,42 @@ export default function Messages({ isAdmin, session }) {
             uniqueStaff.push(staff);
           }
         }
-        loadedChannels = [
-          ...loadedChannels,
-          ...uniqueStaff.map(s => ({
-            id: s.st_id,
-            name: `🛡️ ${s.full_name} (${s.role})`,
-            isBroadcast: false
-          }))
-        ];
-        moreAvailable = start + PAGE_SIZE < count;
+        list = uniqueStaff.map(s => ({
+          id: s.st_id,
+          name: `🛡️ ${s.full_name} (${s.role})`,
+          isBroadcast: false
+        }));
       }
     }
 
-    if (isLoadMore) {
-      setChannels(prev => {
-        // Deduplicate in case of race conditions
-        const prevIds = new Set(prev.map(c => c.id));
-        return [...prev, ...loadedChannels.filter(c => !prevIds.has(c.id))];
-      });
-    } else {
-      setChannels(loadedChannels);
-      if (pageNum === 0 && !selectedChannel) {
-        setSelectedChannel("broadcast");
+    loadedChannels = [...loadedChannels, ...list];
+
+    // Sort based on lastMessageTimeMap (recent messages first)
+    loadedChannels.sort((a, b) => {
+      const timeA = a.id === "broadcast" ? broadcastTime : (lastMessageTimeMap[a.id] || 0);
+      const timeB = b.id === "broadcast" ? broadcastTime : (lastMessageTimeMap[b.id] || 0);
+      
+      if (timeA !== timeB) {
+        return timeB - timeA;
       }
+      return a.name.localeCompare(b.name);
+    });
+
+    const PAGE_SIZE = 5;
+    const end = (pageNum + 1) * PAGE_SIZE;
+
+    setAllChannels(loadedChannels);
+    setChannels(loadedChannels.slice(0, end));
+    setHasMore(end < loadedChannels.length);
+
+    if (pageNum === 0 && !selectedChannel && loadedChannels.length > 0) {
+      setSelectedChannel(loadedChannels[0].id);
     }
     
-    setHasMore(moreAvailable);
     setLoadingChannels(false);
   };
+
+  fetchChannelsRef.current = fetchChannels;
 
   useEffect(() => {
     if (session.stId) {
@@ -128,7 +153,10 @@ export default function Messages({ isAdmin, session }) {
   const handleLoadMore = () => {
     const nextPage = page + 1;
     setPage(nextPage);
-    fetchChannels(nextPage, true);
+    const PAGE_SIZE = 5;
+    const end = (nextPage + 1) * PAGE_SIZE;
+    setChannels(allChannels.slice(0, end));
+    setHasMore(end < allChannels.length);
   };
 
   useEffect(() => {
@@ -209,6 +237,13 @@ export default function Messages({ isAdmin, session }) {
               }
             });
         }
+
+        // Float the conversation to the top if it involves the current user
+        if (newMsg.sender_st_id === session.stId || newMsg.receiver_st_id === session.stId || newMsg.receiver_st_id === null) {
+          if (fetchChannelsRef.current) {
+            fetchChannelsRef.current(pageRef.current, false);
+          }
+        }
       })
       .subscribe();
 
@@ -250,6 +285,8 @@ export default function Messages({ isAdmin, session }) {
 
     if (error) {
       alert("Failed to send message: " + error.message);
+    } else {
+      fetchChannels(page, false);
     }
   };
 

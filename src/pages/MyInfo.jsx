@@ -141,14 +141,14 @@ export default function MyInfo({ session }) {
             <span className="badge badge-purple">{profile.st_id}</span>
           </div>
         </div>
-        
+
         <div style={{ display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flexShrink: 0 }}>
             {profile.profile_image_url ? (
-              <img 
-                src={profile.profile_image_url} 
-                alt={profile.name} 
-                style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }} 
+              <img
+                src={profile.profile_image_url}
+                alt={profile.name}
+                style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profile.name);
@@ -160,7 +160,7 @@ export default function MyInfo({ session }) {
               </div>
             )}
           </div>
-          
+
           <div style={{ flex: 1, minWidth: "200px" }}>
             <div className="form-row form-row-2">
               <div className="form-group">
@@ -355,22 +355,26 @@ export default function MyInfo({ session }) {
 
             <div className="form-group" style={{ marginBottom: 15 }}>
               <label>Profile Image URL</label>
-              <input 
-                placeholder="e.g. https://example.com/photo.jpg" 
-                value={editForm.profile_image_url} 
-                onChange={e => setEditForm({ ...editForm, profile_image_url: e.target.value })} 
+              <input
+                placeholder="e.g. https://example.com/photo.jpg"
+                value={editForm.profile_image_url}
+                onChange={e => setEditForm({ ...editForm, profile_image_url: e.target.value })}
               />
               <span className="text-muted text-sm" style={{ marginTop: 4 }}>
-                Provide a URL to an image hosted online (e.g. on Discord, Imgur, or your website).
+                1. Upload your image to GitHub (`Repository → Add file → Upload files → Commit`).
+              </span>
+              <span className="text-muted text-sm" style={{ marginTop: 4 }}>
+                2. Open the image, click Raw, then copy the Raw URL (e.g., `https://raw.githubusercontent.com/username/repo/main/image.png`) and use that as the image URL.
+
               </span>
             </div>
 
             <div className="form-group" style={{ marginBottom: 20 }}>
               <label>LinkedIn Profile URL</label>
-              <input 
-                placeholder="e.g. https://linkedin.com/in/username" 
-                value={editForm.linkedin_url} 
-                onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })} 
+              <input
+                placeholder="e.g. https://linkedin.com/in/username"
+                value={editForm.linkedin_url}
+                onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })}
               />
             </div>
 
