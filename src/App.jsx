@@ -42,7 +42,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const [page, setPage] = useState("about");
   const [connected, setConnected] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
   const [session, setSession] = useState({ role: "guest", stId: "", name: "", email: "", userId: "", status: "approved" });
   const [authLoading, setAuthLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
@@ -557,8 +557,9 @@ export default function App() {
               <span className="logo-sub">Society Manager</span>
             </div>
           )}
-          <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            {sidebarOpen ? "<" : ">"}
+          <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle navigation menu">
+            <span className="toggle-icon-desktop">{sidebarOpen ? "◀" : "▶"}</span>
+            <span className="toggle-icon-mobile">{sidebarOpen ? "✕" : "☰"}</span>
           </button>
         </div>
 
@@ -572,7 +573,12 @@ export default function App() {
             <button
               key={item.id}
               className={`nav-item ${page === item.id ? "active" : ""}`}
-              onClick={() => setPage(item.id)}
+              onClick={() => {
+                setPage(item.id);
+                if (window.innerWidth <= 768) {
+                  setSidebarOpen(false);
+                }
+              }}
             >
               <span className="nav-icon">{item.icon}</span>
               {sidebarOpen && <span className="nav-label">{item.label}</span>}
@@ -617,7 +623,12 @@ export default function App() {
             </button>
             <button
               className={`btn ${session.role !== "guest" ? "btn-ghost" : "btn-primary"} auth-btn`}
-              onClick={session.role !== "guest" ? handleLogout : () => setShowLogin(true)}
+              onClick={session.role !== "guest" ? handleLogout : () => {
+                setShowLogin(true);
+                if (window.innerWidth <= 768) {
+                  setSidebarOpen(false);
+                }
+              }}
             >
               {session.role !== "guest" ? "Logout" : "Login"}
             </button>
