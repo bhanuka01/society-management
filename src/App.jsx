@@ -198,6 +198,21 @@ export default function App() {
         }
       }
 
+      if (!isPreRegistered) {
+        const trimmedStId = login.stId.trim();
+        if (!trimmedStId) {
+          setLoginError("Student ID is required.");
+          setAuthSaving(false);
+          return;
+        }
+        const stIdRegex = /^\d{4}\/\d{5}$/;
+        if (!stIdRegex.test(trimmedStId)) {
+          setLoginError("Invalid Student ID format. Correct format: 2022/12984");
+          setAuthSaving(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: login.password,
@@ -470,6 +485,11 @@ export default function App() {
                               onChange={e => setLogin({ ...login, stId: e.target.value })}
                               required
                             />
+                            {login.stId && !/^\d{4}\/\d{5}$/.test(login.stId.trim()) && (
+                              <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
+                                Invalid Student ID format. Correct format: 2022/12984
+                              </span>
+                            )}
                           </div>
                           <div className="form-group">
                             <label>Year / Level</label>
@@ -691,6 +711,11 @@ export default function App() {
                               onChange={e => setLogin({ ...login, stId: e.target.value })}
                               required
                             />
+                            {login.stId && !/^\d{4}\/\d{5}$/.test(login.stId.trim()) && (
+                              <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
+                                Invalid Student ID format. Correct format: 2022/12984
+                              </span>
+                            )}
                           </div>
                           <div className="form-group">
                             <label>Year / Level</label>

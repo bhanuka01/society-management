@@ -287,6 +287,12 @@ export default function Members({ isAdmin = false }) {
         if (!st_id) {
           errors.push(`Row ${rowNum}: Student ID is missing.`);
           rowValid = false;
+        } else {
+          const stIdRegex = /^\d{4}\/\d{5}$/;
+          if (!stIdRegex.test(st_id)) {
+            errors.push(`Row ${rowNum}: Student ID "${st_id}" is invalid. Correct format: 2022/12984`);
+            rowValid = false;
+          }
         }
         if (!name) {
           errors.push(`Row ${rowNum}: Full Name is missing.`);
@@ -427,6 +433,14 @@ export default function Members({ isAdmin = false }) {
     if (!form.st_id.trim() || !form.name.trim()) {
       setMsg({ type: "error", text: "ST ID and Name are required." }); return;
     }
+
+    const trimmedStId = form.st_id.trim();
+    const stIdRegex = /^\d{4}\/\d{5}$/;
+    if (!stIdRegex.test(trimmedStId)) {
+      setMsg({ type: "error", text: "Invalid Student ID format. Correct format: 2022/12984" });
+      return;
+    }
+
     setSaving(true);
 
     if (editProfileTarget) {
@@ -738,6 +752,11 @@ export default function Members({ isAdmin = false }) {
               <div className="form-group">
                 <label>ST ID *</label>
                 <input placeholder="e.g. 2022/12984" value={form.st_id} onChange={e => setForm({...form, st_id: e.target.value})} disabled={!!editTarget && !editProfileTarget} />
+                {form.st_id && !/^\d{4}\/\d{5}$/.test(form.st_id.trim()) && (
+                  <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
+                    Invalid Student ID format. Correct format: 2022/12984
+                  </span>
+                )}
               </div>
               <div className="form-group">
                 <label>Level / Year</label>

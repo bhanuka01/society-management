@@ -154,7 +154,7 @@ export default function StudentProfileModal({ stId, onClose }) {
             <label>🔗 LinkedIn Profile</label>
             <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
               {profileTarget.linkedin_url ? (
-                <a href={profileTarget.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                <a href={profileTarget.linkedin_url.trim().toLowerCase().startsWith("http") ? profileTarget.linkedin_url.trim() : "https://" + profileTarget.linkedin_url.trim()} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
                   View LinkedIn ↗
                 </a>
               ) : (

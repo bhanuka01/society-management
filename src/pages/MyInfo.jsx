@@ -218,7 +218,7 @@ export default function MyInfo({ session }) {
             <label>🔗 LinkedIn Profile</label>
             <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
               {profile.linkedin_url ? (
-                <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                <a href={profile.linkedin_url.trim().toLowerCase().startsWith("http") ? profile.linkedin_url.trim() : "https://" + profile.linkedin_url.trim()} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
                   View LinkedIn ↗
                 </a>
               ) : (
