@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
+import { resizeImage } from "./utils/imageOptimizer";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import Events from "./pages/Events";
@@ -52,6 +53,39 @@ export default function App() {
   const [authSaving, setAuthSaving] = useState(false);
   const [regEnabled, setRegEnabled] = useState(true);
   const [viewAsMember, setViewAsMember] = useState(false);
+  
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        setLoginError("Please select a valid image file.");
+        return;
+      }
+      setProfileImageFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const resetAuthForm = () => {
+    setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" });
+    setLoginError("");
+    setProfileImageFile(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -213,6 +247,37 @@ export default function App() {
         }
       }
 
+      let profileImageUrl = null;
+      if (profileImageFile) {
+        try {
+          const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
+          const stId = isPreRegistered ? v_st_id : login.stId.trim();
+          const cleanStId = stId.replace(/\//g, "-");
+          const fileName = `${cleanStId}_${Date.now()}.jpg`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("profile_images")
+            .upload(fileName, optimizedFile, {
+              cacheControl: "3600",
+              upsert: true
+            });
+
+          if (uploadError) {
+            throw new Error("Failed to upload profile image: " + uploadError.message);
+          }
+
+          const { data: urlData } = supabase.storage
+            .from("profile_images")
+            .getPublicUrl(fileName);
+
+          profileImageUrl = urlData?.publicUrl;
+        } catch (imgErr) {
+          setLoginError(imgErr.message);
+          setAuthSaving(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: login.password,
@@ -223,7 +288,8 @@ export default function App() {
             st_id: isPreRegistered ? v_st_id : login.stId.trim(),
             level: login.level || "1",
             mobile_number: isPreRegistered ? null : login.phone.trim(),
-            member_function: isPreRegistered ? null : (role === "member" ? login.memberFunction : null)
+            member_function: isPreRegistered ? null : (role === "member" ? login.memberFunction : null),
+            profile_image_url: profileImageUrl
           }
         },
       });
@@ -468,6 +534,43 @@ export default function App() {
                         />
                       </div>
                     </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Profile Picture</label>
+                        <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+                          {previewUrl ? (
+                            <img
+                              src={previewUrl}
+                              alt="Profile Preview"
+                              style={{ width: "50px", height: "50px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
+                            />
+                          ) : (
+                            <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "var(--text3)", flexShrink: 0 }}>
+                              👤
+                            </div>
+                          )}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              id="profile-image-upload-guest"
+                              onChange={handleFileChange}
+                              style={{ display: "none" }}
+                            />
+                            <label
+                              htmlFor="profile-image-upload-guest"
+                              className="btn btn-ghost btn-sm"
+                              style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
+                            >
+                              Choose Photo
+                            </label>
+                            <span className="text-muted" style={{ fontSize: "11px" }}>
+                              {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "No file chosen (Auto-resized to 500x600 px)"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     {(!regEnabled && login.role === "member") ? (
                       <div className="form-row">
                         <div className="alert alert-error" style={{ width: "100%", margin: 0 }}>
@@ -645,6 +748,7 @@ export default function App() {
               className={`btn ${session.role !== "guest" ? "btn-ghost" : "btn-primary"} auth-btn`}
               onClick={session.role !== "guest" ? handleLogout : () => {
                 setShowLogin(true);
+                resetAuthForm();
                 if (window.innerWidth <= 768) {
                   setSidebarOpen(false);
                 }
@@ -667,13 +771,13 @@ export default function App() {
                 </div>
                 {loginError && <div className="alert alert-error">{loginError}</div>}
                 <div className="auth-tabs">
-                  <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>Register</button>
+                  <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); resetAuthForm(); }}>Login</button>
+                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); resetAuthForm(); }}>Register</button>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Role</label>
-                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" })}>
+                    <select value={login.role} onChange={e => { setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>
                       <option value="member">Member</option>
                       <option value="editor">Editor</option>
                       <option value="admin">Admin</option>
@@ -692,6 +796,43 @@ export default function App() {
                           autoFocus
                           required
                         />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Profile Picture</label>
+                        <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+                          {previewUrl ? (
+                            <img
+                              src={previewUrl}
+                              alt="Profile Preview"
+                              style={{ width: "50px", height: "50px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
+                            />
+                          ) : (
+                            <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "var(--text3)", flexShrink: 0 }}>
+                              👤
+                            </div>
+                          )}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              id="profile-image-upload"
+                              onChange={handleFileChange}
+                              style={{ display: "none" }}
+                            />
+                            <label
+                              htmlFor="profile-image-upload"
+                              className="btn btn-ghost btn-sm"
+                              style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
+                            >
+                              Choose Photo
+                            </label>
+                            <span className="text-muted" style={{ fontSize: "11px" }}>
+                              {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "No file chosen (Auto-resized to 500x600 px)"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     {(!regEnabled && login.role === "member") ? (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import { resizeImage } from "../utils/imageOptimizer";
 import PhoneContact from "../components/PhoneContact";
 
 export default function MyInfo({ session }) {
@@ -10,17 +11,45 @@ export default function MyInfo({ session }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  const [profileImageFile, setProfileImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        setMsg({ type: "error", text: "Please select a valid image file." });
+        return;
+      }
+      setProfileImageFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const openEditModal = () => {
     setEditForm({
       profile_image_url: profile.profile_image_url || "",
       linkedin_url: profile.linkedin_url || ""
     });
+    setProfileImageFile(null);
+    setPreviewUrl(null);
     setMsg(null);
     setEditModal(true);
   };
 
   const closeEditModal = () => {
     setEditModal(false);
+    setProfileImageFile(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
     setMsg(null);
   };
 
@@ -28,10 +57,39 @@ export default function MyInfo({ session }) {
     setSaving(true);
     setMsg(null);
     try {
+      let finalImageUrl = editForm.profile_image_url.trim() || null;
+
+      if (profileImageFile) {
+        // Optimize the image to exactly 500x600 px
+        const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
+
+        // Upload to bucket
+        const cleanStId = session.stId.replace(/\//g, "-");
+        const fileName = `${cleanStId}_${Date.now()}.jpg`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("profile_images")
+          .upload(fileName, optimizedFile, {
+            cacheControl: "3600",
+            upsert: true
+          });
+
+        if (uploadError) {
+          throw new Error("Failed to upload profile image: " + uploadError.message);
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from("profile_images")
+          .getPublicUrl(fileName);
+
+        finalImageUrl = urlData?.publicUrl || finalImageUrl;
+      }
+
       const { error } = await supabase
         .from("members")
         .update({
-          profile_image_url: editForm.profile_image_url.trim() || null,
+          profile_image_url: finalImageUrl,
           linkedin_url: editForm.linkedin_url.trim() || null
         })
         .eq("st_id", session.stId);
@@ -40,7 +98,7 @@ export default function MyInfo({ session }) {
 
       setProfile(prev => ({
         ...prev,
-        profile_image_url: editForm.profile_image_url.trim() || null,
+        profile_image_url: finalImageUrl,
         linkedin_url: editForm.linkedin_url.trim() || null
       }));
 
@@ -351,19 +409,45 @@ export default function MyInfo({ session }) {
             {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
             <div className="form-group" style={{ marginBottom: 15 }}>
-              <label>Profile Image URL</label>
-              <input
-                placeholder="e.g. https://example.com/photo.jpg"
-                value={editForm.profile_image_url}
-                onChange={e => setEditForm({ ...editForm, profile_image_url: e.target.value })}
-              />
-              <span className="text-muted text-sm" style={{ marginTop: 4 }}>
-                1. Upload your image to GitHub (`Repository → Add file → Upload files → Commit`).
-              </span>
-              <span className="text-muted text-sm" style={{ marginTop: 4 }}>
-                2. Open the image, click Raw, then copy the Raw URL (e.g., `https://raw.githubusercontent.com/username/repo/main/image.png`) and use that as the image URL.
-
-              </span>
+              <label>Profile Image</label>
+              <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)", marginTop: "6px" }}>
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt="Profile Preview"
+                    style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
+                  />
+                ) : editForm.profile_image_url ? (
+                  <img
+                    src={editForm.profile_image_url}
+                    alt="Current Profile"
+                    style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
+                  />
+                ) : (
+                  <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", color: "var(--text3)", flexShrink: 0 }}>
+                    👤
+                  </div>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="profile-image-edit-upload"
+                    onChange={handleFileChange}
+                    style={{ display: "none" }}
+                  />
+                  <label
+                    htmlFor="profile-image-edit-upload"
+                    className="btn btn-ghost btn-sm"
+                    style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
+                  >
+                    Upload New Photo
+                  </label>
+                  <span className="text-muted" style={{ fontSize: "11px" }}>
+                    {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "Using current photo (Auto-resized to 500x600 px)"}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="form-group" style={{ marginBottom: 20 }}>
