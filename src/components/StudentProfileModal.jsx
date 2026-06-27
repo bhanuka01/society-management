@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import PhoneContact from "./PhoneContact";
 
 export default function StudentProfileModal({ stId, onClose }) {
   const [profileTarget, setProfileTarget] = useState(null);
@@ -146,11 +147,7 @@ export default function StudentProfileModal({ stId, onClose }) {
           <div className="form-group">
             <label>📞 Mobile Number</label>
             <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
-              {profileTarget.mobile_number ? (
-                <a href={`tel:${profileTarget.mobile_number}`} style={{ color: "var(--text)", textDecoration: "none" }}>{profileTarget.mobile_number}</a>
-              ) : (
-                <span className="text-muted">Not provided</span>
-              )}
+              <PhoneContact phone={profileTarget.mobile_number} />
             </div>
           </div>
           <div className="form-group">

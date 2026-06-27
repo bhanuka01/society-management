@@ -14,7 +14,10 @@ export default function Dashboard({ onNavigate }) {
         supabase.from("events").select("*", { count: "exact", head: true }),
         supabase.from("oc").select("*", { count: "exact", head: true }),
         supabase.from("attendance").select("*", { count: "exact", head: true }).eq("attend", "YES"),
-        supabase.from("members").select("*").lte("level", 4).order("st_id", { ascending: false }).limit(5),
+        supabase.from("profiles")
+          .select("st_id, full_name, status, created_at, members(level)")
+          .eq("status", "approved")
+          .order("created_at", { ascending: false }),
         supabase.from("events").select("*").order("date", { ascending: false }).limit(5),
       ]);
       setStats({
@@ -23,7 +26,22 @@ export default function Dashboard({ onNavigate }) {
         oc: oc.count || 0,
         attendance: att.count || 0,
       });
-      setRecentMembers(rm.data || []);
+
+      const mappedMembers = [];
+      if (rm.data) {
+        for (const p of rm.data) {
+          if (p.members && p.members.level <= 4) {
+            mappedMembers.push({
+              st_id: p.st_id,
+              name: p.full_name,
+              level: p.members.level
+            });
+            if (mappedMembers.length === 5) break;
+          }
+        }
+      }
+
+      setRecentMembers(mappedMembers);
       setRecentEvents(re.data || []);
       setLoading(false);
     }

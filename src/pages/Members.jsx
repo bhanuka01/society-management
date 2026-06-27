@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import StudentProfileModal from "../components/StudentProfileModal";
+import PhoneContact from "../components/PhoneContact";
 
 const EMPTY_FORM = { st_id: "", name: "", level: "", st_position: "", member_function: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "", role: "member" };
 
@@ -127,7 +128,8 @@ export default function Members({ isAdmin = false }) {
           filtered = mappedData.filter(m =>
             (m.st_id || "").toLowerCase().includes(q) ||
             (m.name || "").toLowerCase().includes(q) ||
-            (m.email || "").toLowerCase().includes(q)
+            (m.email || "").toLowerCase().includes(q) ||
+            (m.member_function || "").toLowerCase().includes(q)
           );
         }
 
@@ -149,7 +151,7 @@ export default function Members({ isAdmin = false }) {
 
     const q = searchText.trim();
     if (q) {
-      query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,st_position.ilike.%${q}%`);
+      query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
     }
 
     const { data, count } = await query;
@@ -686,7 +688,7 @@ export default function Members({ isAdmin = false }) {
                           </span>
                         </div>
                       </td>
-                      <td>{m.mobile_number || <span className="text-muted">-</span>}</td>
+                      <td><PhoneContact phone={m.mobile_number} /></td>
                       <td><span className="badge badge-purple">Year {m.level}</span></td>
                       <td>
                         <div className="flex gap-2" style={{ flexWrap: "wrap" }}>

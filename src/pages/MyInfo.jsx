@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import PhoneContact from "../components/PhoneContact";
 
 export default function MyInfo({ session }) {
   const [profile, setProfile] = useState(null);
@@ -210,11 +211,7 @@ export default function MyInfo({ session }) {
           <div className="form-group">
             <label>📞 Mobile Number</label>
             <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
-              {profile.mobile_number ? (
-                <a href={`tel:${profile.mobile_number}`} style={{ color: "var(--text)", textDecoration: "none" }}>{profile.mobile_number}</a>
-              ) : (
-                <span className="text-muted">Not provided</span>
-              )}
+              <PhoneContact phone={profile.mobile_number} />
             </div>
           </div>
           <div className="form-group">
@@ -386,9 +383,12 @@ export default function MyInfo({ session }) {
                 {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 }
