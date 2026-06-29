@@ -1,7 +1,34 @@
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../supabaseClient";
 
 export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, onRegisterClick, regEnabled = true }) {
   const glowRef = useRef(null);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const { data, error } = await supabase
+          .from("events")
+          .select("event_id, name, date, time, flyer_url, description")
+          .or("is_public.is.null,is_public.eq.true")
+          .gte("date", todayStr)
+          .order("date", { ascending: true })
+          .limit(3);
+
+        if (!error && data) {
+          setUpcomingEvents(data);
+        }
+      } catch (err) {
+        console.error("Error fetching landing events:", err);
+      } finally {
+        setLoadingEvents(false);
+      }
+    };
+    fetchEvents();
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -71,7 +98,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         </div>
         <div className="hidden md:flex items-center gap-8">
           <button
-            onClick={() => scrollToSection("features")}
+            onClick={() => scrollToSection(upcomingEvents.length > 0 ? "upcoming-events" : "features")}
             className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
           >
             Events
@@ -166,6 +193,77 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           </div>
         </div>
       </header>
+
+      {/* Upcoming Events Section */}
+      {upcomingEvents.length > 0 && (
+        <section id="upcoming-events" className="animate-section py-20 bg-[#0B0A11] border-y border-white/5 relative">
+          <div className="container mx-auto px-6 max-w-6xl">
+            <div className="text-center mb-16">
+              <span className="text-[#0062ff] uppercase tracking-widest text-xs font-bold bg-[#0062ff]/10 px-3 py-1 rounded-full">Stay Connected</span>
+              <h2 className="text-3xl md:text-5xl font-bold mt-3 mb-4">Upcoming Events</h2>
+              <p className="text-[#94A3B8] text-base md:text-lg max-w-xl mx-auto">Register for our upcoming workshops, guest lectures, and hackathons.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {upcomingEvents.map(ev => {
+                const formattedDate = new Date(ev.date).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  weekday: "short"
+                });
+
+                return (
+                  <div key={ev.event_id} className="glass-card rounded-3xl overflow-hidden flex flex-col justify-between group h-full">
+                    <div>
+                      {/* Flyer / Header */}
+                      {ev.flyer_url ? (
+                        <div className="h-48 overflow-hidden relative">
+                          <img 
+                            src={ev.flyer_url} 
+                            alt={ev.name} 
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#181722] to-transparent opacity-60"></div>
+                        </div>
+                      ) : (
+                        <div className="h-48 bg-white/5 flex items-center justify-center text-white/20 relative">
+                          <span className="material-symbols-outlined text-5xl">event</span>
+                        </div>
+                      )}
+
+                      <div className="p-6">
+                        {/* Date badge */}
+                        <div className="flex items-center gap-2 text-xs text-[#85b5ff] font-semibold mb-3">
+                          <span className="material-symbols-outlined text-sm">calendar_month</span>
+                          {formattedDate}
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#0062ff] transition-colors">{ev.name}</h3>
+                        <p className="text-sm text-[#94A3B8] line-clamp-2 leading-relaxed mb-4">
+                          {ev.description || "Join us for this actuarial and data science event. Click register to see full details and form."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 pt-0">
+                      <button
+                        onClick={() => {
+                          const eventUrl = `/event?id=${ev.event_id}`;
+                          window.history.pushState({ path: eventUrl }, "", eventUrl);
+                          window.dispatchEvent(new Event("popstate"));
+                        }}
+                        className="w-full py-3 bg-[#0062ff]/20 text-white border border-[#0062ff]/30 rounded-xl font-bold text-sm hover:bg-[#0062ff] hover:border-transparent active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                      >
+                        Register & View Details <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Features Bento Grid */}
       <section id="features" className="animate-section py-24 bg-[#14121a] transition-all duration-1000">

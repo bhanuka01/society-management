@@ -45,12 +45,22 @@ CREATE TABLE IF NOT EXISTS events (
   event_id VARCHAR(50) PRIMARY KEY,
   name     VARCHAR(255) NOT NULL,
   date     DATE NOT NULL,
-  oc_st_id VARCHAR(50) REFERENCES members(st_id) ON DELETE SET NULL
+  oc_st_id VARCHAR(50) REFERENCES members(st_id) ON DELETE SET NULL,
+  description TEXT,
+  time     VARCHAR(100),
+  tally_link TEXT,
+  flyer_url TEXT,
+  is_public BOOLEAN DEFAULT TRUE
 );
 
 -- If your events table already exists, run this once:
 ALTER TABLE events
-ADD COLUMN IF NOT EXISTS oc_st_id VARCHAR(50) REFERENCES members(st_id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS oc_st_id VARCHAR(50) REFERENCES members(st_id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS description TEXT,
+ADD COLUMN IF NOT EXISTS time VARCHAR(100),
+ADD COLUMN IF NOT EXISTS tally_link TEXT,
+ADD COLUMN IF NOT EXISTS flyer_url TEXT,
+ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE;
 
 -- 5. Organizing Committee (per event task assignments)
 CREATE TABLE IF NOT EXISTS oc (

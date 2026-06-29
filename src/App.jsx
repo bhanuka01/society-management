@@ -13,6 +13,7 @@ import MyInfo from "./pages/MyInfo";
 import Messages from "./pages/Messages";
 import Tasks from "./pages/Tasks";
 import Landing from "./pages/Landing";
+import PublicEvent from "./pages/PublicEvent";
 import "./App.css";
 
 const NAV_ITEMS = [
@@ -56,6 +57,24 @@ export default function App() {
   
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [currentHash, setCurrentHash] = useState(window.location.hash);
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      setCurrentPath(window.location.pathname);
+      setCurrentHash(window.location.hash);
+    };
+    window.addEventListener("popstate", handleUrlChange);
+    window.addEventListener("hashchange", handleUrlChange);
+    return () => {
+      window.removeEventListener("popstate", handleUrlChange);
+      window.removeEventListener("hashchange", handleUrlChange);
+    };
+  }, []);
+
+  const isEventRoute = currentPath.startsWith("/event") || currentHash.startsWith("#/event") || currentHash.startsWith("#event");
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -390,6 +409,17 @@ export default function App() {
       return nextVal;
     });
   };
+
+  if (isEventRoute) {
+    return (
+      <PublicEvent
+        onBackToLanding={() => {
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+      />
+    );
+  }
 
   if (session.userId && session.status === "pending") {
     return (

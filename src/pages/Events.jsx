@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import { resizeImage } from "../utils/imageOptimizer";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 
-const EMPTY = { event_id: "", name: "", date: "", oc_st_id: "", apply_start_date: "", apply_end_date: "" };
+const EMPTY = { event_id: "", name: "", date: "", oc_st_id: "", apply_start_date: "", apply_end_date: "", description: "", time: "", tally_link: "", flyer_url: "", is_public: true };
 const APPLY_EMPTY = { function_id: "", oc_position: "" };
 
 export default function Events({ isAdmin = false, session }) {
@@ -13,6 +14,8 @@ export default function Events({ isAdmin = false, session }) {
   const [modal, setModal] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [flyerFile, setFlyerFile] = useState(null);
+  const [flyerPreview, setFlyerPreview] = useState(null);
   const [applyModal, setApplyModal] = useState(false);
   const [applyTarget, setApplyTarget] = useState(null);
   const [applyForm, setApplyForm] = useState(APPLY_EMPTY);
@@ -51,12 +54,45 @@ export default function Events({ isAdmin = false, session }) {
 
   const openAdd = () => { setForm(EMPTY); setEditTarget(null); setModal(true); setMsg(null); };
   const openEdit = (e) => {
-    setForm({ event_id: e.event_id, name: e.name, date: e.date, oc_st_id: e.oc_st_id || "", apply_start_date: e.apply_start_date || "", apply_end_date: e.apply_end_date || "" });
+    setForm({ 
+      event_id: e.event_id, 
+      name: e.name, 
+      date: e.date, 
+      oc_st_id: e.oc_st_id || "", 
+      apply_start_date: e.apply_start_date || "", 
+      apply_end_date: e.apply_end_date || "",
+      description: e.description || "",
+      time: e.time || "",
+      tally_link: e.tally_link || "",
+      flyer_url: e.flyer_url || "",
+      is_public: e.is_public !== false
+    });
     setEditTarget(e.event_id);
     setModal(true);
     setMsg(null);
+    setFlyerFile(null);
+    setFlyerPreview(null);
   };
-  const closeModal = () => { setModal(false); setMsg(null); };
+  const closeModal = () => { 
+    setModal(false); 
+    setMsg(null); 
+    setFlyerFile(null);
+    if (flyerPreview) {
+      URL.revokeObjectURL(flyerPreview);
+      setFlyerPreview(null);
+    }
+  };
+  const handleFlyerChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        setMsg({ type: "error", text: "Please select a valid image file." });
+        return;
+      }
+      setFlyerFile(file);
+      setFlyerPreview(URL.createObjectURL(file));
+    }
+  };
 
   const openApply = async (e) => {
     setApplyTarget(e);
@@ -78,6 +114,37 @@ export default function Events({ isAdmin = false, session }) {
       return;
     }
     setSaving(true);
+    
+    let flyerUrl = form.flyer_url || null;
+    if (flyerFile) {
+      try {
+        const optimizedFile = await resizeImage(flyerFile, 800, 1000, 0.85);
+        const cleanEventId = form.event_id.trim().replace(/\//g, "-");
+        const fileName = `flyer_${cleanEventId}_${Date.now()}.jpg`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("profile_images")
+          .upload(fileName, optimizedFile, {
+            cacheControl: "3600",
+            upsert: true
+          });
+
+        if (uploadError) {
+          throw new Error("Failed to upload flyer: " + uploadError.message);
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("profile_images")
+          .getPublicUrl(fileName);
+
+        flyerUrl = urlData?.publicUrl;
+      } catch (imgErr) {
+        setMsg({ type: "error", text: imgErr.message });
+        setSaving(false);
+        return;
+      }
+    }
+
     const payload = {
       event_id: form.event_id.trim(),
       name: form.name.trim(),
@@ -85,7 +152,13 @@ export default function Events({ isAdmin = false, session }) {
       oc_st_id: form.oc_st_id || null,
       apply_start_date: form.apply_start_date || null,
       apply_end_date: form.apply_end_date || null,
+      description: form.description || null,
+      time: form.time || null,
+      tally_link: form.tally_link || null,
+      flyer_url: flyerUrl,
+      is_public: form.is_public !== false
     };
+
     let error;
     if (editTarget) {
       ({ error } = await supabase.from("events").update(payload).eq("event_id", editTarget));
@@ -176,7 +249,14 @@ export default function Events({ isAdmin = false, session }) {
               ) : events.map(e => (
                 <tr key={e.event_id}>
                   <td className="mono">{e.event_id}</td>
-                  <td><strong>{e.name}</strong></td>
+                  <td>
+                    <strong>{e.name}</strong>
+                    {e.is_public !== false ? (
+                      <span className="badge badge-green" style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🌐 Public</span>
+                    ) : (
+                      <span className="badge badge-gray" style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🔒 Private</span>
+                    )}
+                  </td>
                   <td className="mono">{e.date}</td>
                   <td>{e.oc_st_id ? <span className="badge badge-purple">{getMemberName(e.oc_st_id)}</span> : <span className="text-muted">-</span>}</td>
                   <td>{getDateBadge(e.date)}</td>
@@ -187,7 +267,8 @@ export default function Events({ isAdmin = false, session }) {
                   </td>
                   {isAdmin && (
                     <td>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <a href={`/event?id=${e.event_id}`} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Preview</a>
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(e)}>Edit</button>
                         <button className="btn btn-success btn-sm" title="Seed attendance for all members" onClick={() => seedAttendance(e.event_id)}>Seed Att.</button>
                         <button className="btn btn-danger btn-sm" onClick={() => handleDelete(e.event_id)}>Delete</button>
@@ -228,19 +309,97 @@ export default function Events({ isAdmin = false, session }) {
                 <input placeholder="Name of the event" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               </div>
             </div>
+            <div className="form-row" style={{ marginBottom: "15px" }}>
+              <div className="form-group" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "10px", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+                <input 
+                  type="checkbox" 
+                  id="event-is-public"
+                  checked={form.is_public !== false} 
+                  onChange={e => setForm({ ...form, is_public: e.target.checked })} 
+                  style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#0062ff", margin: 0 }}
+                />
+                <label htmlFor="event-is-public" style={{ margin: 0, cursor: "pointer", fontWeight: "600", fontSize: "13px", color: "var(--text)" }}>
+                  Show Event on Public Main Page & Public Event Page
+                </label>
+              </div>
+            </div>
             <div className="form-row form-row-2">
               <div className="form-group">
-                <label>Apply Start Date</label>
+                <label>Event Time (e.g. 10:00 AM - 12:30 PM)</label>
+                <input placeholder="e.g. 10:00 AM - 1:00 PM" value={form.time || ""} onChange={e => setForm({ ...form, time: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Tally.so Embed Link or Form ID</label>
+                <input placeholder="e.g. mBQKkN or full URL" value={form.tally_link || ""} onChange={e => setForm({ ...form, tally_link: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Event Description</label>
+                <textarea 
+                  placeholder="Describe the event, topics, guest speakers..." 
+                  value={form.description || ""} 
+                  onChange={e => setForm({ ...form, description: e.target.value })}
+                  style={{ width: "100%", height: "80px", background: "var(--bg3)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "10px" }}
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Event Flyer Image</label>
+                <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+                  {flyerPreview || form.flyer_url ? (
+                    <img
+                      src={flyerPreview || form.flyer_url}
+                      alt="Flyer Preview"
+                      style={{ width: "60px", height: "80px", objectFit: "cover", borderRadius: "4px", border: "1px solid var(--border)", flexShrink: 0 }}
+                    />
+                  ) : (
+                    <div style={{ width: "60px", height: "80px", borderRadius: "4px", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "var(--text3)", flexShrink: 0 }}>
+                      🖼️
+                    </div>
+                  )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexGrow: 1 }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="event-flyer-upload"
+                      onChange={handleFlyerChange}
+                      style={{ display: "none" }}
+                    />
+                    <label
+                      htmlFor="event-flyer-upload"
+                      className="btn btn-ghost btn-sm"
+                      style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
+                    >
+                      Choose Flyer
+                    </label>
+                    <span className="text-muted" style={{ fontSize: "11px" }}>
+                      {flyerFile ? `${flyerFile.name.substring(0, 20)}${flyerFile.name.length > 20 ? "..." : ""}` : "No flyer uploaded"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Or External Flyer Image URL</label>
+                <input placeholder="https://example.com/flyer.jpg" value={form.flyer_url || ""} onChange={e => setForm({ ...form, flyer_url: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-row form-row-2">
+              <div className="form-group">
+                <label>Apply Start Date (for OC Applications)</label>
                 <input type="date" value={form.apply_start_date} onChange={e => setForm({ ...form, apply_start_date: e.target.value })} />
               </div>
               <div className="form-group">
-                <label>Apply End Date</label>
+                <label>Apply End Date (for OC Applications)</label>
                 <input type="date" value={form.apply_end_date} onChange={e => setForm({ ...form, apply_end_date: e.target.value })} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Assigned OC</label>
+                <label>Assigned OC Lead</label>
                 <select value={form.oc_st_id} onChange={e => setForm({ ...form, oc_st_id: e.target.value })}>
                   <option value="">No OC assigned</option>
                   {members.map(m => <option key={m.st_id} value={m.st_id}>{m.st_id} - {m.name}</option>)}
