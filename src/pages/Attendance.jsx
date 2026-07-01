@@ -27,7 +27,11 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
       });
   }, []);
 
-  useEffect(() => {
+  const [activeTodayEvents, setActiveTodayEvents] = useState([]);
+  const [loadingActiveEvents, setLoadingActiveEvents] = useState(false);
+  const [markingMap, setMarkingMap] = useState({});
+
+  const fetchMyAttendance = () => {
     if (session.role !== "member" || !session.stId) {
       setMyAttendance([]);
       setMyTotal(0);
@@ -50,7 +54,104 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
         setMyTotal(records.count || 0);
         setMyCounts({ yes: yes.count || 0, no: no.count || 0 });
       });
+  };
+
+  useEffect(() => {
+    fetchMyAttendance();
   }, [session.role, session.stId, myPage]);
+
+  const fetchActiveTodayEvents = async () => {
+    if (session.role !== "member" || !session.stId) return;
+    setLoadingActiveEvents(true);
+    const todayStr = new Date().toLocaleDateString("sv-SE");
+    
+    const { data: eventsData, error: eventsError } = await supabase
+      .from("events")
+      .select("*")
+      .eq("date", todayStr)
+      .eq("self_attendance_enabled", true);
+      
+    if (!eventsError && eventsData?.length) {
+      const eventIds = eventsData.map(e => e.event_id);
+      const { data: attData } = await supabase
+        .from("attendance")
+        .select("event_id, attend")
+        .eq("st_id", session.stId)
+        .in("event_id", eventIds);
+        
+      const attMap = {};
+      attData?.forEach(a => {
+        attMap[a.event_id] = a.attend;
+      });
+      
+      const combined = eventsData.map(e => ({
+        ...e,
+        myAttendanceStatus: attMap[e.event_id] || "NO"
+      }));
+      setActiveTodayEvents(combined);
+    } else {
+      setActiveTodayEvents([]);
+    }
+    setLoadingActiveEvents(false);
+  };
+
+  useEffect(() => {
+    fetchActiveTodayEvents();
+  }, [session.role, session.stId]);
+
+  const isTimeWithinRange = (timeStr) => {
+    if (!timeStr) return true;
+    try {
+      const cleanStr = timeStr.toLowerCase().replace(/\s+/g, ' ');
+      const parts = cleanStr.split(/[-–—]| to /);
+      if (parts.length !== 2) return true;
+      
+      const parseTime = (str) => {
+        const match = str.match(/(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?/);
+        if (!match) return null;
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2] ? parseInt(match[2], 10) : 0;
+        const ampm = match[3];
+        if (ampm === 'pm' && hours < 12) hours += 12;
+        if (ampm === 'am' && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
+
+      const startMin = parseTime(parts[0].trim());
+      const endMin = parseTime(parts[1].trim());
+
+      if (startMin === null || endMin === null) return true;
+
+      const now = new Date();
+      const currentMin = now.getHours() * 60 + now.getMinutes();
+
+      if (startMin > endMin) { // overnight
+        return currentMin >= startMin || currentMin <= endMin;
+      }
+      return currentMin >= startMin && currentMin <= endMin;
+    } catch (e) {
+      return true; 
+    }
+  };
+
+  const handleSelfMarkAttendance = async (eventId) => {
+    if (!session.stId) return;
+    setMarkingMap(prev => ({ ...prev, [eventId]: true }));
+    const { error } = await supabase
+      .from("attendance")
+      .upsert({
+        st_id: session.stId,
+        event_id: eventId,
+        attend: "YES"
+      }, { onConflict: "st_id,event_id" });
+    setMarkingMap(prev => ({ ...prev, [eventId]: false }));
+    if (error) {
+      alert("Failed to mark attendance: " + error.message);
+    } else {
+      fetchMyAttendance();
+      fetchActiveTodayEvents();
+    }
+  };
 
   useEffect(() => {
     if (!selectedEvent) {
@@ -151,6 +252,54 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
         <h1 className="page-title"><span className="icon">*</span> Attendance</h1>
         <p className="page-subtitle">{isAdmin ? "mark and track event attendance" : "watch attendance records without editing"}</p>
       </div>
+
+      {session.role === "member" && activeTodayEvents.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, border: "2px solid var(--accent)", background: "var(--bg2)" }}>
+          <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span className="card-title" style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: "8px" }}>
+              📢 Active Event Attendance
+            </span>
+            <span className="badge badge-green">Open</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "8px 0" }}>
+            {activeTodayEvents.map(event => {
+              const isPresent = event.myAttendanceStatus === "YES";
+              const inTimeRange = isTimeWithinRange(event.time);
+              
+              return (
+                <div key={event.event_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", borderBottom: "1px solid var(--border)", lastChild: { border: 0 } }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "600" }}>{event.name}</h3>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "var(--text2)" }}>
+                      🕒 Time: {event.time || "Not specified"}
+                    </p>
+                  </div>
+                  <div>
+                    {isPresent ? (
+                      <span className="badge badge-green" style={{ fontSize: "13px", padding: "6px 12px" }}>✓ Present</span>
+                    ) : !inTimeRange ? (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                        <button className="btn btn-ghost btn-sm" disabled style={{ cursor: "not-allowed", opacity: 0.6 }}>
+                          Mark Present
+                        </button>
+                        <span style={{ fontSize: "10px", color: "var(--red)", fontWeight: "600" }}>Outside time window</span>
+                      </div>
+                    ) : (
+                      <button 
+                        className="btn btn-primary btn-sm" 
+                        onClick={() => handleSelfMarkAttendance(event.event_id)}
+                        disabled={markingMap[event.event_id]}
+                      >
+                        {markingMap[event.event_id] ? "Marking..." : "Mark Present"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {session.role === "member" && (
         <div className="card" style={{ marginBottom: 16 }}>

@@ -3,7 +3,7 @@ import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 
-const EMPTY = { event_id: "", name: "", date: "", oc_st_id: "", apply_start_date: "", apply_end_date: "", description: "", time: "", tally_link: "", flyer_url: "", is_public: true };
+const EMPTY = { event_id: "", name: "", date: "", oc_st_id: "", apply_start_date: "", apply_end_date: "", description: "", time: "", tally_link: "", flyer_url: "", is_public: true, self_attendance_enabled: false };
 const APPLY_EMPTY = { function_id: "", oc_position: "" };
 
 export default function Events({ isAdmin = false, session }) {
@@ -24,6 +24,8 @@ export default function Events({ isAdmin = false, session }) {
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
+  const [myAttendanceMap, setMyAttendanceMap] = useState({});
+  const [markingMap, setMarkingMap] = useState({});
 
   const load = async (pageToLoad = page, searchText = search) => {
     setLoading(true);
@@ -44,9 +46,26 @@ export default function Events({ isAdmin = false, session }) {
       eventQuery,
       supabase.from("members").select("st_id, name").lte("level", 4).order("name"),
     ]);
-    setEvents(eventRes.data || []);
+    const eventsData = eventRes.data || [];
+    setEvents(eventsData);
     setTotal(eventRes.count || 0);
     setMembers(memberRes.data || []);
+
+    if (session?.stId && eventsData.length > 0) {
+      const eventIds = eventsData.map(e => e.event_id);
+      const { data: attData } = await supabase
+        .from("attendance")
+        .select("event_id, attend")
+        .eq("st_id", session.stId)
+        .in("event_id", eventIds);
+      const attMap = {};
+      attData?.forEach(a => {
+        attMap[a.event_id] = a.attend;
+      });
+      setMyAttendanceMap(attMap);
+    } else {
+      setMyAttendanceMap({});
+    }
     setLoading(false);
   };
 
@@ -65,7 +84,8 @@ export default function Events({ isAdmin = false, session }) {
       time: e.time || "",
       tally_link: e.tally_link || "",
       flyer_url: e.flyer_url || "",
-      is_public: e.is_public !== false
+      is_public: e.is_public !== false,
+      self_attendance_enabled: e.self_attendance_enabled === true
     });
     setEditTarget(e.event_id);
     setModal(true);
@@ -156,7 +176,8 @@ export default function Events({ isAdmin = false, session }) {
       time: form.time || null,
       tally_link: form.tally_link || null,
       flyer_url: flyerUrl,
-      is_public: form.is_public !== false
+      is_public: form.is_public !== false,
+      self_attendance_enabled: form.self_attendance_enabled === true
     };
 
     let error;
@@ -208,7 +229,69 @@ export default function Events({ isAdmin = false, session }) {
     else alert(`Seeded attendance for ${membersData.length} members.`);
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const isTimeWithinRange = (timeStr) => {
+    if (!timeStr) return true;
+    try {
+      const cleanStr = timeStr.toLowerCase().replace(/\s+/g, ' ');
+      const parts = cleanStr.split(/[-–—]| to /);
+      if (parts.length !== 2) return true;
+      
+      const parseTime = (str) => {
+        const match = str.match(/(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?/);
+        if (!match) return null;
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2] ? parseInt(match[2], 10) : 0;
+        const ampm = match[3];
+        if (ampm === 'pm' && hours < 12) hours += 12;
+        if (ampm === 'am' && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
+
+      const startMin = parseTime(parts[0].trim());
+      const endMin = parseTime(parts[1].trim());
+
+      if (startMin === null || endMin === null) return true;
+
+      const now = new Date();
+      const currentMin = now.getHours() * 60 + now.getMinutes();
+
+      if (startMin > endMin) { // overnight
+        return currentMin >= startMin || currentMin <= endMin;
+      }
+      return currentMin >= startMin && currentMin <= endMin;
+    } catch (e) {
+      return true; 
+    }
+  };
+
+  const toggleSelfAttendance = async (eventId, currentVal) => {
+    const newVal = !currentVal;
+    const { error } = await supabase
+      .from("events")
+      .update({ self_attendance_enabled: newVal })
+      .eq("event_id", eventId);
+    if (error) {
+      alert("Failed to toggle self-attendance: " + error.message);
+    } else {
+      load(page, search);
+    }
+  };
+
+  const handleSelfMarkAttendance = async (eventId) => {
+    if (!session?.stId) return;
+    setMarkingMap(prev => ({ ...prev, [eventId]: true }));
+    const { error } = await supabase
+      .from("attendance")
+      .upsert({ st_id: session.stId, event_id: eventId, attend: "YES" }, { onConflict: "st_id,event_id" });
+    setMarkingMap(prev => ({ ...prev, [eventId]: false }));
+    if (error) {
+      alert("Failed to mark attendance: " + error.message);
+    } else {
+      load(page, search);
+    }
+  };
+
+  const today = new Date().toLocaleDateString("sv-SE");
   const getDateBadge = (date) => {
     if (date > today) return <span className="badge badge-green">Upcoming</span>;
     if (date === today) return <span className="badge badge-amber">Today</span>;
@@ -241,11 +324,24 @@ export default function Events({ isAdmin = false, session }) {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Event ID</th><th>Name</th><th>Date</th><th>OC</th><th>Status</th><th>Apply</th>{isAdmin && <th>Actions</th>}</tr>
+              <tr>
+                <th>Event ID</th>
+                <th>Name</th>
+                <th>Date</th>
+                <th>OC</th>
+                <th>Status</th>
+                {session?.role && session.role !== "guest" && <th>Self-Attendance</th>}
+                <th>Apply</th>
+                {isAdmin && <th>Actions</th>}
+              </tr>
             </thead>
             <tbody>
               {events.length === 0 ? (
-                <tr><td colSpan={isAdmin ? 7 : 6}><div className="empty-state"><div className="icon">*</div><p>No events found</p></div></td></tr>
+                <tr>
+                  <td colSpan={isAdmin ? 8 : (session?.role && session.role !== "guest" ? 7 : 6)}>
+                    <div className="empty-state"><div className="icon">*</div><p>No events found</p></div>
+                  </td>
+                </tr>
               ) : events.map(e => (
                 <tr key={e.event_id}>
                   <td className="mono">{e.event_id}</td>
@@ -260,6 +356,44 @@ export default function Events({ isAdmin = false, session }) {
                   <td className="mono">{e.date}</td>
                   <td>{e.oc_st_id ? <span className="badge badge-purple">{getMemberName(e.oc_st_id)}</span> : <span className="text-muted">-</span>}</td>
                   <td>{getDateBadge(e.date)}</td>
+                  {session?.role && session.role !== "guest" && (
+                    <td>
+                      {isAdmin ? (
+                        <button
+                          className={`btn btn-sm ${e.self_attendance_enabled ? "btn-success" : "btn-ghost"}`}
+                          onClick={() => toggleSelfAttendance(e.event_id, e.self_attendance_enabled)}
+                          style={{ minWidth: "90px" }}
+                        >
+                          {e.self_attendance_enabled ? "🟢 Enabled" : "⚪ Disabled"}
+                        </button>
+                      ) : (
+                        e.date === today ? (
+                          e.self_attendance_enabled ? (
+                            myAttendanceMap[e.event_id] === "YES" ? (
+                              <span className="badge badge-green">✓ Present</span>
+                            ) : isTimeWithinRange(e.time) ? (
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => handleSelfMarkAttendance(e.event_id)}
+                                disabled={markingMap[e.event_id]}
+                              >
+                                {markingMap[e.event_id] ? "..." : "Mark Present"}
+                              </button>
+                            ) : (
+                              <div style={{ display: "inline-flex", flexDirection: "column", gap: "2px", alignItems: "center", verticalAlign: "middle" }}>
+                                <button className="btn btn-ghost btn-sm" disabled style={{ cursor: "not-allowed", padding: "2px 6px", fontSize: "11px" }}>Mark Present</button>
+                                <span style={{ fontSize: "9px", color: "var(--red)", fontWeight: "600" }}>Outside Time</span>
+                              </div>
+                            )
+                          ) : (
+                            <span className="text-muted">Disabled</span>
+                          )
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )
+                      )}
+                    </td>
+                  )}
                   <td>
                     {isAccepting(e) && session?.stId ? (
                       <button className="btn btn-primary btn-sm" onClick={() => openApply(e)}>Apply for OC</button>
@@ -320,6 +454,20 @@ export default function Events({ isAdmin = false, session }) {
                 />
                 <label htmlFor="event-is-public" style={{ margin: 0, cursor: "pointer", fontWeight: "600", fontSize: "13px", color: "var(--text)" }}>
                   Show Event on Public Main Page & Public Event Page
+                </label>
+              </div>
+            </div>
+            <div className="form-row" style={{ marginBottom: "15px" }}>
+              <div className="form-group" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "10px", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+                <input 
+                  type="checkbox" 
+                  id="event-self-attendance"
+                  checked={form.self_attendance_enabled === true} 
+                  onChange={e => setForm({ ...form, self_attendance_enabled: e.target.checked })} 
+                  style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#0062ff", margin: 0 }}
+                />
+                <label htmlFor="event-self-attendance" style={{ margin: 0, cursor: "pointer", fontWeight: "600", fontSize: "13px", color: "var(--text)" }}>
+                  Allow Members to Mark Own Attendance (Self-Attendance)
                 </label>
               </div>
             </div>

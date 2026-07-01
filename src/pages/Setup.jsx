@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS events (
   time     VARCHAR(100),
   tally_link TEXT,
   flyer_url TEXT,
-  is_public BOOLEAN DEFAULT TRUE
+  is_public BOOLEAN DEFAULT TRUE,
+  self_attendance_enabled BOOLEAN DEFAULT FALSE
 );
 
 -- If your events table already exists, run this once:
@@ -60,7 +61,8 @@ ADD COLUMN IF NOT EXISTS description TEXT,
 ADD COLUMN IF NOT EXISTS time VARCHAR(100),
 ADD COLUMN IF NOT EXISTS tally_link TEXT,
 ADD COLUMN IF NOT EXISTS flyer_url TEXT,
-ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE;
+ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE,
+ADD COLUMN IF NOT EXISTS self_attendance_enabled BOOLEAN DEFAULT FALSE;
 
 -- 5. Organizing Committee (per event task assignments)
 CREATE TABLE IF NOT EXISTS oc (
@@ -133,7 +135,33 @@ ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "members update own" ON members;
 CREATE POLICY "members update own" ON members FOR UPDATE TO authenticated
 USING (st_id = (SELECT st_id FROM profiles WHERE id = auth.uid()))
-WITH CHECK (st_id = (SELECT st_id FROM profiles WHERE id = auth.uid()));`;
+WITH CHECK (st_id = (SELECT st_id FROM profiles WHERE id = auth.uid()));
+
+-- 9. Allow members to mark their own attendance
+DROP POLICY IF EXISTS "member insert own attendance" ON attendance;
+CREATE POLICY "member insert own attendance" ON attendance FOR INSERT TO authenticated
+WITH CHECK (
+  st_id = (SELECT st_id FROM profiles WHERE id = auth.uid())
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.event_id = attendance.event_id
+      AND events.self_attendance_enabled = true
+  )
+);
+
+DROP POLICY IF EXISTS "member update own attendance" ON attendance;
+CREATE POLICY "member update own attendance" ON attendance FOR UPDATE TO authenticated
+USING (
+  st_id = (SELECT st_id FROM profiles WHERE id = auth.uid())
+)
+WITH CHECK (
+  st_id = (SELECT st_id FROM profiles WHERE id = auth.uid())
+  AND EXISTS (
+    SELECT 1 FROM events
+    WHERE events.event_id = attendance.event_id
+      AND events.self_attendance_enabled = true
+  )
+);`;
 
 const ENV = `VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`;
