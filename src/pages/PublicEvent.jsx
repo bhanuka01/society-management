@@ -204,6 +204,13 @@ export default function PublicEvent({ onBackToLanding }) {
           border-radius: 16px;
           border: 1px solid rgba(255, 255, 255, 0.05);
           overflow: hidden;
+          height: 600px;
+          transition: all 0.3s ease;
+        }
+        @media (max-w: 768px) {
+          .tally-iframe-container {
+            height: 750px;
+          }
         }
       `}</style>
 
@@ -222,8 +229,8 @@ export default function PublicEvent({ onBackToLanding }) {
       </nav>
 
       {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-6 pt-28">
-        
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 pt-28">
+
         {/* Breadcrumb / Badge */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${isUpcoming ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-gray-500/10 text-gray-400 border border-gray-500/20"}`}>
@@ -234,13 +241,13 @@ export default function PublicEvent({ onBackToLanding }) {
 
         {/* Content Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
+
           {/* Left Side: Information & Flyer */}
           <div className="lg:col-span-7 flex flex-col gap-6">
             <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight leading-tight text-white mb-2">
               {event.name}
             </h1>
-            
+
             {/* Meta details */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white/5 border border-white/5 p-5 rounded-2xl">
               <div className="flex items-center gap-3">
@@ -250,7 +257,7 @@ export default function PublicEvent({ onBackToLanding }) {
                   <div className="text-sm font-bold">{formatDate(event.date)}</div>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-white/10 pt-3 sm:pt-0 sm:pl-4">
                 <span className="material-symbols-outlined text-2xl text-[#00C2FF]">schedule</span>
                 <div>
@@ -262,11 +269,11 @@ export default function PublicEvent({ onBackToLanding }) {
 
             {/* Flyer Image */}
             {event.flyer_url ? (
-              <div className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl group max-w-full">
-                <img 
-                  src={event.flyer_url} 
-                  alt={`${event.name} Flyer`} 
-                  className="w-full h-auto object-cover max-h-[500px]"
+              <div className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl group max-w-full bg-[#181722]/50 flex justify-center items-center min-h-[300px]">
+                <img
+                  src={event.flyer_url}
+                  alt={`${event.name} Flyer`}
+                  className="w-full h-auto object-contain max-h-[600px] sm:max-h-[700px]"
                 />
               </div>
             ) : (
@@ -288,8 +295,8 @@ export default function PublicEvent({ onBackToLanding }) {
           </div>
 
           {/* Right Side: Registration Iframe Embed */}
-          <div className="lg:col-span-5 lg:sticky lg:top-24">
-            <div className="event-card p-6 border-t-4 border-t-[#0062ff]">
+          <div className="lg:col-span-5 lg:sticky lg:top-24 w-full">
+            <div className="event-card p-4 sm:p-6 border-t-4 border-t-[#0062ff]">
               <div className="mb-4">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[#0062ff]">how_to_reg</span> Register Now
@@ -298,9 +305,9 @@ export default function PublicEvent({ onBackToLanding }) {
               </div>
 
               {isUpcoming ? (
-                <div className="tally-iframe-container relative" style={{ minHeight: "500px" }}>
+                <div className="tally-iframe-container relative">
                   {iframeLoading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#181722]/85 z-10 gap-3 rounded-2xl" style={{ minHeight: "500px" }}>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#181722]/85 z-10 gap-3 rounded-2xl">
                       <div className="w-10 h-10 border-4 border-[#0062ff] border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-xs text-text-secondary font-semibold uppercase tracking-wider">Loading Form...</p>
                     </div>
@@ -308,13 +315,12 @@ export default function PublicEvent({ onBackToLanding }) {
                   <iframe
                     src={getTallyEmbedUrl(event.tally_link)}
                     width="100%"
-                    height="500"
+                    height="100%"
                     frameBorder="0"
                     marginHeight="0"
                     marginWidth="0"
                     title={`Register for ${event.name}`}
-                    className="w-full bg-transparent"
-                    style={{ minHeight: "500px" }}
+                    className="w-full h-full bg-transparent"
                     onLoad={() => setIframeLoading(false)}
                   ></iframe>
                 </div>
@@ -335,15 +341,15 @@ export default function PublicEvent({ onBackToLanding }) {
             <h2 className="text-2xl font-bold mb-8">Other ADSS Events</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {otherEvents.map(oe => (
-                <div 
-                  key={oe.event_id} 
+                <div
+                  key={oe.event_id}
                   className="other-card rounded-2xl overflow-hidden flex flex-col cursor-pointer"
                   onClick={() => handleSelectEvent(oe.event_id)}
                 >
                   {oe.flyer_url ? (
-                    <img 
-                      src={oe.flyer_url} 
-                      alt={oe.name} 
+                    <img
+                      src={oe.flyer_url}
+                      alt={oe.name}
                       className="w-full h-40 object-cover border-b border-white/5"
                     />
                   ) : (
