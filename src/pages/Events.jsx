@@ -143,7 +143,7 @@ export default function Events({ isAdmin = false, session }) {
         const fileName = `flyer_${cleanEventId}_${Date.now()}.jpg`;
 
         const { error: uploadError } = await supabase.storage
-          .from("profile_images")
+          .from("event_flyers")
           .upload(fileName, optimizedFile, {
             cacheControl: "3600",
             upsert: true
@@ -154,7 +154,7 @@ export default function Events({ isAdmin = false, session }) {
         }
 
         const { data: urlData } = supabase.storage
-          .from("profile_images")
+          .from("event_flyers")
           .getPublicUrl(fileName);
 
         flyerUrl = urlData?.publicUrl;

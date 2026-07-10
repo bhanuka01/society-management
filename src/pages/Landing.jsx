@@ -88,57 +88,99 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         .hero-glow {
           background: radial-gradient(circle at 50% 100%, rgba(0, 98, 255, 0.2) 0%, transparent 60%);
         }
+        @media (max-width: 767px) {
+          .desktop-nav { display: none !important; }
+        }
+        @media (min-width: 768px) {
+          .mobile-nav { display: none !important; }
+        }
       `}</style>
 
       {/* TopNavBar */}
-      <nav className="fixed top-0 w-full z-50 flex justify-between items-center px-6 md:px-12 py-4 bg-[#14121a]/85 backdrop-blur-xl border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
-          <span className="font-headline-md text-2xl font-bold text-on-surface hidden md:block">ADSS Ruhuna</span>
+      <nav className="fixed top-0 w-full z-50 flex items-center px-6 md:px-12 py-4 bg-[#14121a]/85 backdrop-blur-xl border-b border-white/5">
+        
+        {/* Desktop Layout */}
+        <div className="desktop-nav justify-between items-center w-full flex">
+          <div className="flex items-center gap-3">
+            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
+            <span className="font-headline-md text-2xl font-bold text-on-surface">ADSS Ruhuna</span>
+          </div>
+          <div className="flex items-center gap-8">
+            <button
+              onClick={() => scrollToSection(upcomingEvents.length > 0 ? "upcoming-events" : "features")}
+              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+            >
+              Events
+            </button>
+            <button
+              onClick={() => scrollToSection("cta")}
+              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+            >
+              Membership
+            </button>
+            <button
+              onClick={() => scrollToSection("features")}
+              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+            >
+              Insights
+            </button>
+            <button
+              onClick={() => scrollToSection("footer")}
+              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+            >
+              Contact
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="theme-switch landing-theme-switch"
+              onClick={onThemeToggle}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              <span className="theme-switch-track">
+                <span className="theme-switch-thumb">{theme === "dark" ? "D" : "L"}</span>
+              </span>
+              <span>{theme === "dark" ? "Dark" : "Light"}</span>
+            </button>
+            <button
+              onClick={onLoginClick}
+              className="bg-[#0062ff] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#0052d4] active:scale-95 transition-all shadow-[0_0_15px_rgba(0,98,255,0.2)]"
+            >
+              Join Society
+            </button>
+          </div>
         </div>
-        <div className="hidden md:flex items-center gap-8">
+
+        {/* Mobile Layout */}
+        <div className="mobile-nav justify-between items-center w-full flex">
+          {/* Logo on the left */}
+          <div className="flex items-center">
+            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
+          </div>
+          
+          {/* Join Society in the center */}
           <button
-            onClick={() => scrollToSection(upcomingEvents.length > 0 ? "upcoming-events" : "features")}
-            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+            onClick={onLoginClick}
+            className="bg-[#0062ff] text-white px-5 py-2 rounded-full font-bold text-sm active:scale-95 transition-all shadow-[0_0_15px_rgba(0,98,255,0.2)]"
           >
-            Events
+            Join Society
           </button>
-          <button
-            onClick={() => scrollToSection("cta")}
-            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
-          >
-            Membership
-          </button>
-          <button
-            onClick={() => scrollToSection("features")}
-            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
-          >
-            Insights
-          </button>
-          <button
-            onClick={() => scrollToSection("footer")}
-            className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
-          >
-            Contact
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
+
+          {/* Theme Switch (icon-only, circular) on the right */}
           <button
             type="button"
-            className="theme-switch landing-theme-switch"
+            className={`w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-all border ${
+              theme === "dark" 
+                ? "bg-white/10 hover:bg-white/20 text-white border-white/10" 
+                : "bg-black/5 hover:bg-black/10 text-gray-800 border-black/10"
+            }`}
             onClick={onThemeToggle}
             aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
           >
-            <span className="theme-switch-track">
-              <span className="theme-switch-thumb">{theme === "dark" ? "D" : "L"}</span>
+            <span className="material-symbols-outlined text-xl leading-none">
+              {theme === "dark" ? "light_mode" : "dark_mode"}
             </span>
-            <span>{theme === "dark" ? "Dark" : "Light"}</span>
-          </button>
-          <button
-            onClick={onLoginClick}
-            className="bg-[#0062ff] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#0052d4] active:scale-95 transition-all shadow-[0_0_15px_rgba(0,98,255,0.2)]"
-          >
-            Join Society
           </button>
         </div>
       </nav>
