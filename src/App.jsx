@@ -14,10 +14,13 @@ import Messages from "./pages/Messages";
 import Tasks from "./pages/Tasks";
 import Landing from "./pages/Landing";
 import PublicEvent from "./pages/PublicEvent";
+import Notices from "./pages/Notices";
+import PublicNotice from "./pages/PublicNotice";
 import "./App.css";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "D" },
+  { id: "notices", label: "Notices", icon: "📢" },
   { id: "my_info", label: "My Info", icon: "P" },
   { id: "attendance", label: "Attendance", icon: "A" },
   { id: "members", label: "Members", icon: "M" },
@@ -75,6 +78,7 @@ export default function App() {
   }, []);
 
   const isEventRoute = currentPath.startsWith("/event") || currentHash.startsWith("#/event") || currentHash.startsWith("#event");
+  const isNoticeRoute = currentPath.startsWith("/notice") || currentHash.startsWith("#/notice") || currentHash.startsWith("#notice");
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -178,7 +182,7 @@ export default function App() {
     };
   }, []);
 
-  const pages = { dashboard: Dashboard, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks };
+  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks };
   const PageComponent = pages[page];
   const isRealStaff = canEdit(session.role);
   const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
@@ -413,6 +417,17 @@ export default function App() {
   if (isEventRoute) {
     return (
       <PublicEvent
+        onBackToLanding={() => {
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+      />
+    );
+  }
+
+  if (isNoticeRoute) {
+    return (
+      <PublicNotice
         onBackToLanding={() => {
           window.history.pushState({}, "", "/");
           window.dispatchEvent(new Event("popstate"));
