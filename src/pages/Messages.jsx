@@ -411,7 +411,7 @@ export default function Messages({ isAdmin, session }) {
                   alignItems: isMine ? "flex-end" : "flex-start"
                 }}>
                   <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "4px" }}>
-                    {isMine ? "You" : msg.sender?.name || msg.sender_st_id} • {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    {isMine ? "You" : msg.sender?.name || msg.sender_st_id} • {new Date(msg.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} • {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                   </div>
                   <div style={{
                     padding: "10px 14px",
