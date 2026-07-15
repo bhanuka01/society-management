@@ -4,7 +4,7 @@ import { resizeImage } from "../utils/imageOptimizer";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 
 const EMPTY = { event_id: "", name: "", date: "", oc_st_id: "", apply_start_date: "", apply_end_date: "", description: "", time: "", tally_link: "", flyer_url: "", is_public: true, self_attendance_enabled: false };
-const APPLY_EMPTY = { function_id: "", oc_position: "" };
+const APPLY_EMPTY = { function_id: "", oc_position: "", member_function_name: "" };
 
 export default function Events({ isAdmin = false, session }) {
   const [events, setEvents] = useState([]);
@@ -119,9 +119,61 @@ export default function Events({ isAdmin = false, session }) {
     setApplyForm(APPLY_EMPTY);
     setApplyModal(true);
     setMsg(null);
-    if (functions.length === 0) {
-      const { data } = await supabase.from("functions").select("*").order("function_name");
-      setFunctions(data || []);
+
+    if (session?.stId) {
+      try {
+        // Fetch user's member_function from members table
+        const { data: member, error: memberErr } = await supabase
+          .from("members")
+          .select("member_function")
+          .eq("st_id", session.stId)
+          .maybeSingle();
+
+        if (memberErr) throw memberErr;
+
+        const memberFunc = member?.member_function || "General";
+
+        // Fetch functions to find a match or insert if not exists
+        let allFuncs = functions;
+        if (allFuncs.length === 0) {
+          const { data, error: funcErr } = await supabase.from("functions").select("*").order("function_name");
+          if (funcErr) throw funcErr;
+          allFuncs = data || [];
+          setFunctions(allFuncs);
+        }
+
+        let matchedFunc = allFuncs.find(
+          f => f.function_name.trim().toLowerCase() === memberFunc.trim().toLowerCase()
+        );
+
+        if (!matchedFunc && memberFunc.trim()) {
+          // Create function dynamically if not found
+          const { data: newFunc, error: insertErr } = await supabase
+            .from("functions")
+            .insert([{ function_name: memberFunc.trim() }])
+            .select()
+            .maybeSingle();
+
+          if (insertErr) throw insertErr;
+          if (newFunc) {
+            matchedFunc = newFunc;
+            setFunctions(prev => [...prev, newFunc].sort((a, b) => a.function_name.localeCompare(b.function_name)));
+          }
+        }
+
+        if (matchedFunc) {
+          setApplyForm(prev => ({
+            ...prev,
+            function_id: matchedFunc.id.toString(),
+            member_function_name: matchedFunc.function_name
+          }));
+        } else {
+          setMsg({ type: "error", text: "Could not resolve your member function." });
+        }
+      } catch (err) {
+        console.error("Error in openApply:", err);
+        setMsg({ type: "error", text: "Failed to load member profile: " + err.message });
+      }
     }
   };
   const closeApplyModal = () => { setApplyModal(false); setMsg(null); };
@@ -575,13 +627,18 @@ export default function Events({ isAdmin = false, session }) {
 
             {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
-            <div className="form-group" style={{ marginBottom: 15 }}>
-              <label>Select Function *</label>
-              <select value={applyForm.function_id} onChange={e => setApplyForm({ ...applyForm, function_id: e.target.value })}>
-                <option value="">-- Choose a function --</option>
-                {functions.map(f => <option key={f.id} value={f.id}>{f.function_name}</option>)}
-              </select>
-            </div>
+            {applyForm.member_function_name ? (
+              <div className="form-group" style={{ marginBottom: 15 }}>
+                <label>Your Function (Auto-detected)</label>
+                <div style={{ padding: "10px 14px", background: "var(--bg3)", borderRadius: "var(--r)", border: "1px solid var(--border)", fontSize: "14px", fontWeight: "600", color: "var(--text)" }}>
+                  💼 {applyForm.member_function_name}
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 15, fontSize: "13px", color: "var(--text-muted)", padding: "10px 14px", background: "var(--bg3)", borderRadius: "var(--r)", border: "1px dashed var(--border)" }}>
+                ⏳ Resolving your member function...
+              </div>
+            )}
 
             <div className="form-group" style={{ marginBottom: 15 }}>
               <label>Preferred Position (Optional)</label>
@@ -600,7 +657,7 @@ export default function Events({ isAdmin = false, session }) {
 
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={closeApplyModal}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleApplySave} disabled={saving}>
+              <button className="btn btn-primary" onClick={handleApplySave} disabled={saving || !applyForm.function_id}>
                 {saving ? "Submitting..." : "Submit Application"}
               </button>
             </div>

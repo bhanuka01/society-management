@@ -16,6 +16,7 @@ import Landing from "./pages/Landing";
 import PublicEvent from "./pages/PublicEvent";
 import Notices from "./pages/Notices";
 import PublicNotice from "./pages/PublicNotice";
+import ScanAttendance from "./pages/ScanAttendance";
 import "./App.css";
 
 const NAV_ITEMS = [
@@ -79,6 +80,7 @@ export default function App() {
 
   const isEventRoute = currentPath.startsWith("/event") || currentHash.startsWith("#/event") || currentHash.startsWith("#event");
   const isNoticeRoute = currentPath.startsWith("/notice") || currentHash.startsWith("#/notice") || currentHash.startsWith("#notice");
+  const isScanAttendanceRoute = currentPath.startsWith("/scan-attendance") || currentHash.startsWith("#/scan-attendance") || currentHash.startsWith("#scan-attendance");
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -428,6 +430,17 @@ export default function App() {
   if (isNoticeRoute) {
     return (
       <PublicNotice
+        onBackToLanding={() => {
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+      />
+    );
+  }
+
+  if (isScanAttendanceRoute) {
+    return (
+      <ScanAttendance
         onBackToLanding={() => {
           window.history.pushState({}, "", "/");
           window.dispatchEvent(new Event("popstate"));

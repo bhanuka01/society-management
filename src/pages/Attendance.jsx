@@ -19,6 +19,434 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
   const [myTotal, setMyTotal] = useState(0);
   const [myCounts, setMyCounts] = useState({ yes: 0, no: 0 });
 
+  const [adminTab, setAdminTab] = useState("members");
+  
+  // CSV attendance state
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvRegistrations, setCsvRegistrations] = useState([]);
+  const [csvTotal, setCsvTotal] = useState(0);
+  const [csvPage, setCsvPage] = useState(0);
+  const [csvSearch, setCsvSearch] = useState("");
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvMsg, setCsvMsg] = useState(null);
+  const [csvStats, setCsvStats] = useState({ total: 0, members: 0, nonMembers: 0, present: 0 });
+  const [memberIds, setMemberIds] = useState(new Set());
+  const [dbSetupRequired, setDbSetupRequired] = useState(false);
+  
+  // QR state
+  const [showQR, setShowQR] = useState(false);
+  const [qrToken, setQrToken] = useState("");
+  const [qrCountdown, setQrCountdown] = useState(60);
+  const [liveScans, setLiveScans] = useState(0);
+
+  // Parse CSV function
+  const parseCSV = (text) => {
+    const lines = [];
+    let row = [""];
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i+1];
+      if (c === '"') {
+        if (inQuotes && next === '"') {
+          row[row.length - 1] += '"';
+          i++; // skip next quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === ',' && !inQuotes) {
+        row.push("");
+      } else if ((c === '\r' || c === '\n') && !inQuotes) {
+        if (c === '\r' && next === '\n') {
+          i++; // skip next char
+        }
+        lines.push(row);
+        row = [""];
+      } else {
+        row[row.length - 1] += c;
+      }
+    }
+    if (row.length > 1 || row[0] !== "") {
+      lines.push(row);
+    }
+    return lines;
+  };
+
+  // Fetch all member IDs to check membership offline
+  useEffect(() => {
+    supabase.from("members").select("st_id")
+      .then(({ data, error }) => {
+        if (!error && data) {
+          const ids = new Set(data.map(m => m.st_id));
+          setMemberIds(ids);
+        }
+      });
+  }, []);
+
+  const fetchCSVRegistrations = async () => {
+    if (!selectedEvent) return;
+    setCsvLoading(true);
+    setDbSetupRequired(false);
+    
+    try {
+      // 1. Fetch counts/stats
+      const { data: statsData, error: statsError } = await supabase
+        .from("event_registrations")
+        .select("id, is_member, attend")
+        .eq("event_id", selectedEvent);
+        
+      if (statsError) {
+        if (statsError.code === '42P01') {
+          setDbSetupRequired(true);
+          setCsvLoading(false);
+          return;
+        }
+        throw statsError;
+      }
+      
+      const stats = { total: 0, members: 0, nonMembers: 0, present: 0 };
+      statsData?.forEach(r => {
+        stats.total++;
+        if (r.is_member) stats.members++;
+        else stats.nonMembers++;
+        if (r.attend === "YES") stats.present++;
+      });
+      setCsvStats(stats);
+      setLiveScans(stats.present);
+      
+      // 2. Fetch paginated registrations
+      const from = csvPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      
+      let query = supabase
+        .from("event_registrations")
+        .select("*", { count: "exact" })
+        .eq("event_id", selectedEvent)
+        .order("st_id")
+        .range(from, to);
+        
+      if (csvSearch.trim()) {
+        const q = csvSearch.trim();
+        query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,attend.ilike.%${q}%`);
+      }
+      
+      const { data, count, error } = await query;
+      if (error) throw error;
+      
+      setCsvRegistrations(data || []);
+      setCsvTotal(count || 0);
+    } catch (err) {
+      console.error("Error fetching CSV registrations:", err);
+      setCsvMsg({ type: "error", text: err.message });
+    } finally {
+      setCsvLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminTab === "csv" && selectedEvent) {
+      fetchCSVRegistrations();
+    }
+  }, [selectedEvent, csvPage, csvSearch, adminTab]);
+
+  // Token Generator
+  const generateToken = () => {
+    const expiry = Math.floor(Date.now() / 60000);
+    const hash = (expiry * 17 + 23).toString(16);
+    const payload = { eventId: selectedEvent, exp: expiry, hash };
+    return btoa(JSON.stringify(payload));
+  };
+
+  // QR Countdown Effect
+  useEffect(() => {
+    if (!showQR || !selectedEvent) return;
+
+    const updateToken = () => {
+      const expiry = Math.floor(Date.now() / 60000);
+      const hash = (expiry * 17 + 23).toString(16);
+      const payload = { eventId: selectedEvent, exp: expiry, hash };
+      setQrToken(btoa(JSON.stringify(payload)));
+    };
+
+    updateToken(); // Initial token
+    const initialSecs = 60 - new Date().getSeconds();
+    setQrCountdown(initialSecs);
+
+    const timer = setInterval(() => {
+      setQrCountdown(prev => {
+        if (prev <= 1) {
+          updateToken();
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [showQR, selectedEvent]);
+
+  // Live Scans Sync Effect
+  useEffect(() => {
+    if (!showQR || !selectedEvent) return;
+
+    const fetchCount = () => {
+      supabase.from("event_registrations")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", selectedEvent)
+        .eq("attend", "YES")
+        .then(({ count }) => {
+          if (count !== undefined) setLiveScans(count);
+        });
+    };
+
+    fetchCount(); // Initial fetch
+    const syncTimer = setInterval(fetchCount, 5000);
+
+    return () => clearInterval(syncTimer);
+  }, [showQR, selectedEvent]);
+
+  const handleCSVUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCsvFile(file);
+    setCsvMsg({ type: "info", text: `Selected: ${file.name}. Click "Import CSV" to process.` });
+  };
+
+  const importCSVData = async () => {
+    if (!csvFile || !selectedEvent) return;
+    setCsvLoading(true);
+    setCsvMsg(null);
+    
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const text = event.target.result;
+        const rows = parseCSV(text);
+        
+        if (rows.length < 2) {
+          setCsvMsg({ type: "error", text: "The CSV file is empty or has no header." });
+          setCsvLoading(false);
+          return;
+        }
+        
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        
+        // Find indices
+        const stIdIdx = headers.findIndex(h => h.includes("index") || h.includes("student") || h.includes("st") || h.includes("id") || h.includes("reg"));
+        const nameIdx = headers.findIndex(h => h.includes("name") || h.includes("full"));
+        const emailIdx = headers.findIndex(h => h.includes("email") || h.includes("mail"));
+        const phoneIdx = headers.findIndex(h => (h.includes("phone") || h.includes("mobile") || h.includes("contact") || h.includes("whatsapp") || h.includes("number")) && !h.includes("index") && !h.includes("student") && !h.includes("st id") && !h.includes("reg"));
+        const degreeIdx = headers.findIndex(h => h.includes("degree") || h.includes("program") || h.includes("course"));
+        const levelIdx = headers.findIndex(h => h.includes("level") || h.includes("year"));
+        const attendIdx = headers.findIndex(h => h.includes("attend") || h.includes("present") || h.includes("status"));
+        
+        if (stIdIdx === -1 || nameIdx === -1) {
+          setCsvMsg({ type: "error", text: "Could not find 'Index Number/Student ID' and 'Name' columns in CSV headers." });
+          setCsvLoading(false);
+          return;
+        }
+        
+        const registrationsToInsert = [];
+        const seen = new Set();
+        
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length <= Math.max(stIdIdx, nameIdx) || !row[stIdIdx]?.trim()) continue;
+          
+          const stId = row[stIdIdx].trim();
+          const normalized = stId.toLowerCase().replace(/^sc\//i, "").replace(/\s+/g, "");
+          
+          // Deduplicate inside the CSV to avoid Postgres UNIQUE constraint conflict errors
+          if (seen.has(normalized)) continue;
+          seen.add(normalized);
+          
+          let attendStatus = "NO";
+          if (attendIdx !== -1 && row[attendIdx]) {
+            const rawVal = row[attendIdx].trim().toUpperCase();
+            if (rawVal.startsWith("Y") || rawVal.startsWith("P") || rawVal === "PRESENT" || rawVal === "YES") {
+              attendStatus = "YES";
+            }
+          }
+          
+          // Determine is_member
+          let isMember = false;
+          for (let mId of memberIds) {
+            if (mId.toLowerCase().replace(/^sc\//i, "").replace(/\s+/g, "") === normalized) {
+              isMember = true;
+              break;
+            }
+          }
+          
+          const degreeVal = degreeIdx !== -1 ? row[degreeIdx]?.trim() || null : null;
+          const levelVal = levelIdx !== -1 ? row[levelIdx]?.trim() || null : null;
+          
+          registrationsToInsert.push({
+            event_id: selectedEvent,
+            st_id: stId,
+            name: row[nameIdx].trim(),
+            email: emailIdx !== -1 ? row[emailIdx]?.trim() || null : null,
+            phone: phoneIdx !== -1 ? row[phoneIdx]?.trim() || null : null,
+            degree_program: degreeVal,
+            level: levelVal,
+            attend: attendStatus,
+            is_member: isMember
+          });
+        }
+        
+        if (registrationsToInsert.length === 0) {
+          setCsvMsg({ type: "error", text: "No valid rows found in CSV." });
+          setCsvLoading(false);
+          return;
+        }
+        
+        // Upsert to Supabase
+        const { error } = await supabase
+          .from("event_registrations")
+          .upsert(registrationsToInsert, { onConflict: "event_id,st_id" });
+          
+        if (error) {
+          if (error.code === '42P01') {
+            setDbSetupRequired(true);
+            setCsvMsg({ type: "error", text: "Database table does not exist. Please run the SQL migration." });
+          } else {
+            setCsvMsg({ type: "error", text: error.message });
+          }
+        } else {
+          setCsvMsg({ type: "success", text: `Successfully imported ${registrationsToInsert.length} registrations.` });
+          setCsvFile(null);
+          const fileInput = document.getElementById("csv-file-input");
+          if (fileInput) fileInput.value = "";
+          fetchCSVRegistrations();
+        }
+        setCsvLoading(false);
+      };
+      
+      reader.readAsText(csvFile);
+    } catch (err) {
+      console.error(err);
+      setCsvMsg({ type: "error", text: "Failed to read CSV: " + err.message });
+      setCsvLoading(false);
+    }
+  };
+
+  const handleToggleCSVAttend = async (row) => {
+    const newVal = row.attend === "YES" ? "NO" : "YES";
+    setSaving(s => ({ ...s, [row.id]: true }));
+    
+    try {
+      const { error } = await supabase
+        .from("event_registrations")
+        .update({ attend: newVal })
+        .eq("id", row.id);
+        
+      if (error) throw error;
+      
+      if (row.is_member) {
+        if (newVal === "YES") {
+          await supabase.from("attendance").upsert({
+            st_id: row.st_id,
+            event_id: selectedEvent,
+            attend: "YES"
+          }, { onConflict: "st_id,event_id" });
+        } else {
+          await supabase.from("attendance")
+            .update({ attend: "NO" })
+            .eq("st_id", row.st_id)
+            .eq("event_id", selectedEvent);
+        }
+      }
+      
+      setCsvRegistrations(prev => prev.map(r => r.id === row.id ? { ...r, attend: newVal } : r));
+      setCsvStats(prev => ({
+        ...prev,
+        present: prev.present + (newVal === "YES" ? 1 : -1)
+      }));
+    } catch (err) {
+      alert("Failed to toggle attendance: " + err.message);
+    } finally {
+      setSaving(s => ({ ...s, [row.id]: false }));
+    }
+  };
+
+  const handleClearCSVRegistrations = async () => {
+    if (!selectedEvent) return;
+    if (!confirm("Are you sure you want to delete ALL CSV registration and attendance records for this event? This action cannot be undone.")) return;
+    
+    setCsvLoading(true);
+    try {
+      const { error } = await supabase
+        .from("event_registrations")
+        .delete()
+        .eq("event_id", selectedEvent);
+        
+      if (error) throw error;
+      
+      setCsvRegistrations([]);
+      setCsvTotal(0);
+      setCsvStats({ total: 0, members: 0, nonMembers: 0, present: 0 });
+      setCsvMsg({ type: "success", text: "Successfully cleared registration list." });
+    } catch (err) {
+      setCsvMsg({ type: "error", text: err.message });
+    } finally {
+      setCsvLoading(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (!selectedEvent) return;
+    
+    setCsvLoading(true);
+    supabase.from("event_registrations")
+      .select("*")
+      .eq("event_id", selectedEvent)
+      .order("st_id")
+      .then(({ data, error }) => {
+        setCsvLoading(false);
+        if (error) {
+          alert("Failed to fetch records for export: " + error.message);
+          return;
+        }
+        
+        if (!data || data.length === 0) {
+          alert("No records to export.");
+          return;
+        }
+        
+        const escape = (val) => {
+          if (val === null || val === undefined) return "";
+          const str = String(val);
+          if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+        
+        const header = ["Name", "Index Number", "Degree Program", "Level", "WhatsApp Number", "Attend"];
+        const rows = data.map(r => [
+          r.name,
+          r.st_id,
+          r.degree_program,
+          r.level,
+          r.phone,
+          r.attend
+        ]);
+        
+        const csvContent = [
+          header.join(","),
+          ...rows.map(row => row.map(escape).join(","))
+        ].join("\n");
+        
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `attendance_report_${selectedEvent}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+  };
+
   useEffect(() => {
     supabase.from("events").select("*").order("date", { ascending: false })
       .then(({ data }) => {
@@ -364,7 +792,29 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
               </div>
             </div>
 
-            {total > 0 && (
+            {/* Sub-tabs for members vs CSV registration */}
+            {isAdmin && (
+              <div className="auth-tabs" style={{ marginBottom: 16 }}>
+                <button 
+                  type="button" 
+                  className={adminTab === "members" ? "active" : ""} 
+                  onClick={() => setAdminTab("members")}
+                >
+                  Society Member Database
+                </button>
+                <button 
+                  type="button" 
+                  className={adminTab === "csv" ? "active" : ""} 
+                  onClick={() => setAdminTab("csv")}
+                >
+                  External CSV Attendance
+                </button>
+              </div>
+            )}
+
+            {adminTab === "members" ? (
+              <>
+                {total > 0 && (
               <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>
                 <div className="stat-card green">
                   <div className="stat-label">Present</div>
@@ -439,6 +889,278 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
               </div>
             )}
           </>
+        ) : (
+          /* CSV Registration Attendance panel */
+          <>
+            {dbSetupRequired ? (
+              <div className="card text-center" style={{ padding: "32px", border: "2px dashed var(--red)", background: "rgba(255, 77, 79, 0.05)" }}>
+                <div style={{ fontSize: "40px", marginBottom: "16px" }}>⚠️</div>
+                <h3 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>Database Setup Required</h3>
+                <p style={{ color: "var(--text2)", fontSize: "14px", maxWidth: "500px", margin: "0 auto 20px" }}>
+                  To use external CSV attendance, you need to set up the registration table in Supabase. Please copy and run the SQL migration in your Supabase SQL Editor.
+                </p>
+                <div style={{ textAlign: "left", background: "var(--bg3)", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "12px", fontFamily: "monospace", overflowX: "auto", maxHeight: "150px", marginBottom: "20px" }}>
+                  {`CREATE TABLE IF NOT EXISTS public.event_registrations (
+  id BIGSERIAL PRIMARY KEY,
+  event_id VARCHAR(50) REFERENCES public.events(event_id) ON DELETE CASCADE,
+  st_id VARCHAR(50) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
+  phone VARCHAR(50),
+  degree_program VARCHAR(255),
+  level VARCHAR(50),
+  attend VARCHAR(10) DEFAULT 'NO',
+  is_member BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (event_id, st_id)
+);
+-- See event-csv-attendance-setup.sql for the full schema and security functions.`}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Statistics Overview */}
+                <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
+                  <div className="stat-card gold">
+                    <div className="stat-label">Total Registered</div>
+                    <div className="stat-value">{csvStats.total}</div>
+                    <div className="stat-sub">students in CSV</div>
+                  </div>
+                  <div className="stat-card green">
+                    <div className="stat-label">Present</div>
+                    <div className="stat-value">{csvStats.present}</div>
+                    <div className="stat-sub">marked YES</div>
+                  </div>
+                  <div className="stat-card red">
+                    <div className="stat-label">Absent</div>
+                    <div className="stat-value">{csvStats.total - csvStats.present}</div>
+                    <div className="stat-sub">marked NO</div>
+                  </div>
+                  <div className="stat-card purple">
+                    <div className="stat-label">Society Members</div>
+                    <div className="stat-value">{csvStats.members}</div>
+                    <div className="stat-sub">auto-linked</div>
+                  </div>
+                </div>
+
+                {csvMsg && <div className={`alert alert-${csvMsg.type}`}>{csvMsg.text}</div>}
+
+                {/* Upload & Actions toolbar */}
+                <div className="card mb-3" style={{ marginBottom: 16 }}>
+                  <div className="card-header">
+                    <span className="card-title">Manage External Registration CSV</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "center", padding: "8px 0" }}>
+                    <div style={{ flex: 1, minWidth: "250px" }}>
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        id="csv-file-input"
+                        onChange={handleCSVUpload}
+                        style={{ display: "none" }}
+                      />
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <label 
+                          htmlFor="csv-file-input" 
+                          className="btn btn-ghost btn-sm"
+                          style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", margin: 0 }}
+                        >
+                          📁 Select CSV File
+                        </label>
+                        <button 
+                          className="btn btn-primary btn-sm"
+                          onClick={importCSVData}
+                          disabled={!csvFile || csvLoading}
+                        >
+                          {csvLoading ? "Processing..." : "Import CSV"}
+                        </button>
+                      </div>
+                      <p style={{ margin: "6px 0 0 0", fontSize: "11px", color: "var(--text2)" }}>
+                        {csvFile ? `Selected: ${csvFile.name}` : "Upload external CSV containing Student ID & Name."}
+                      </p>
+                    </div>
+                    
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <button 
+                        className={`btn btn-sm ${showQR ? "btn-danger" : "btn-success"}`}
+                        onClick={() => {
+                          setShowQR(!showQR);
+                          setQrCountdown(60);
+                        }}
+                        disabled={csvStats.total === 0}
+                      >
+                        {showQR ? "✕ Close QR Code" : "📢 Show Dynamic QR Code"}
+                      </button>
+                      
+                      <button 
+                        className="btn btn-primary btn-sm"
+                        onClick={handleExportCSV}
+                        disabled={csvStats.total === 0 || csvLoading}
+                      >
+                        📥 Export CSV Report
+                      </button>
+                      
+                      <button 
+                        className="btn btn-danger btn-sm"
+                        onClick={handleClearCSVRegistrations}
+                        disabled={csvStats.total === 0 || csvLoading}
+                      >
+                        🗑️ Clear Data
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dynamic QR Code Modal / Drawer */}
+                {showQR && (
+                  <div className="card mb-3" style={{ marginBottom: 16, border: "2px solid var(--accent)", background: "var(--bg2)" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", padding: "12px", alignItems: "center", justifyContent: "center" }}>
+                      
+                      {/* QR Image */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "white", padding: "16px", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                        {qrToken ? (
+                          <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                              `${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}&token=${qrToken}`
+                            )}`}
+                            alt="Scan Event Attendance"
+                            style={{ width: "200px", height: "200px" }}
+                          />
+                        ) : (
+                          <div style={{ width: "200px", height: "200px", display: "flex", alignItems: "center", justifyContent: "center", color: "black" }}>
+                            Generating QR...
+                          </div>
+                        )}
+                        
+                        {/* Visual timer */}
+                        <div style={{ color: "black", fontSize: "11px", fontWeight: "bold", marginTop: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#0062ff", animation: "ping 1s infinite" }} />
+                          Rotation: {qrCountdown}s remaining
+                        </div>
+                      </div>
+                      
+                      {/* QR Info and Details */}
+                      <div style={{ flex: 1, minWidth: "250px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "var(--accent)" }}>
+                            Anti-Fraud Student Attendance QR
+                          </h3>
+                          <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text2)", lineHeight: "1.5" }}>
+                            This QR code encodes an encrypted time-block signature. Sharing links or photo scanning later is blocked since the token changes every 1 minute.
+                          </p>
+                        </div>
+                        
+                        <div className="stat-card green" style={{ padding: "16px", width: "100%", maxWidth: "300px", background: "rgba(0,200,80,0.08)", border: "1px solid rgba(0,200,80,0.2)" }}>
+                          <div className="stat-label" style={{ fontSize: "11px" }}>Live Scanned Count</div>
+                          <div className="stat-value" style={{ fontSize: "28px" }}>{liveScans} / {csvStats.total}</div>
+                          <div className="stat-sub">students marked Present</div>
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text2)" }}>Target Scan Link:</span>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <input 
+                              readOnly 
+                              value={`${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}`}
+                              style={{ flex: 1, fontSize: "11px", padding: "6px", background: "var(--bg3)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "4px" }}
+                              onClick={(e) => e.target.select()}
+                            />
+                            <button 
+                              className="btn btn-ghost btn-sm" 
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}&token=${qrToken}`);
+                                alert("Scanned Link Copied!");
+                              }}
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Search Toolbar */}
+                <div className="toolbar">
+                  <div className="search-input-wrap">
+                    <span className="search-icon">?</span>
+                    <input 
+                      placeholder="Search registrations by ID or Name..." 
+                      value={csvSearch} 
+                      onChange={e => { setCsvPage(0); setCsvSearch(e.target.value); }} 
+                    />
+                  </div>
+                </div>
+
+                {/* CSV Table */}
+                {csvLoading ? (
+                  <div className="loader"><div className="spinner" /></div>
+                ) : csvTotal === 0 ? (
+                  <div className="card">
+                    <div className="empty-state">
+                      <div className="icon">📋</div>
+                      <p>No registration records found for this event. Please select a CSV file and click "Import CSV" to start.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Index Number</th>
+                          <th>Name</th>
+                          <th>Degree Program</th>
+                          <th>Level</th>
+                          <th>WhatsApp Number</th>
+                          <th>Society Member?</th>
+                          <th>Status</th>
+                          <th>Toggle Present</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvRegistrations.map(r => {
+                          return (
+                            <tr key={r.id}>
+                              <td className="mono">{r.st_id}</td>
+                              <td><strong>{r.name}</strong></td>
+                              <td>{r.degree_program || "-"}</td>
+                              <td>{r.level ? <span className="badge badge-purple">{r.level}</span> : "-"}</td>
+                              <td className="mono">{r.phone || "-"}</td>
+                              <td>
+                                {r.is_member ? (
+                                  <span className="badge badge-green">✓ Member</span>
+                                ) : (
+                                  <span className="badge badge-gray" style={{ opacity: 0.6 }}>✗ Non-Member</span>
+                                )}
+                              </td>
+                              <td>
+                                <span className={`badge ${r.attend === "YES" ? "badge-green" : "badge-red"}`}>
+                                  {r.attend === "YES" ? "Present" : "Absent"}
+                                </span>
+                              </td>
+                              <td>
+                                <button
+                                  className={`btn btn-sm ${r.attend === "YES" ? "btn-danger" : "btn-success"}`}
+                                  onClick={() => handleToggleCSVAttend(r)}
+                                  disabled={saving[r.id]}
+                                >
+                                  {saving[r.id] ? "..." : r.attend === "YES" ? "Mark Absent" : "Mark Present"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <Pagination page={csvPage} total={csvTotal} loading={csvLoading} onPageChange={setCsvPage} />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </>
         )
       )}
     </div>

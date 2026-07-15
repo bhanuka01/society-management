@@ -269,6 +269,16 @@ export default function Setup() {
 -- copy its entire contents, paste in Supabase SQL Editor, and run.`}</div>
           </div>
         </div>
+
+        <div className="setup-step">
+          <div className="step-num">8</div>
+          <div className="step-content">
+            <h3>Enable CSV Attendance & Dynamic QR Code Setup</h3>
+            <p>To enable external CSV registration uploading and secure dynamic QR code attendance recording, run the SQL script found in <code>event-csv-attendance-setup.sql</code> (located in the project root directory) in your Supabase SQL Editor. This creates the registrations schema and helper functions.</p>
+            <div className="sql-block" style={{marginTop:10}}>{`-- Open the 'event-csv-attendance-setup.sql' file in the project root,
+-- copy its entire contents, paste in Supabase SQL Editor, and run.`}</div>
+          </div>
+        </div>
       </div>
 
       <div className="card" style={{marginTop:16}}>
