@@ -124,6 +124,20 @@ begin
     raise exception 'Email % is not registered as a member.', new.email;
   end if;
 
+  if v_st_id is null then
+    v_st_id := coalesce(nullif(new.raw_user_meta_data ->> 'st_id', ''), null);
+  end if;
+
+  -- Normalize if present
+  if v_st_id is not null then
+    v_st_id := trim(v_st_id);
+    if lower(v_st_id) like 'sc/%' then
+      v_st_id := 'SC/' || substring(v_st_id from 4);
+    else
+      v_st_id := 'SC/' || v_st_id;
+    end if;
+  end if;
+
   insert into profiles (id, email, full_name, role, st_id)
   values (
     new.id,

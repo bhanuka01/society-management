@@ -257,6 +257,7 @@ export default function App() {
         }
       }
 
+      let finalStId = isPreRegistered ? v_st_id : "";
       if (!isPreRegistered) {
         const trimmedStId = login.stId.trim();
         if (!trimmedStId) {
@@ -264,9 +265,12 @@ export default function App() {
           setAuthSaving(false);
           return;
         }
-        const stIdRegex = /^\d{4}\/\d{5}$/;
-        if (!stIdRegex.test(trimmedStId)) {
-          setLoginError("Invalid Student ID format. Correct format: 2022/12984");
+        if (/^\d{4}\/\d{5}$/.test(trimmedStId)) {
+          finalStId = "SC/" + trimmedStId;
+        } else if (/^sc\/\d{4}\/\d{5}$/i.test(trimmedStId)) {
+          finalStId = "SC/" + trimmedStId.substring(3);
+        } else {
+          setLoginError("Invalid Student ID format. Correct format: SC/2022/12984");
           setAuthSaving(false);
           return;
         }
@@ -276,8 +280,7 @@ export default function App() {
       if (profileImageFile) {
         try {
           const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
-          const stId = isPreRegistered ? v_st_id : login.stId.trim();
-          const cleanStId = stId.replace(/\//g, "-");
+          const cleanStId = finalStId.replace(/\//g, "-");
           const fileName = `${cleanStId}_${Date.now()}.jpg`;
 
           const { error: uploadError } = await supabase.storage
@@ -310,7 +313,7 @@ export default function App() {
           data: {
             full_name: v_name,
             role,
-            st_id: isPreRegistered ? v_st_id : login.stId.trim(),
+            st_id: finalStId,
             level: login.level || "1",
             mobile_number: isPreRegistered ? null : login.phone.trim(),
             member_function: isPreRegistered ? null : (role === "member" ? login.memberFunction : null),
@@ -641,14 +644,14 @@ export default function App() {
                           <div className="form-group">
                             <label>Student ID (ST ID)</label>
                             <input
-                              placeholder="e.g. 2022/12345"
+                              placeholder="e.g. SC/2022/12345"
                               value={login.stId}
                               onChange={e => setLogin({ ...login, stId: e.target.value })}
                               required
                             />
-                            {login.stId && !/^\d{4}\/\d{5}$/.test(login.stId.trim()) && (
+                            {login.stId && !/^(?:SC\/)?\d{4}\/\d{5}$/i.test(login.stId.trim()) && (
                               <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
-                                Invalid Student ID format. Correct format: 2022/12984
+                                Invalid Student ID format. Correct format: SC/2022/12984
                               </span>
                             )}
                           </div>
@@ -905,14 +908,14 @@ export default function App() {
                           <div className="form-group">
                             <label>Student ID (ST ID)</label>
                             <input
-                              placeholder="e.g. 2022/12345"
+                              placeholder="e.g. SC/2022/12345"
                               value={login.stId}
                               onChange={e => setLogin({ ...login, stId: e.target.value })}
                               required
                             />
-                            {login.stId && !/^\d{4}\/\d{5}$/.test(login.stId.trim()) && (
+                            {login.stId && !/^(?:SC\/)?\d{4}\/\d{5}$/i.test(login.stId.trim()) && (
                               <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
-                                Invalid Student ID format. Correct format: 2022/12984
+                                Invalid Student ID format. Correct format: SC/2022/12984
                               </span>
                             )}
                           </div>

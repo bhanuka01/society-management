@@ -344,7 +344,7 @@ export default function ScanAttendance({ onBackToLanding }) {
                 <label className="text-xs font-semibold text-text-secondary">Student ID (ST ID)</label>
                 <input
                   type="text"
-                  placeholder="e.g. 2022/12984 or sc/2022/12984"
+                  placeholder="e.g. SC/2022/12984 or 2022/12984"
                   value={stIdInput}
                   onChange={(e) => setStIdInput(e.target.value)}
                   className="px-4 py-3 bg-white/5 border border-white/10 focus:border-[#0062ff] text-white text-sm rounded-xl outline-none transition-all placeholder:text-white/20"

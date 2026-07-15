@@ -106,6 +106,14 @@ BEGIN
     IF v_st_id IS NULL THEN
       v_st_id := coalesce(nullif(new.raw_user_meta_data ->> 'st_id', ''), null);
     END IF;
+    IF v_st_id IS NOT NULL THEN
+      v_st_id := trim(v_st_id);
+      IF lower(v_st_id) LIKE 'sc/%' THEN
+        v_st_id := 'SC/' || substring(v_st_id from 4);
+      ELSE
+        v_st_id := 'SC/' || v_st_id;
+      END IF;
+    END IF;
     IF v_name IS NULL THEN
       v_name := coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), new.email);
     END IF;
@@ -132,6 +140,14 @@ BEGIN
     
     IF v_st_id = '' OR v_st_id IS NULL THEN
       RAISE EXCEPTION 'Student ID is required for registration.';
+    END IF;
+
+    -- Normalize st_id to always start with 'SC/'
+    v_st_id := trim(v_st_id);
+    IF lower(v_st_id) LIKE 'sc/%' THEN
+      v_st_id := 'SC/' || substring(v_st_id from 4);
+    ELSE
+      v_st_id := 'SC/' || v_st_id;
     END IF;
 
     -- Check if st_id is already in members table (fixed lower(st_id) bug)

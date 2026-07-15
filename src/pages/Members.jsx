@@ -238,8 +238,8 @@ export default function Members({ isAdmin = false }) {
   const downloadTemplate = () => {
     const headers = ["st_id", "name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
     const rows = [
-      ["2022/12345", "John Doe", "john.doe@example.com", "2", "Member", "Logistics", "+94771234567", "https://example.com/john.jpg", "https://linkedin.com/in/johndoe"],
-      ["2023/54321", "Jane Smith", "jane.smith@example.com", "1", "Committee Member", "Marketing", "+94777654321", "https://example.com/jane.jpg", "https://linkedin.com/in/janesmith"]
+      ["SC/2022/12345", "John Doe", "john.doe@example.com", "2", "Member", "Logistics", "+94771234567", "https://example.com/john.jpg", "https://linkedin.com/in/johndoe"],
+      ["SC/2023/54321", "Jane Smith", "jane.smith@example.com", "1", "Committee Member", "Marketing", "+94777654321", "https://example.com/jane.jpg", "https://linkedin.com/in/janesmith"]
     ];
     const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -284,13 +284,17 @@ export default function Members({ isAdmin = false }) {
         const linkedin_url = mapping.linkedin_url !== -1 ? row[mapping.linkedin_url]?.trim() : "";
         
         let rowValid = true;
+        let normalizedStId = st_id;
         if (!st_id) {
           errors.push(`Row ${rowNum}: Student ID is missing.`);
           rowValid = false;
         } else {
-          const stIdRegex = /^\d{4}\/\d{5}$/;
-          if (!stIdRegex.test(st_id)) {
-            errors.push(`Row ${rowNum}: Student ID "${st_id}" is invalid. Correct format: 2022/12984`);
+          if (/^\d{4}\/\d{5}$/.test(st_id)) {
+            normalizedStId = "SC/" + st_id;
+          } else if (/^sc\/\d{4}\/\d{5}$/i.test(st_id)) {
+            normalizedStId = "SC/" + st_id.substring(3);
+          } else {
+            errors.push(`Row ${rowNum}: Student ID "${st_id}" is invalid. Correct format: SC/2022/12984`);
             rowValid = false;
           }
         }
@@ -311,7 +315,7 @@ export default function Members({ isAdmin = false }) {
         }
         
         const payload = {
-          st_id: st_id || "",
+          st_id: normalizedStId || "",
           name: name || "",
           email: email || null,
           level: level,
@@ -434,28 +438,32 @@ export default function Members({ isAdmin = false }) {
       setMsg({ type: "error", text: "ST ID and Name are required." }); return;
     }
 
-    const trimmedStId = form.st_id.trim();
-    const stIdRegex = /^\d{4}\/\d{5}$/;
-    if (!stIdRegex.test(trimmedStId)) {
-      setMsg({ type: "error", text: "Invalid Student ID format. Correct format: 2022/12984" });
+    const rawStId = form.st_id.trim();
+    let finalStId = "";
+    if (/^\d{4}\/\d{5}$/.test(rawStId)) {
+      finalStId = "SC/" + rawStId;
+    } else if (/^sc\/\d{4}\/\d{5}$/i.test(rawStId)) {
+      finalStId = "SC/" + rawStId.substring(3);
+    } else {
+      setMsg({ type: "error", text: "Invalid Student ID format. Correct format: SC/2022/12984" });
       return;
     }
 
     setSaving(true);
 
     if (editProfileTarget) {
-      const stIdChanged = form.st_id.trim() !== editTarget;
+      const stIdChanged = finalStId !== editTarget;
       
       if (stIdChanged) {
         // 1. Check if the new st_id is already in members
         const { data: exists } = await supabase
           .from("members")
           .select("st_id")
-          .eq("st_id", form.st_id.trim())
+          .eq("st_id", finalStId)
           .maybeSingle();
           
         if (exists) {
-          setMsg({ type: "error", text: `Student ID ${form.st_id} is already in use.` });
+          setMsg({ type: "error", text: `Student ID ${finalStId} is already in use.` });
           setSaving(false);
           return;
         }
@@ -471,7 +479,7 @@ export default function Members({ isAdmin = false }) {
       const { error: memberErr } = await supabase
         .from("members")
         .update({
-          st_id: form.st_id.trim(),
+          st_id: finalStId,
           name: form.name.trim(),
           email: form.email.trim() || null,
           level: form.level ? parseInt(form.level) : null,
@@ -489,7 +497,7 @@ export default function Members({ isAdmin = false }) {
       const { error: profileErr } = await supabase
         .from("profiles")
         .update({
-          st_id: form.st_id.trim(),
+          st_id: finalStId,
           full_name: form.name.trim(),
           email: form.email.trim(),
           role: form.role
@@ -510,7 +518,7 @@ export default function Members({ isAdmin = false }) {
     }
 
     const payload = { 
-      st_id: form.st_id.trim(), 
+      st_id: finalStId, 
       name: form.name.trim(), 
       email: form.email.trim() || null,
       level: form.level ? parseInt(form.level) : null, 
@@ -751,10 +759,10 @@ export default function Members({ isAdmin = false }) {
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label>ST ID *</label>
-                <input placeholder="e.g. 2022/12984" value={form.st_id} onChange={e => setForm({...form, st_id: e.target.value})} disabled={!!editTarget && !editProfileTarget} />
-                {form.st_id && !/^\d{4}\/\d{5}$/.test(form.st_id.trim()) && (
+                <input placeholder="e.g. SC/2022/12984" value={form.st_id} onChange={e => setForm({...form, st_id: e.target.value})} disabled={!!editTarget && !editProfileTarget} />
+                {form.st_id && !/^(?:SC\/)?\d{4}\/\d{5}$/i.test(form.st_id.trim()) && (
                   <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
-                    Invalid Student ID format. Correct format: 2022/12984
+                    Invalid Student ID format. Correct format: SC/2022/12984
                   </span>
                 )}
               </div>
