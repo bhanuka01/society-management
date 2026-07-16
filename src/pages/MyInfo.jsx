@@ -14,6 +14,17 @@ export default function MyInfo({ session }) {
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
+  const [requests, setRequests] = useState([]);
+  const [requestModal, setRequestModal] = useState(false);
+  const [requestForm, setRequestForm] = useState({ name_on_letter: "", selected_events: [], additional_details: "" });
+  const [settings, setSettings] = useState({
+    letter_show_name: true,
+    letter_show_events: true,
+    letter_show_details: true
+  });
+  const [thisYearEvents, setThisYearEvents] = useState([]);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -111,6 +122,51 @@ export default function MyInfo({ session }) {
     }
   };
 
+  const loadRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("letter_requests")
+        .select("*")
+        .eq("st_id", session.stId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setRequests(data || []);
+    } catch (err) {
+      console.error("Error loading letter requests:", err);
+    }
+  };
+
+  const loadSettingsAndEvents = async () => {
+    try {
+      const [settingsRes, eventsRes] = await Promise.all([
+        supabase
+          .from("system_settings")
+          .select("key, value")
+          .in("key", ["letter_show_name", "letter_show_events", "letter_show_details"]),
+        supabase
+          .from("events")
+          .select("event_id, name, date")
+          .gte("date", `${new Date().getFullYear()}-01-01`)
+          .lte("date", `${new Date().getFullYear()}-12-31`)
+          .order("date", { ascending: false })
+      ]);
+
+      if (settingsRes.data) {
+        const config = {};
+        settingsRes.data.forEach(item => {
+          config[item.key] = item.value === "true";
+        });
+        setSettings(prev => ({ ...prev, ...config }));
+      }
+
+      if (eventsRes.data) {
+        setThisYearEvents(eventsRes.data);
+      }
+    } catch (err) {
+      console.error("Error loading settings/events:", err);
+    }
+  };
+
   useEffect(() => {
     if (!session.stId) return;
 
@@ -148,8 +204,49 @@ export default function MyInfo({ session }) {
       }
     };
 
-    loadInfo();
+    Promise.all([loadInfo(), loadRequests(), loadSettingsAndEvents()]);
   }, [session.stId]);
+
+  const openRequestModal = () => {
+    setRequestForm({
+      name_on_letter: profile?.name || "",
+      selected_events: [],
+      additional_details: ""
+    });
+    setMsg(null);
+    setRequestModal(true);
+  };
+
+  const closeRequestModal = () => {
+    setRequestModal(false);
+    setMsg(null);
+  };
+
+  const handleSubmitRequest = async () => {
+    setSubmittingRequest(true);
+    setMsg(null);
+    try {
+      const payload = {
+        st_id: session.stId,
+        name_on_letter: settings.letter_show_name ? requestForm.name_on_letter.trim() : null,
+        selected_events: settings.letter_show_events ? requestForm.selected_events : [],
+        additional_details: settings.letter_show_details ? requestForm.additional_details.trim() : null,
+        status: "not start"
+      };
+
+      const { error } = await supabase.from("letter_requests").insert(payload);
+      if (error) throw error;
+      
+      setMsg({ type: "success", text: "Appreciation letter request submitted successfully!" });
+      await loadRequests();
+      setTimeout(closeRequestModal, 800);
+    } catch (err) {
+      console.error("Error submitting letter request:", err);
+      setMsg({ type: "error", text: err.message });
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
 
   if (!session.stId) {
     return (
@@ -193,9 +290,12 @@ export default function MyInfo({ session }) {
       <div className="card mb-3" style={{ marginBottom: 24 }}>
         <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span className="card-title">Personal Profile</span>
-          <div className="flex gap-2" style={{ alignItems: "center" }}>
+          <div className="flex gap-2" style={{ alignItems: "center", flexWrap: "wrap" }}>
             <button className="btn btn-ghost btn-sm" onClick={openEditModal}>
               ✏️ Edit Profile
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={openRequestModal} style={{ color: "var(--accent)" }}>
+              📄 Request Letter
             </button>
             <span className="badge badge-purple">{profile.st_id}</span>
           </div>
@@ -470,6 +570,140 @@ export default function MyInfo({ session }) {
 
           </div>
 
+        </div>
+      )}
+
+      {/* Appreciation Letter Requests History */}
+      <div className="card" style={{ marginTop: "24px" }}>
+        <div className="card-header">
+          <span className="card-title">📄 Appreciation Letter Requests History</span>
+        </div>
+        {requests.length === 0 ? (
+          <div className="empty-state" style={{ padding: "30px 10px" }}>
+            <div className="icon">📄</div>
+            <p>No letter requests submitted yet.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name on Letter</th>
+                  <th>Events Included</th>
+                  <th>Additional Info</th>
+                  <th>Request Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.name_on_letter || <span className="text-muted">—</span>}</td>
+                    <td>
+                      {r.selected_events && Array.isArray(r.selected_events) && r.selected_events.length > 0 ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          {r.selected_events.map((e, idx) => (
+                            <span key={idx} className="badge badge-purple" style={{ fontSize: "10px", padding: "2px 6px" }}>{e}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td>{r.additional_details || <span className="text-muted">—</span>}</td>
+                    <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <span className={`badge ${r.status === "done" ? "badge-green" : r.status === "inprogress" ? "badge-purple" : "badge-amber"}`} style={{ textTransform: "uppercase", fontSize: "10px" }}>
+                        {r.status === "not start" ? "not started" : r.status === "inprogress" ? "in progress" : r.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Request Appreciation Letter Modal */}
+      {requestModal && (
+        <div className="modal-overlay" style={{ zIndex: 110 }} onClick={e => e.target === e.currentTarget && closeRequestModal()}>
+          <div className="modal">
+            <div className="modal-header">
+              <h2 className="modal-title">Request Appreciation Letter</h2>
+              <button className="modal-close" onClick={closeRequestModal}>x</button>
+            </div>
+
+            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+
+            <p style={{ color: "var(--text2)", fontSize: "12px", marginBottom: "15px" }}>
+              Submit a request for an official appreciation letter documenting your contributions for this year.
+            </p>
+
+            {settings.letter_show_name && (
+              <div className="form-group" style={{ marginBottom: 15 }}>
+                <label>Name on Letter</label>
+                <input
+                  placeholder="Enter the name as it should appear on the certificate/letter"
+                  value={requestForm.name_on_letter}
+                  onChange={e => setRequestForm({ ...requestForm, name_on_letter: e.target.value })}
+                  required
+                />
+              </div>
+            )}
+
+            {settings.letter_show_events && (
+              <div className="form-group" style={{ marginBottom: 15 }}>
+                <label>Select This Year's Events (Which you participated/organized)</label>
+                {thisYearEvents.length === 0 ? (
+                  <p className="text-muted" style={{ fontSize: "12px" }}>No events found for this year.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "150px", overflowY: "auto", border: "1px solid var(--border)", padding: "10px", borderRadius: "var(--r)", background: "var(--bg3)", marginTop: "6px" }}>
+                    {thisYearEvents.map(e => (
+                      <label key={e.event_id} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
+                        <input
+                          type="checkbox"
+                          checked={requestForm.selected_events.includes(e.name)}
+                          onChange={(evt) => {
+                            const name = e.name;
+                            if (evt.target.checked) {
+                              setRequestForm(prev => ({ ...prev, selected_events: [...prev.selected_events, name] }));
+                            } else {
+                              setRequestForm(prev => ({ ...prev, selected_events: prev.selected_events.filter(n => n !== name) }));
+                            }
+                          }}
+                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                        />
+                        <span>{e.name}</span> <span className="text-muted" style={{ fontSize: "11px" }}>({e.date})</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {settings.letter_show_details && (
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label>Additional Request Details</label>
+                <textarea
+                  placeholder="Describe your specific contributions, departments, roles, or special requests..."
+                  rows={4}
+                  value={requestForm.additional_details}
+                  onChange={e => setRequestForm({ ...requestForm, additional_details: e.target.value })}
+                />
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={closeRequestModal} disabled={submittingRequest}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleSubmitRequest} disabled={submittingRequest}>
+                {submittingRequest ? "Submitting..." : "Submit Request"}
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 

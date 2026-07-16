@@ -17,6 +17,7 @@ import PublicEvent from "./pages/PublicEvent";
 import Notices from "./pages/Notices";
 import PublicNotice from "./pages/PublicNotice";
 import ScanAttendance from "./pages/ScanAttendance";
+import Letters from "./pages/Letters";
 import "./App.css";
 
 const NAV_ITEMS = [
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { id: "tasks", label: "OC Tasks", icon: "T" },
   { id: "events", label: "Events", icon: "E" },
   { id: "messages", label: "Messages", icon: "✉" },
+  { id: "letters", label: "Letter Requests", icon: "📄" },
   { id: "access", label: "Access", icon: "U" },
   { id: "about", label: "Society Details", icon: "I" },
 
@@ -184,7 +186,7 @@ export default function App() {
     };
   }, []);
 
-  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks };
+  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters };
   const PageComponent = pages[page];
   const isRealStaff = canEdit(session.role);
   const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
@@ -193,6 +195,7 @@ export default function App() {
     ? NAV_ITEMS.filter(item => item.id === "about")
     : NAV_ITEMS.filter(item => {
       if (item.id === "access") return effectiveRole === "admin";
+      if (item.id === "letters") return isEditor;
       if (item.id === "my_info") return !!session.stId;
       if (item.id === "members") return isEditor;
       return isEditor || item.id !== "dashboard";

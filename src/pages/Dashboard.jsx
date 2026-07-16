@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 
-export default function Dashboard({ onNavigate }) {
-  const [stats, setStats] = useState({ members: 0, events: 0, oc: 0, attendance: 0 });
+export default function Dashboard({ onNavigate, isAdmin = false }) {
+  const [stats, setStats] = useState({ members: 0, events: 0, oc: 0, attendance: 0, activeLetters: 0 });
   const [recentMembers, setRecentMembers] = useState([]);
   const [recentEvents, setRecentEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [m, e, oc, att, rm, re] = await Promise.all([
+      const promises = [
         supabase.from("members").select("*", { count: "exact", head: true }).lte("level", 4),
         supabase.from("events").select("*", { count: "exact", head: true }),
         supabase.from("oc").select("*", { count: "exact", head: true }),
@@ -19,12 +19,23 @@ export default function Dashboard({ onNavigate }) {
           .eq("status", "approved")
           .order("created_at", { ascending: false }),
         supabase.from("events").select("*").order("date", { ascending: false }).limit(5),
-      ]);
+      ];
+
+      if (isAdmin) {
+        promises.push(
+          supabase.from("letter_requests").select("*", { count: "exact", head: true }).in("status", ["not start", "inprogress"])
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const [m, e, oc, att, rm, re, lr] = results;
+
       setStats({
         members: m.count || 0,
         events: e.count || 0,
         oc: oc.count || 0,
         attendance: att.count || 0,
+        activeLetters: lr ? (lr.count || 0) : 0
       });
 
       const mappedMembers = [];
@@ -46,7 +57,7 @@ export default function Dashboard({ onNavigate }) {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [isAdmin]);
 
   const statCards = [
     { label: "Total Members", value: stats.members, sub: "registered students", cls: "" },
@@ -54,6 +65,15 @@ export default function Dashboard({ onNavigate }) {
     { label: "Committee", value: stats.oc, sub: "OC assignments", cls: "green" },
     { label: "Attendances", value: stats.attendance, sub: "YES records", cls: "red" },
   ];
+
+  if (isAdmin) {
+    statCards.push({
+      label: "Pending Letters",
+      value: stats.activeLetters,
+      sub: "not started & in progress",
+      cls: "" // defaults to theme accent color (purple)
+    });
+  }
 
   return (
     <div>
