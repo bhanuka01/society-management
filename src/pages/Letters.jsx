@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import StudentProfileModal from "../components/StudentProfileModal";
 
 export default function Letters({ session }) {
   const [requests, setRequests] = useState([]);
@@ -10,7 +11,7 @@ export default function Letters({ session }) {
   });
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
-  const [selectedMember, setSelectedMember] = useState(null);
+  const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [msg, setMsg] = useState(null);
 
   const loadData = async () => {
@@ -216,7 +217,7 @@ export default function Letters({ session }) {
               <tbody>
                 {filteredRequests.map(r => (
                   <tr key={r.id}>
-                    <td onClick={() => setSelectedMember(r.members)} style={{ cursor: "pointer" }} title="Click to view member details">
+                    <td onClick={() => setSelectedMemberId(r.st_id)} style={{ cursor: "pointer" }} title="Click to view member details">
                       <strong style={{ color: "var(--accent)", textDecoration: "underline" }}>{r.members?.name || "Unknown"}</strong>
                       <div className="text-muted" style={{ fontSize: "11px", fontFamily: "var(--mono)" }}>{r.st_id}</div>
                     </td>
@@ -302,57 +303,12 @@ export default function Letters({ session }) {
         )}
       </div>
 
-      {/* Member Details Modal Popup */}
-      {selectedMember && (
-        <div className="modal-overlay" style={{ zIndex: 120 }} onClick={() => setSelectedMember(null)}>
-          <div className="modal" style={{ maxWidth: "450px" }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Member Information</h2>
-              <button className="modal-close" onClick={() => setSelectedMember(null)}>x</button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
-              {selectedMember.profile_image_url ? (
-                <img
-                  src={selectedMember.profile_image_url}
-                  alt={selectedMember.name}
-                  style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
-                />
-              ) : (
-                <div style={{ width: "90px", height: "90px", borderRadius: "50%", background: "var(--bg3)", border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "var(--text3)" }}>
-                  👤
-                </div>
-              )}
-
-              <div style={{ textAlign: "center" }}>
-                <h3 style={{ fontSize: "18px", fontWeight: "700", margin: 0 }}>{selectedMember.name}</h3>
-                <span className="badge badge-purple" style={{ marginTop: "4px" }}>{selectedMember.st_id}</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg3)", padding: "16px", borderRadius: "var(--r)", border: "1px solid var(--border)", marginBottom: "20px", fontSize: "13px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text3)" }}>Level / Year:</span> <strong>{selectedMember.level ? `Year ${selectedMember.level}` : "—"}</strong></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text3)" }}>Position:</span> <strong>{selectedMember.st_position || "Regular Member"}</strong></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text3)" }}>Function:</span> <strong>{selectedMember.member_function || "—"}</strong></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text3)" }}>Email:</span> <strong>{selectedMember.email || "—"}</strong></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text3)" }}>Mobile:</span> <strong>{selectedMember.mobile_number || "—"}</strong></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "var(--text3)" }}>LinkedIn:</span> 
-                <strong>
-                  {selectedMember.linkedin_url ? (
-                    <a href={selectedMember.linkedin_url.trim().toLowerCase().startsWith("http") ? selectedMember.linkedin_url.trim() : "https://" + selectedMember.linkedin_url.trim()} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none" }}>
-                      View Profile ↗
-                    </a>
-                  ) : "—"}
-                </strong>
-              </div>
-            </div>
-
-            <div className="modal-actions" style={{ justifyContent: "center" }}>
-              <button className="btn btn-primary" onClick={() => setSelectedMember(null)}>Close</button>
-            </div>
-          </div>
-        </div>
+      {/* Student Profile Modal Popup */}
+      {selectedMemberId && (
+        <StudentProfileModal
+          stId={selectedMemberId}
+          onClose={() => setSelectedMemberId(null)}
+        />
       )}
     </div>
   );
