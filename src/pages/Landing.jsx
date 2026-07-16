@@ -102,7 +102,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         {/* Desktop Layout */}
         <div className="desktop-nav justify-between items-center w-full flex">
           <div className="flex items-center gap-3">
-            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
+            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} />
             <span className="font-headline-md text-2xl font-bold text-on-surface">ADSS Ruhuna</span>
           </div>
           <div className="flex items-center gap-8">
@@ -156,7 +156,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div className="mobile-nav justify-between items-center w-full flex">
           {/* Logo on the left */}
           <div className="flex items-center">
-            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
+            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} />
           </div>
           
           {/* Join Society in the center */}
@@ -400,7 +400,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div className="w-full py-16 px-6 md:px-12 max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
           <div className="max-w-md">
             <div className="flex items-center gap-3 mb-6">
-              <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}logo.png`} />
+              <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} />
               <span className="text-2xl font-bold text-white">ADSS Ruhuna</span>
             </div>
             <p className="text-[#94A3B8] text-base mb-8 leading-relaxed">Empowering the next generation of Actuaries and Data Scientists at the University of Ruhuna through education, research, and industry engagement.</p>

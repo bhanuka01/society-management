@@ -217,7 +217,7 @@ export default function PublicEvent({ onBackToLanding }) {
       {/* Public Header */}
       <nav className="fixed top-0 w-full z-50 glass-header flex justify-between items-center px-6 md:px-12 py-4">
         <div className="flex items-center gap-3 cursor-pointer" onClick={onBackToLanding}>
-          <img alt="ADSS Logo" className="h-9 w-auto" src="/logo.png" />
+          <img alt="ADSS Logo" className="h-9 w-auto" src="/logo_trans_light.png" />
           <span className="font-headline-md text-xl font-bold text-on-surface hidden md:block">ADSS Ruhuna</span>
         </div>
         <button

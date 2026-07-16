@@ -734,7 +734,7 @@ export default function App() {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : "collapsed"}`}>
         <div className="sidebar-header">
-          <img src={`${import.meta.env.BASE_URL}logo.png`} className="logo-img" alt="ADSS Logo" />
+          <img src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} className="logo-img" alt="ADSS Logo" />
           {sidebarOpen && (
             <div className="logo-text">
               <span className="logo-title">ADSS</span>

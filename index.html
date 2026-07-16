@@ -5,13 +5,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ADSS Ruhuna | Actuarial & Data Science Society</title>
     <link rel="icon" type="image/png" href="/logo.png" />
+    <meta name="description" content="Official website of the Actuarial & Data Science Society, University of Ruhuna." />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://adssruhuna.vercel.app/" />
+    <meta property="og:title" content="ADSS Ruhuna | Actuarial & Data Science Society" />
+    <meta property="og:description" content="Official website of the Actuarial & Data Science Society, University of Ruhuna." />
+    <meta property="og:image" content="https://adssruhuna.vercel.app/logo_dark.png" />
+    <meta property="og:image:secure_url" content="https://adssruhuna.vercel.app/logo_dark.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://adssruhuna.vercel.app/" />
+    <meta property="twitter:title" content="ADSS Ruhuna | Actuarial & Data Science Society" />
+    <meta property="twitter:description" content="Official website of the Actuarial & Data Science Society, University of Ruhuna." />
+    <meta property="twitter:image" content="https://adssruhuna.vercel.app/logo_dark.png" />
     
     <!-- Tailwind CSS Play CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet" />
+    
+    <style>
+      /* Hide fallback ligature text before font loads to prevent layout shift and broken text */
+      .material-symbols-outlined {
+        visibility: hidden;
+      }
+      .icons-loaded .material-symbols-outlined {
+        visibility: visible;
+      }
+    </style>
+
+    <script>
+      (function() {
+        if (document.fonts) {
+          // Detect when the icon font is loaded, then reveal icons
+          document.fonts.load('1em Material Symbols Outlined').then(function() {
+            document.documentElement.classList.add('icons-loaded');
+          }).catch(function() {
+            document.documentElement.classList.add('icons-loaded');
+          });
+        } else {
+          document.documentElement.classList.add('icons-loaded');
+        }
+      })();
+    </script>
     
     <!-- Tailwind Configuration -->
     <script id="tailwind-config">

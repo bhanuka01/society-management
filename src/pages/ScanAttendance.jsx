@@ -293,7 +293,7 @@ export default function ScanAttendance({ onBackToLanding }) {
       <div className="w-full max-w-md glass-card rounded-3xl p-6 sm:p-8 flex flex-col">
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <img src="/logo.png" alt="ADSS Logo" className="h-12 w-auto mb-3" />
+          <img src="/logo_trans_light.png" alt="ADSS Logo" className="h-12 w-auto mb-3" />
           <h2 className="text-xs font-bold text-[#0062ff] tracking-widest uppercase mb-1">Event Attendance</h2>
           <h1 className="text-xl font-bold text-white line-clamp-1">{event?.name}</h1>
           <p className="text-[11px] text-text-secondary mt-1">Date: {event?.date}</p>
