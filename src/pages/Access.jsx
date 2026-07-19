@@ -302,17 +302,17 @@ export default function Access({ role = "guest", session = {} }) {
               <span className="card-title">Registration Invites</span>
             </div>
             <div className="table-wrap">
-              <table>
+              <table className="table-fit table-cards">
                 <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody>
                   {invites.length === 0 ? (
                     <tr><td colSpan="4"><div className="empty-state"><p>No invites yet</p></div></td></tr>
                   ) : invites.map(invite => (
                     <tr key={invite.id}>
-                      <td>{invite.email}</td>
+                      <td className="col-name">{invite.email}</td>
                       <td><span className="badge badge-purple">{invite.role}</span></td>
                       <td>{invite.used_at ? <span className="badge badge-green">Used</span> : <span className="badge badge-amber">Open</span>}</td>
-                      <td>
+                      <td className="col-action">
                         {!invite.used_at && (
                           <button className="btn btn-danger btn-sm" onClick={() => revokeInvite(invite.id)}>Revoke</button>
                         )}
@@ -329,17 +329,17 @@ export default function Access({ role = "guest", session = {} }) {
               <span className="card-title">Current Staff Users</span>
             </div>
             <div className="table-wrap">
-              <table>
+              <table className="table-fit table-cards">
                 <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead>
                 <tbody>
                   {profiles.length === 0 ? (
                     <tr><td colSpan="4"><div className="empty-state"><p>No staff users found</p></div></td></tr>
                   ) : profiles.map(profile => (
                     <tr key={profile.id}>
-                      <td><strong>{profile.full_name || "-"}</strong></td>
-                      <td>{profile.email}</td>
+                      <td className="col-name"><strong>{profile.full_name || "-"}</strong></td>
+                      <td className="col-secondary">{profile.email}</td>
                       <td><span className="badge badge-purple">{profile.role}</span></td>
-                      <td>
+                      <td className="col-action">
                         {profile.role === "editor" && (
                           <button className="btn btn-danger btn-sm" onClick={() => removeEditorAccess(profile.id)}>Remove Access</button>
                         )}

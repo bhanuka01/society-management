@@ -106,13 +106,13 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
                 <div className="empty-state"><div className="icon"><span className="material-symbols-outlined">group_off</span></div><p>No members yet</p></div>
               ) : (
                 <div className="table-wrap">
-                  <table>
+                  <table className="table-fit table-cards">
                     <thead><tr><th>ST ID</th><th>Name</th><th>Level</th></tr></thead>
                     <tbody>
                       {recentMembers.map(m => (
                         <tr key={m.st_id}>
-                          <td className="mono">{m.st_id}</td>
-                          <td>{m.name}</td>
+                          <td className="mono col-secondary">{m.st_id}</td>
+                          <td className="col-name">{m.name}</td>
                           <td>{m.level ? <span className="badge badge-purple">Y{m.level}</span> : "—"}</td>
                         </tr>
                       ))}
@@ -131,13 +131,13 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
                 <div className="empty-state"><div className="icon"><span className="material-symbols-outlined">event_busy</span></div><p>No events yet</p></div>
               ) : (
                 <div className="table-wrap">
-                  <table>
+                  <table className="table-fit table-cards">
                     <thead><tr><th>Event ID</th><th>Name</th><th>Date</th></tr></thead>
                     <tbody>
                       {recentEvents.map(e => (
                         <tr key={e.event_id}>
-                          <td className="mono">{e.event_id}</td>
-                          <td>{e.name}</td>
+                          <td className="mono col-secondary">{e.event_id}</td>
+                          <td className="col-name">{e.name}</td>
                           <td className="mono">{e.date}</td>
                         </tr>
                       ))}

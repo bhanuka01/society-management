@@ -374,7 +374,7 @@ export default function Events({ isAdmin = false, session }) {
         <div className="loader"><div className="spinner" /></div>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className="table-fit table-cards">
             <thead>
               <tr>
                 <th>Event ID</th>
@@ -396,8 +396,8 @@ export default function Events({ isAdmin = false, session }) {
                 </tr>
               ) : events.map(e => (
                 <tr key={e.event_id}>
-                  <td className="mono">{e.event_id}</td>
-                  <td>
+                  <td className="mono col-secondary">{e.event_id}</td>
+                  <td className="col-name">
                     <strong>{e.name}</strong>
                     {e.is_public !== false ? (
                       <span className="badge badge-green" style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🌐 Public</span>
@@ -452,8 +452,8 @@ export default function Events({ isAdmin = false, session }) {
                     ) : <span className="text-muted text-sm">{e.apply_start_date ? "Closed" : "-"}</span>}
                   </td>
                   {isAdmin && (
-                    <td>
-                      <div className="flex flex-wrap gap-2">
+                    <td className="col-action col-action-full">
+                      <div className="gap-2" style={{ display: "flex", flexWrap: "wrap" }}>
                         <a href={`/event?id=${e.event_id}`} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Preview</a>
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(e)}>Edit</button>
                         <button className="btn btn-success btn-sm" title="Seed attendance for all members" onClick={() => seedAttendance(e.event_id)}>Seed Att.</button>

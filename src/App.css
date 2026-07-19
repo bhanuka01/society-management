@@ -628,6 +628,12 @@ body {
   min-width: 100% !important;
 }
 
+.table-wrap table.table-fit td,
+.table-wrap table.table-fit th {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -2091,6 +2097,83 @@ select option {
 
   .table-wrap table {
     min-width: 620px;
+  }
+
+  .table-wrap table.table-cards {
+    min-width: 100% !important;
+  }
+
+  .table-wrap table.table-cards thead {
+    display: none;
+  }
+
+  .table-wrap table.table-cards,
+  .table-wrap table.table-cards tbody,
+  .table-wrap table.table-cards tr,
+  .table-wrap table.table-cards td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .table-wrap table.table-cards tr {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .table-wrap table.table-cards tr:last-child {
+    border-bottom: none;
+  }
+
+  .table-wrap table.table-cards td {
+    padding: 0;
+    border: none;
+    background: transparent !important;
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  .table-wrap table.table-cards td.col-name {
+    width: 100%;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    display: block;
+    order: 1;
+    margin-bottom: 2px;
+  }
+
+  .table-wrap table.table-cards td.col-secondary {
+    width: 100%;
+    font-size: 12px;
+    color: var(--text3);
+    display: block;
+    order: 2;
+    margin-top: -2px;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  .table-wrap table.table-cards td:not(.col-name):not(.col-secondary) {
+    order: 3;
+  }
+
+  .table-wrap table.table-cards td.col-action {
+    margin-left: auto;
+    order: 4;
+  }
+
+  .table-wrap table.table-cards td.col-action-full {
+    width: 100%;
+    margin-top: 4px;
+    order: 4;
   }
 
   th,
