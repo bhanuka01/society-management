@@ -624,6 +624,10 @@ body {
   border: 1px solid var(--border);
 }
 
+.table-wrap table.table-fit {
+  min-width: 100% !important;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -1791,6 +1795,7 @@ select option {
 .text-sm { font-size: 12px; }
 .text-muted { color: var(--text3); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.text-right-desktop { text-align: right; }
 
 .copy-btn {
   background: transparent;
@@ -1995,6 +2000,10 @@ select option {
     grid-template-columns: 1fr !important;
   }
 
+  .text-right-desktop {
+    text-align: left !important;
+  }
+
   .stat-grid,
   .stat-grid[style] {
     grid-template-columns: 1fr 1fr !important;
@@ -2152,3 +2161,145 @@ select option {
     padding: 40px 48px;
   }
 }
+
+/* ════════════════════════════════════════════
+   PERSONAL PROFILE LAYOUT (MY INFO)
+   ════════════════════════════════════════════ */
+
+.profile-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.profile-header-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.profile-avatar-container {
+  flex-shrink: 0;
+}
+
+.profile-avatar-img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.profile-avatar-placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  color: var(--text3);
+}
+
+.profile-title-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-name-heading {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0;
+}
+
+.profile-badges-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.profile-position-sub {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+.profile-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  background: var(--bg3);
+  padding: 20px;
+  border-radius: var(--r2);
+  border: 1px solid var(--border);
+}
+
+.profile-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-detail-label {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.profile-detail-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.profile-detail-value a {
+  color: var(--accent2);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.profile-detail-value a:hover {
+  color: var(--accent);
+}
+
+.profile-detail-value a.linkedin-link {
+  color: var(--green);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.profile-detail-value a.linkedin-link:hover {
+  opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .profile-header-main {
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .profile-badges-row {
+    justify-content: center;
+  }
+
+  .profile-details-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+  }
+}
+

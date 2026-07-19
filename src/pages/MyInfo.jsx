@@ -290,7 +290,7 @@ export default function MyInfo({ session }) {
       <div className="card mb-3" style={{ marginBottom: 24 }}>
         <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span className="card-title">Personal Profile</span>
-          <div className="flex gap-2" style={{ alignItems: "center", flexWrap: "wrap" }}>
+          <div className="gap-2" style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
             <button className="btn btn-ghost btn-sm" onClick={openEditModal}>
               ✏️ Edit Profile
             </button>
@@ -301,87 +301,70 @@ export default function MyInfo({ session }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "24px", alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ flexShrink: 0 }}>
-            {profile.profile_image_url ? (
-              <img
-                src={profile.profile_image_url}
-                alt={profile.name}
-                style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profile.name);
-                }}
-              />
-            ) : (
-              <div style={{ width: "90px", height: "90px", borderRadius: "50%", background: "var(--bg3)", border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "var(--text3)" }}>
-                👤
-              </div>
-            )}
-          </div>
-
-          <div style={{ flex: 1, minWidth: "200px" }}>
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Full Name</label>
-                <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4, color: "var(--text)" }}>
-                  {profile.name}
-                </div>
-              </div>
-              <div className="form-group" style={{ textAlign: "right" }}>
-                <label>Academic Level</label>
-                <div style={{ marginTop: 4 }}>
-                  {profile.level ? (
-                    <span className="badge badge-gray" style={{ fontSize: 13, padding: "4px 10px" }}>Year {profile.level}</span>
-                  ) : (
-                    <span className="text-muted">Not specified</span>
-                  )}
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Student Position</label>
-                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, color: "var(--text2)" }}>
-                  {profile.st_position || "Regular Member"}
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Member Function</label>
-                <div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, color: "var(--text2)" }}>
-                  {profile.member_function || "Not assigned"}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Contact and links */}
-        <div className="form-row form-row-3" style={{ background: "var(--bg3)", padding: "12px 16px", borderRadius: "var(--r)", marginTop: "20px", border: "1px solid var(--border)" }}>
-          <div className="form-group">
-            <label>📧 Email Address</label>
-            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
-              {profile.email ? (
-                <a href={`mailto:${profile.email}`} style={{ color: "var(--accent2)", textDecoration: "none" }}>{profile.email}</a>
+        <div className="profile-card-body">
+          {/* Top section: Avatar and Primary Details */}
+          <div className="profile-header-main">
+            <div className="profile-avatar-container">
+              {profile.profile_image_url ? (
+                <img
+                  src={profile.profile_image_url}
+                  alt={profile.name}
+                  className="profile-avatar-img"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profile.name);
+                  }}
+                />
               ) : (
-                <span className="text-muted">Not provided</span>
+                <div className="profile-avatar-placeholder">👤</div>
               )}
             </div>
-          </div>
-          <div className="form-group">
-            <label>📞 Mobile Number</label>
-            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
-              <PhoneContact phone={profile.mobile_number} />
+
+            <div className="profile-title-container">
+              <h2 className="profile-name-heading">{profile.name}</h2>
+              <div className="profile-badges-row">
+                <span className="badge badge-purple">{profile.st_id}</span>
+                {profile.level && (
+                  <span className="badge badge-gray">Year {profile.level}</span>
+                )}
+              </div>
+              <div className="profile-position-sub">{profile.st_position || "Regular Member"}</div>
             </div>
           </div>
-          <div className="form-group">
-            <label>🔗 LinkedIn Profile</label>
-            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
-              {profile.linkedin_url ? (
-                <a href={profile.linkedin_url.trim().toLowerCase().startsWith("http") ? profile.linkedin_url.trim() : "https://" + profile.linkedin_url.trim()} target="_blank" rel="noopener noreferrer" style={{ color: "var(--green)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                  View LinkedIn ↗
-                </a>
-              ) : (
-                <span className="text-muted">Not provided</span>
-              )}
+
+          {/* Details Grid */}
+          <div className="profile-details-grid">
+            <div className="profile-detail-item">
+              <span className="profile-detail-label">Member Function</span>
+              <span className="profile-detail-value">{profile.member_function || "Not assigned"}</span>
+            </div>
+            <div className="profile-detail-item">
+              <span className="profile-detail-label">📧 Email Address</span>
+              <span className="profile-detail-value" style={{ overflowWrap: "break-word", wordBreak: "break-all" }}>
+                {profile.email ? (
+                  <a href={`mailto:${profile.email}`}>{profile.email}</a>
+                ) : (
+                  <span className="text-muted">Not provided</span>
+                )}
+              </span>
+            </div>
+            <div className="profile-detail-item">
+              <span className="profile-detail-label">📞 Mobile Number</span>
+              <span className="profile-detail-value">
+                <PhoneContact phone={profile.mobile_number} />
+              </span>
+            </div>
+            <div className="profile-detail-item">
+              <span className="profile-detail-label">🔗 LinkedIn Profile</span>
+              <span className="profile-detail-value">
+                {profile.linkedin_url ? (
+                  <a href={profile.linkedin_url.trim().toLowerCase().startsWith("http") ? profile.linkedin_url.trim() : "https://" + profile.linkedin_url.trim()} target="_blank" rel="noopener noreferrer" className="linkedin-link">
+                    View LinkedIn ↗
+                  </a>
+                ) : (
+                  <span className="text-muted">Not provided</span>
+                )}
+              </span>
             </div>
           </div>
         </div>
@@ -420,7 +403,7 @@ export default function MyInfo({ session }) {
             </div>
           ) : (
             <div className="table-wrap">
-              <table>
+              <table className="table-fit">
                 <thead>
                   <tr>
                     <th>Event</th>
@@ -461,7 +444,7 @@ export default function MyInfo({ session }) {
             </div>
           ) : (
             <div className="table-wrap">
-              <table>
+              <table className="table-fit">
                 <thead>
                   <tr>
                     <th>Event & Department</th>
