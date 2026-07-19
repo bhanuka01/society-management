@@ -65,7 +65,7 @@ ${message.trim()}
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title"><span className="icon">*</span> About</h1>
+        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">info</span></span> About</h1>
         <p className="page-subtitle">society details, developer information, and issue contact</p>
       </div>
 

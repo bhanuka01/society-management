@@ -166,7 +166,7 @@ export default function Access({ role = "guest", session = {} }) {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title"><span className="icon">*</span> Access</h1>
+        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">admin_panel_settings</span></span> Access</h1>
         <p className="page-subtitle">enable registration for new admins and editors</p>
       </div>
 

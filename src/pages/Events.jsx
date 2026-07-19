@@ -358,7 +358,7 @@ export default function Events({ isAdmin = false, session }) {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title"><span className="icon">*</span> Events</h1>
+        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">event</span></span> Events</h1>
         <p className="page-subtitle">{total} events registered</p>
       </div>
 

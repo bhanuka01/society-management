@@ -21,20 +21,20 @@ import Letters from "./pages/Letters";
 import "./App.css";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: "D" },
-  { id: "notices", label: "Notices", icon: "📢" },
-  { id: "my_info", label: "My Info", icon: "P" },
-  { id: "attendance", label: "Attendance", icon: "A" },
-  { id: "members", label: "Members", icon: "M" },
-  { id: "committee", label: "Committee", icon: "C" },
-  { id: "tasks", label: "OC Tasks", icon: "T" },
-  { id: "events", label: "Events", icon: "E" },
-  { id: "messages", label: "Messages", icon: "✉" },
-  { id: "letters", label: "Letter Requests", icon: "📄" },
-  { id: "access", label: "Access", icon: "U" },
-  { id: "about", label: "Society Details", icon: "I" },
+  { id: "dashboard", label: "Dashboard", icon: "dashboard" },
+  { id: "notices", label: "Notices", icon: "campaign" },
+  { id: "my_info", label: "My Info", icon: "person" },
+  { id: "attendance", label: "Attendance", icon: "check_circle" },
+  { id: "members", label: "Members", icon: "groups" },
+  { id: "committee", label: "Committee", icon: "diversity_3" },
+  { id: "tasks", label: "OC Tasks", icon: "task_alt" },
+  { id: "events", label: "Events", icon: "event" },
+  { id: "messages", label: "Messages", icon: "mail" },
+  { id: "letters", label: "Letter Requests", icon: "description" },
+  { id: "access", label: "Access", icon: "admin_panel_settings" },
+  { id: "about", label: "Society Details", icon: "info" },
 
-  // { id: "setup", label: "DB Setup", icon: "S" },
+  // { id: "setup", label: "DB Setup", icon: "database" },
 ];
 
 const ROLE_LABELS = {
@@ -460,7 +460,7 @@ export default function App() {
       <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "2rem" }}>
         <div className="card" style={{ maxWidth: "500px", width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.3)", border: "1px solid var(--border)" }}>
           <div className="page-header" style={{ marginBottom: "2rem" }}>
-            <div className="icon" style={{ fontSize: "3rem", color: "var(--amber)", marginBottom: "1rem" }}>⏳</div>
+            <div className="icon" style={{ fontSize: "3rem", color: "var(--amber)", marginBottom: "1rem" }}><span className="material-symbols-outlined" style={{fontSize:'48px'}}>hourglass_top</span></div>
             <h1 className="page-title">Registration Pending</h1>
             <p className="page-subtitle">Your account is currently under review by an administrator or editor</p>
           </div>
@@ -520,7 +520,7 @@ export default function App() {
       <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "2rem" }}>
         <div className="card" style={{ maxWidth: "500px", width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.3)", border: "1px solid var(--border)" }}>
           <div className="page-header" style={{ marginBottom: "2rem" }}>
-            <div className="icon" style={{ fontSize: "3rem", color: "var(--red)", marginBottom: "1rem" }}>❌</div>
+            <div className="icon" style={{ fontSize: "3rem", color: "var(--red)", marginBottom: "1rem" }}><span className="material-symbols-outlined" style={{fontSize:'48px'}}>cancel</span></div>
             <h1 className="page-title">Registration Rejected</h1>
             <p className="page-subtitle">Your registration request has been rejected by the administrator or editor</p>
           </div>
@@ -745,8 +745,8 @@ export default function App() {
             </div>
           )}
           <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle navigation menu">
-            <span className="toggle-icon-desktop">{sidebarOpen ? "◀" : "▶"}</span>
-            <span className="toggle-icon-mobile">{sidebarOpen ? "✕" : "☰"}</span>
+            <span className="toggle-icon-desktop"><span className="material-symbols-outlined" style={{fontSize:'16px'}}>{sidebarOpen ? "chevron_left" : "chevron_right"}</span></span>
+            <span className="toggle-icon-mobile"><span className="material-symbols-outlined" style={{fontSize:'20px'}}>{sidebarOpen ? "close" : "menu"}</span></span>
           </button>
         </div>
 
@@ -767,7 +767,7 @@ export default function App() {
                 }
               }}
             >
-              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-icon"><span className="material-symbols-outlined">{item.icon}</span></span>
               {sidebarOpen && <span className="nav-label">{item.label}</span>}
             </button>
           ))}
@@ -804,7 +804,7 @@ export default function App() {
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
               <span className="theme-switch-track">
-                <span className="theme-switch-thumb">{theme === "dark" ? "D" : "L"}</span>
+                <span className="theme-switch-thumb">{theme === "dark" ? "●" : "○"}</span>
               </span>
               <span>{theme === "dark" ? "Dark" : "Light"}</span>
             </button>

@@ -78,7 +78,7 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title"><span className="icon">⬡</span> Dashboard</h1>
+        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">dashboard</span></span> Dashboard</h1>
         <p className="page-subtitle">society management overview</p>
       </div>
 
@@ -103,7 +103,7 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
                 <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("members")}>View All →</button>
               </div>
               {recentMembers.length === 0 ? (
-                <div className="empty-state"><div className="icon">◈</div><p>No members yet</p></div>
+                <div className="empty-state"><div className="icon"><span className="material-symbols-outlined">group_off</span></div><p>No members yet</p></div>
               ) : (
                 <div className="table-wrap">
                   <table>
@@ -128,7 +128,7 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
                 <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("events")}>View All →</button>
               </div>
               {recentEvents.length === 0 ? (
-                <div className="empty-state"><div className="icon">◆</div><p>No events yet</p></div>
+                <div className="empty-state"><div className="icon"><span className="material-symbols-outlined">event_busy</span></div><p>No events yet</p></div>
               ) : (
                 <div className="table-wrap">
                   <table>
@@ -154,14 +154,14 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {[
-                { label: "＋ Add Member", page: "members" },
-                { label: "＋ Create Event", page: "events" },
-                { label: "✓ Take Attendance", page: "attendance" },
-                { label: "◉ Manage Committee", page: "committee" },
+                { label: "Add Member", page: "members", icon: "person_add" },
+                { label: "Create Event", page: "events", icon: "add_circle" },
+                { label: "Take Attendance", page: "attendance", icon: "fact_check" },
+                { label: "Manage Committee", page: "committee", icon: "diversity_3" },
                 // { label: "⚙ DB Setup Guide", page: "setup" },
               ].map(a => (
                 <button key={a.page} className="btn btn-ghost" onClick={() => onNavigate(a.page)}>
-                  {a.label}
+                  <span className="material-symbols-outlined" style={{fontSize:'18px'}}>{a.icon}</span> {a.label}
                 </button>
               ))}
             </div>

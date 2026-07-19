@@ -35,7 +35,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
       if (glowRef.current) {
         const x = (e.clientX / window.innerWidth) * 100;
         const y = (e.clientY / window.innerHeight) * 100;
-        glowRef.current.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(0, 98, 255, 0.09) 0%, transparent 40%)`;
+        glowRef.current.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(99, 102, 241, 0.09) 0%, transparent 40%)`;
       }
     };
 
@@ -72,7 +72,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
   };
 
   return (
-    <div className={`landing-page ${theme === "light" ? "landing-light" : ""} bg-[#0B0A11] text-white min-h-screen font-body-md overflow-x-hidden selection:bg-primary-container selection:text-white`}>
+    <div className={`landing-page ${theme === "light" ? "landing-light" : ""} bg-[#09090b] text-white min-h-screen font-body-md overflow-x-hidden selection:bg-primary-container selection:text-white`}>
       <style>{`
         .glass-card {
           background: rgba(24, 23, 34, 0.6);
@@ -82,11 +82,11 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         }
         .glass-card:hover {
           transform: translateY(-6px) scale(1.01);
-          border-color: rgba(0, 98, 255, 0.25);
+          border-color: rgba(99, 102, 241, 0.25);
           box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
         }
         .hero-glow {
-          background: radial-gradient(circle at 50% 100%, rgba(0, 98, 255, 0.2) 0%, transparent 60%);
+          background: radial-gradient(circle at 50% 100%, rgba(99, 102, 241, 0.2) 0%, transparent 60%);
         }
         @media (max-width: 767px) {
           .desktop-nav { display: none !important; }
@@ -97,7 +97,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
       `}</style>
 
       {/* TopNavBar */}
-      <nav className="fixed top-0 w-full z-50 flex items-center px-6 md:px-12 py-4 bg-[#14121a]/85 backdrop-blur-xl border-b border-white/5">
+      <nav className="fixed top-0 w-full z-50 flex items-center px-6 md:px-12 py-4 bg-[#09090b]/85 backdrop-blur-xl border-b border-white/5">
         
         {/* Desktop Layout */}
         <div className="desktop-nav justify-between items-center w-full flex">
@@ -108,25 +108,25 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           <div className="flex items-center gap-8">
             <button
               onClick={() => scrollToSection(upcomingEvents.length > 0 ? "upcoming-events" : "features")}
-              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
             >
               Events
             </button>
             <button
               onClick={() => scrollToSection("cta")}
-              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
             >
               Membership
             </button>
             <button
               onClick={() => scrollToSection("features")}
-              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
             >
               Insights
             </button>
             <button
               onClick={() => scrollToSection("footer")}
-              className="font-body-md text-text-secondary hover:text-[#85b5ff] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
             >
               Contact
             </button>
@@ -145,7 +145,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             </button>
             <button
               onClick={onLoginClick}
-              className="bg-[#0062ff] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#0052d4] active:scale-95 transition-all shadow-[0_0_15px_rgba(0,98,255,0.2)]"
+              className="bg-[#6366f1] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#4f46e5] active:scale-95 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
             >
               Join Society
             </button>
@@ -162,7 +162,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           {/* Join Society in the center */}
           <button
             onClick={onLoginClick}
-            className="bg-[#0062ff] text-white px-5 py-2 rounded-full font-bold text-sm active:scale-95 transition-all shadow-[0_0_15px_rgba(0,98,255,0.2)]"
+            className="bg-[#6366f1] text-white px-5 py-2 rounded-full font-bold text-sm active:scale-95 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
           >
             Join Society
           </button>
@@ -191,11 +191,11 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff22 1px, transparent 1px)", backgroundSize: "40px 40px" }}></div>
         <div className="container mx-auto px-6 relative z-10 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-8 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[#0062ff] animate-pulse"></span>
+            <span className="w-2 h-2 rounded-full bg-[#6366f1] animate-pulse"></span>
             <span className="text-xs font-semibold uppercase tracking-widest text-[#94A3B8]">New Academic Session 2024/25</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight leading-tight">
-            Where Data Meets <br /><span className="text-[#0062ff]">Decision-Making</span>
+            Where Data Meets <br /><span className="text-[#6366f1]">Decision-Making</span>
           </h1>
           <p className="text-lg md:text-xl text-[#94A3B8] max-w-2xl mx-auto mb-12 leading-relaxed">
             Explore how data-driven insights guide smarter business, financial, and risk-based decisions within the University of Ruhuna's premier tech society.
@@ -204,7 +204,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             <button
               onClick={onLoginClick}
               // onClick={() => scrollToSection("features")}
-              className="w-full sm:w-auto px-8 py-4 bg-[#0062ff] text-white rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(0,98,255,0.4)] transition-all"
+              className="w-full sm:w-auto px-8 py-4 bg-[#6366f1] text-white rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all"
             >
               Login Society <span className="material-symbols-outlined text-lg">arrow_forward</span>
             </button>
@@ -238,10 +238,10 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
 
       {/* Upcoming Events Section */}
       {upcomingEvents.length > 0 && (
-        <section id="upcoming-events" className="animate-section py-20 bg-[#0B0A11] border-y border-white/5 relative">
+        <section id="upcoming-events" className="animate-section py-20 bg-[#09090b] border-y border-white/5 relative">
           <div className="container mx-auto px-6 max-w-6xl">
             <div className="text-center mb-16">
-              <span className="text-[#0062ff] uppercase tracking-widest text-xs font-bold bg-[#0062ff]/10 px-3 py-1 rounded-full">Stay Connected</span>
+              <span className="text-[#6366f1] uppercase tracking-widest text-xs font-bold bg-[#6366f1]/10 px-3 py-1 rounded-full">Stay Connected</span>
               <h2 className="text-3xl md:text-5xl font-bold mt-3 mb-4">Upcoming Events</h2>
               <p className="text-[#94A3B8] text-base md:text-lg max-w-xl mx-auto">Register for our upcoming workshops, guest lectures, and hackathons.</p>
             </div>
@@ -266,7 +266,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                             alt={ev.name} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-[#181722] to-transparent opacity-60"></div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#18181b] to-transparent opacity-60"></div>
                         </div>
                       ) : (
                         <div className="h-48 bg-white/5 flex items-center justify-center text-white/20 relative">
@@ -276,11 +276,11 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
 
                       <div className="p-6">
                         {/* Date badge */}
-                        <div className="flex items-center gap-2 text-xs text-[#85b5ff] font-semibold mb-3">
+                        <div className="flex items-center gap-2 text-xs text-[#818cf8] font-semibold mb-3">
                           <span className="material-symbols-outlined text-sm">calendar_month</span>
                           {formattedDate}
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#0062ff] transition-colors">{ev.name}</h3>
+                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#6366f1] transition-colors">{ev.name}</h3>
                         <p className="text-sm text-[#94A3B8] line-clamp-2 leading-relaxed mb-4">
                           {ev.description || "Join us for this actuarial and data science event. Click register to see full details and form."}
                         </p>
@@ -294,7 +294,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                           window.history.pushState({ path: eventUrl }, "", eventUrl);
                           window.dispatchEvent(new Event("popstate"));
                         }}
-                        className="w-full py-3 bg-[#0062ff]/20 text-white border border-[#0062ff]/30 rounded-xl font-bold text-sm hover:bg-[#0062ff] hover:border-transparent active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                        className="w-full py-3 bg-[#6366f1]/20 text-white border border-[#6366f1]/30 rounded-xl font-bold text-sm hover:bg-[#6366f1] hover:border-transparent active:scale-95 transition-all text-center flex items-center justify-center gap-2"
                       >
                         Register & View Details <span className="material-symbols-outlined text-xs">arrow_forward</span>
                       </button>
@@ -308,7 +308,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
       )}
 
       {/* Features Bento Grid */}
-      <section id="features" className="animate-section py-24 bg-[#14121a] transition-all duration-1000">
+      <section id="features" className="animate-section py-24 bg-[#09090b] transition-all duration-1000">
         <div className="container mx-auto px-6 max-w-6xl">
           <div className="text-center mb-20">
             <h2 className="text-3xl md:text-5xl font-bold mb-4">Society Management Intelligence</h2>
@@ -318,13 +318,13 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             {/* Large Card */}
             <div className="md:col-span-8 glass-card rounded-3xl p-10 flex flex-col justify-between group">
               <div>
-                <span className="material-symbols-outlined text-4xl text-[#85b5ff] mb-6">event_available</span>
+                <span className="material-symbols-outlined text-4xl text-[#818cf8] mb-6">event_available</span>
                 <h3 className="text-2xl md:text-3xl font-bold mb-4">Event Excellence</h3>
                 <p className="text-[#94A3B8] text-base">Seamless management and real-time attendance tracking for all society workshops and seminars.</p>
               </div>
               <div className="mt-12 flex gap-4">
-                <div className="h-12 w-full bg-white/5 rounded-lg border border-white/5 group-hover:border-[#85b5ff]/30 transition-all"></div>
-                <div className="h-12 w-12 bg-[#85b5ff]/20 rounded-lg flex items-center justify-center text-[#85b5ff] flex-shrink-0">
+                <div className="h-12 w-full bg-white/5 rounded-lg border border-white/5 group-hover:border-[#818cf8]/30 transition-all"></div>
+                <div className="h-12 w-12 bg-[#818cf8]/20 rounded-lg flex items-center justify-center text-[#818cf8] flex-shrink-0">
                   <span className="material-symbols-outlined">analytics</span>
                 </div>
               </div>
@@ -332,7 +332,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             {/* Tall Card */}
             <div className="md:col-span-4 glass-card rounded-3xl p-10 flex flex-col group justify-between">
               <div>
-                <span className="material-symbols-outlined text-4xl text-[#00C2FF] mb-6">groups</span>
+                <span className="material-symbols-outlined text-4xl text-[#a78bfa] mb-6">groups</span>
                 <h3 className="text-2xl md:text-3xl font-bold mb-4">Member Intelligence</h3>
                 <p className="text-[#94A3B8] text-base mb-8">Deep profiles and performance tracking for our community of future actuaries.</p>
               </div>
@@ -344,12 +344,12 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             </div>
             {/* Bottom Cards */}
             <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-[#0062ff] mb-6">query_stats</span>
+              <span className="material-symbols-outlined text-4xl text-[#6366f1] mb-6">query_stats</span>
               <h3 className="text-2xl font-bold mb-4">Attendance Insights</h3>
               <p className="text-[#94A3B8] text-base">Data-driven analysis of member engagement and participation across all activities.</p>
             </div>
             <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-[#85b5ff] mb-6">checklist_rtl</span>
+              <span className="material-symbols-outlined text-4xl text-[#818cf8] mb-6">checklist_rtl</span>
               <h3 className="text-2xl font-bold mb-4">Task Orchestration</h3>
               <p className="text-[#94A3B8] text-base">Efficient coordination of society goals, board tasks, and academic projects.</p>
             </div>
@@ -360,10 +360,10 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
       {/* Bold CTA Section */}
       <section id="cta" className="animate-section py-24 transition-all duration-1000">
         <div className="container mx-auto px-6 max-w-5xl">
-          <div className="relative bg-[#181722] rounded-[48px] p-12 md:p-24 overflow-hidden text-center border border-white/5">
+          <div className="relative bg-[#18181b] rounded-[48px] p-12 md:p-24 overflow-hidden text-center border border-white/5">
             {/* Background Decoration */}
-            <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-[#85b5ff]/5 blur-[120px] rounded-full pointer-events-none"></div>
-            <div className="absolute -bottom-1/2 -left-1/4 w-[600px] h-[600px] bg-[#00C2FF]/5 blur-[120px] rounded-full pointer-events-none"></div>
+            <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-[#818cf8]/5 blur-[120px] rounded-full pointer-events-none"></div>
+            <div className="absolute -bottom-1/2 -left-1/4 w-[600px] h-[600px] bg-[#a78bfa]/5 blur-[120px] rounded-full pointer-events-none"></div>
             <div className="relative z-10 max-w-3xl mx-auto">
               <h2 className="text-4xl md:text-6xl font-bold mb-8">Join the Future of Data Science</h2>
               <p className="text-lg text-[#94A3B8] mb-12 leading-relaxed">Become a part of the most influential society at the Faculty of Science, University of Ruhuna. Connect with peers, learn from experts, and shape your career.</p>
@@ -396,7 +396,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
       </section>
 
       {/* Footer */}
-      <footer id="footer" className="bg-[#0B0A11] border-t border-white/5">
+      <footer id="footer" className="bg-[#09090b] border-t border-white/5">
         <div className="w-full py-16 px-6 md:px-12 max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
           <div className="max-w-md">
             <div className="flex items-center gap-3 mb-6">

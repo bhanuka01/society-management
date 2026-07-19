@@ -677,7 +677,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title"><span className="icon">*</span> Attendance</h1>
+        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">check_circle</span></span> Attendance</h1>
         <p className="page-subtitle">{isAdmin ? "mark and track event attendance" : "watch attendance records without editing"}</p>
       </div>
 

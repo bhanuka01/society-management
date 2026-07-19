@@ -283,7 +283,7 @@ export default function MyInfo({ session }) {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title"><span className="icon">👤</span> My Information</h1>
+        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">person</span></span> My Information</h1>
         <p className="page-subtitle">View your profile details, attendance records, and committee assignments</p>
       </div>
 

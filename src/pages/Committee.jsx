@@ -150,7 +150,7 @@ export default function Committee({ isAdmin = false }) {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title"><span className="icon">*</span> Committee (OC)</h1>
+        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">diversity_3</span></span> Committee (OC)</h1>
         <p className="page-subtitle">{selectedEventInfo ? `${selectedEventInfo.name} - ${total} assignments` : "select an event to manage OC assignments"}</p>
       </div>
 
