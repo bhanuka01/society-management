@@ -201,14 +201,21 @@ export default function Committee({ isAdmin = false }) {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>ST ID</th><th>Name</th><th>Function</th><th>OC Position</th><th>Apply Status</th>{isAdmin && <th>Actions</th>}</tr>
+              <tr>
+                {isAdmin && <th>ST ID</th>}
+                <th>Name</th>
+                <th>Function</th>
+                <th>OC Position</th>
+                <th>Apply Status</th>
+                {isAdmin && <th>Actions</th>}
+              </tr>
             </thead>
             <tbody>
               {oc.length === 0 ? (
-                <tr><td colSpan={isAdmin ? 6 : 5}><div className="empty-state"><div className="icon">*</div><p>No records found</p></div></td></tr>
+                <tr><td colSpan={isAdmin ? 6 : 4}><div className="empty-state"><div className="icon">*</div><p>No records found</p></div></td></tr>
               ) : oc.map(o => (
                 <tr key={`${o.st_id}-${o.function_id}`}>
-                  <td className="mono">{o.st_id}</td>
+                  {isAdmin && <td className="mono">{o.st_id}</td>}
                   <td>
                     {isAdmin ? (
                       <strong 

@@ -11,6 +11,7 @@ export default function Messages({ isAdmin, session }) {
   const [selectedChannel, setSelectedChannel] = useState(null); // 'broadcast' or an st_id
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [mobileView, setMobileView] = useState("list"); // 'list' or 'chat'
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const [allChannels, setAllChannels] = useState([]);
@@ -299,9 +300,9 @@ export default function Messages({ isAdmin, session }) {
   }
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 120px)", gap: "20px" }}>
+    <div className={`messages-layout mobile-view-${mobileView}`} style={{ display: "flex", height: "calc(100vh - 120px)", gap: "20px" }}>
       {/* Sidebar Channels List */}
-      <div style={{ 
+      <div className="messages-sidebar" style={{ 
         width: "300px", 
         borderRight: "1px solid var(--border)", 
         display: "flex", 
@@ -336,7 +337,10 @@ export default function Messages({ isAdmin, session }) {
           {channels.map(ch => (
             <div 
               key={ch.id}
-              onClick={() => setSelectedChannel(ch.id)}
+              onClick={() => {
+                setSelectedChannel(ch.id);
+                setMobileView("chat");
+              }}
               style={{
                 padding: "12px 16px",
                 cursor: "pointer",
@@ -379,7 +383,7 @@ export default function Messages({ isAdmin, session }) {
       </div>
 
       {/* Chat Area */}
-      <div style={{ 
+      <div className="messages-chat" style={{ 
         flex: 1, 
         display: "flex", 
         flexDirection: "column",
@@ -389,8 +393,24 @@ export default function Messages({ isAdmin, session }) {
         overflow: "hidden"
       }}>
         {/* Chat Header */}
-        <div style={{ padding: "16px", borderBottom: "1px solid var(--border)", fontWeight: "bold", background: "var(--bg)" }}>
-          {channels.find(c => c.id === selectedChannel)?.name || "Select a conversation"}
+        <div style={{ padding: "16px", borderBottom: "1px solid var(--border)", fontWeight: "bold", background: "var(--bg)", display: "flex", alignItems: "center", gap: "10px" }}>
+          <button 
+            className="btn btn-ghost btn-sm messages-back-btn" 
+            onClick={() => setMobileView("list")}
+            style={{ 
+              padding: "4px 8px", 
+              display: "none", 
+              alignItems: "center",
+              gap: "4px",
+              cursor: "pointer"
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>arrow_back</span>
+            Back
+          </button>
+          <span>
+            {channels.find(c => c.id === selectedChannel)?.name || "Select a conversation"}
+          </span>
         </div>
         
         {/* Messages List */}

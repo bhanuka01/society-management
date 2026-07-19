@@ -857,12 +857,18 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>ST ID</th><th>Name</th><th>Level</th><th>Status</th>{isAdmin && <th>Toggle</th>}</tr>
+                    <tr>
+                      {isAdmin && <th>ST ID</th>}
+                      <th>Name</th>
+                      <th>Level</th>
+                      <th>Status</th>
+                      {isAdmin && <th>Toggle</th>}
+                    </tr>
                   </thead>
                   <tbody>
                     {visibleAttendance.map(a => (
                       <tr key={a.st_id}>
-                        <td className="mono">{a.st_id}</td>
+                        {isAdmin && <td className="mono">{a.st_id}</td>}
                         <td><strong>{a.members?.name || "-"}</strong></td>
                         <td>{a.members?.level ? <span className="badge badge-purple">Y{a.members.level}</span> : "-"}</td>
                         <td>

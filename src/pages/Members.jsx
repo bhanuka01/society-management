@@ -667,7 +667,7 @@ export default function Members({ isAdmin = false }) {
           <table>
             <thead>
               <tr>
-                <th>ST ID</th>
+                {isAdmin && <th>ST ID</th>}
                 <th>Name</th>
                 <th>Email</th>
                 {viewFilter === "pending" ? <th>Requested Role</th> : <th>Level</th>}
@@ -678,10 +678,10 @@ export default function Members({ isAdmin = false }) {
             </thead>
             <tbody>
               {members.length === 0 ? (
-                <tr><td colSpan={viewFilter === "pending" ? 7 : (isAdmin ? 7 : 6)}><div className="empty-state"><div className="icon">*</div><p>No members found</p></div></td></tr>
+                <tr><td colSpan={isAdmin ? 7 : 6}><div className="empty-state"><div className="icon">*</div><p>No members found</p></div></td></tr>
               ) : members.map(m => (
                 <tr key={m.st_id}>
-                  <td className="mono">{m.st_id}</td>
+                  {isAdmin && <td className="mono">{m.st_id}</td>}
                   <td>
                     {viewFilter === "pending" ? (
                       <strong>{m.name}</strong>

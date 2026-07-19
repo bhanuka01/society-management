@@ -2393,5 +2393,32 @@ select option {
   .hide-member-mobile {
     display: none !important;
   }
+
+  /* Messages Responsive Layout */
+  .messages-layout {
+    gap: 0 !important;
+  }
+  
+  .messages-layout.mobile-view-list .messages-sidebar {
+    width: 100% !important;
+    display: flex !important;
+  }
+  
+  .messages-layout.mobile-view-list .messages-chat {
+    display: none !important;
+  }
+  
+  .messages-layout.mobile-view-chat .messages-sidebar {
+    display: none !important;
+  }
+  
+  .messages-layout.mobile-view-chat .messages-chat {
+    width: 100% !important;
+    display: flex !important;
+  }
+  
+  .messages-back-btn {
+    display: inline-flex !important;
+  }
 }
 

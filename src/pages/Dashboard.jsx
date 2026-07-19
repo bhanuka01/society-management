@@ -107,11 +107,11 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
               ) : (
                 <div className="table-wrap">
                   <table className="table-fit table-cards">
-                    <thead><tr><th>ST ID</th><th>Name</th><th>Level</th></tr></thead>
+                    <thead><tr>{isAdmin && <th>ST ID</th>}<th>Name</th><th>Level</th></tr></thead>
                     <tbody>
                       {recentMembers.map(m => (
                         <tr key={m.st_id}>
-                          <td className="mono col-secondary">{m.st_id}</td>
+                          {isAdmin && <td className="mono col-secondary">{m.st_id}</td>}
                           <td className="col-name">{m.name}</td>
                           <td>{m.level ? <span className="badge badge-purple">Y{m.level}</span> : "—"}</td>
                         </tr>
