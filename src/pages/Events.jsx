@@ -414,13 +414,13 @@ export default function Events({ isAdmin = false, session }) {
                 </tr>
               ) : events.map(e => (
                 <tr key={e.event_id}>
-                  <td className="mono col-secondary">{e.event_id}</td>
+                  <td className={`mono col-secondary ${!isAdmin ? "hide-member-mobile" : ""}`}>{e.event_id}</td>
                   <td className="col-name">
                     <strong>{e.name}</strong>
                     {e.is_public !== false ? (
-                      <span className="badge badge-green" style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🌐 Public</span>
+                      <span className={`badge badge-green ${!isAdmin ? "hide-member-mobile" : ""}`} style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🌐 Public</span>
                     ) : (
-                      <span className="badge badge-gray" style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🔒 Private</span>
+                      <span className={`badge badge-gray ${!isAdmin ? "hide-member-mobile" : ""}`} style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🔒 Private</span>
                     )}
                   </td>
                   <td className="mono">{e.date}</td>

@@ -738,12 +738,10 @@ export default function App() {
       <aside className={`sidebar ${sidebarOpen ? "open" : "collapsed"}`}>
         <div className="sidebar-header">
           <img src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} className="logo-img" alt="ADSS Logo" />
-          {sidebarOpen && (
-            <div className="logo-text">
-              <span className="logo-title">ADSS</span>
-              <span className="logo-sub">Society Manager</span>
-            </div>
-          )}
+          <div className="logo-text">
+            <span className="logo-title">ADSS</span>
+            <span className="logo-sub">Society Manager</span>
+          </div>
           <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle navigation menu">
             <span className="toggle-icon-desktop"><span className="material-symbols-outlined" style={{fontSize:'16px'}}>{sidebarOpen ? "chevron_left" : "chevron_right"}</span></span>
             <span className="toggle-icon-mobile"><span className="material-symbols-outlined" style={{fontSize:'20px'}}>{sidebarOpen ? "close" : "menu"}</span></span>
