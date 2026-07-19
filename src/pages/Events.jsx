@@ -26,6 +26,7 @@ export default function Events({ isAdmin = false, session }) {
   const [total, setTotal] = useState(0);
   const [myAttendanceMap, setMyAttendanceMap] = useState({});
   const [markingMap, setMarkingMap] = useState({});
+  const [eventOcMembers, setEventOcMembers] = useState([]);
 
   const load = async (pageToLoad = page, searchText = search) => {
     setLoading(true);
@@ -71,8 +72,8 @@ export default function Events({ isAdmin = false, session }) {
 
   useEffect(() => { load(page, search); }, [page, search]);
 
-  const openAdd = () => { setForm(EMPTY); setEditTarget(null); setModal(true); setMsg(null); };
-  const openEdit = (e) => {
+  const openAdd = () => { setForm(EMPTY); setEditTarget(null); setEventOcMembers([]); setModal(true); setMsg(null); };
+  const openEdit = async (e) => {
     setForm({ 
       event_id: e.event_id, 
       name: e.name, 
@@ -92,6 +93,23 @@ export default function Events({ isAdmin = false, session }) {
     setMsg(null);
     setFlyerFile(null);
     setFlyerPreview(null);
+    setEventOcMembers([]);
+    try {
+      const { data, error } = await supabase
+        .from("oc")
+        .select("st_id, members(name)")
+        .eq("event_id", e.event_id)
+        .eq("apply_status", "Accept");
+      if (error) throw error;
+      if (data) {
+        setEventOcMembers(data.map(d => ({
+          st_id: d.st_id,
+          name: d.members?.name || d.st_id
+        })));
+      }
+    } catch (err) {
+      console.error("Error loading event OC members:", err);
+    }
   };
   const closeModal = () => { 
     setModal(false); 
@@ -602,8 +620,24 @@ export default function Events({ isAdmin = false, session }) {
                 <label>Assigned OC Lead</label>
                 <select value={form.oc_st_id} onChange={e => setForm({ ...form, oc_st_id: e.target.value })}>
                   <option value="">No OC assigned</option>
-                  {members.map(m => <option key={m.st_id} value={m.st_id}>{m.st_id} - {m.name}</option>)}
+                  {(() => {
+                    const options = [...eventOcMembers];
+                    if (form.oc_st_id && !options.some(o => o.st_id === form.oc_st_id)) {
+                      options.push({
+                        st_id: form.oc_st_id,
+                        name: getMemberName(form.oc_st_id)
+                      });
+                    }
+                    return options.map(m => (
+                      <option key={m.st_id} value={m.st_id}>{m.st_id} - {m.name}</option>
+                    ));
+                  })()}
                 </select>
+                <span className="text-muted" style={{ fontSize: "11px", marginTop: "4px", display: "block" }}>
+                  {editTarget 
+                    ? "Only accepted committee members for this event are shown. Manage them in the Committee tab."
+                    : "Create the event first, then add and accept committee members to assign an OC Lead."}
+                </span>
               </div>
             </div>
 
