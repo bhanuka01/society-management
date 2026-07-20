@@ -5,7 +5,9 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
   const [stats, setStats] = useState({ members: 0, events: 0, oc: 0, attendance: 0, activeLetters: 0 });
   const [recentMembers, setRecentMembers] = useState([]);
   const [recentEvents, setRecentEvents] = useState([]);
+  const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hoveredPoint, setHoveredPoint] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -71,6 +73,28 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
 
       setRecentMembers(mappedMembers);
       setRecentEvents(re.data || []);
+
+      // Build chart data: attendance YES count per event for last 5 events
+      const last5 = (re.data || []).slice(0, 5).reverse(); // oldest first for chart
+      if (last5.length > 0) {
+        const attCounts = await Promise.all(
+          last5.map(ev =>
+            supabase
+              .from("attendance")
+              .select("*", { count: "exact", head: true })
+              .eq("attend", "YES")
+              .eq("event_id", ev.event_id)
+          )
+        );
+        setChartData(
+          last5.map((ev, i) => ({
+            name: ev.name,
+            date: ev.date,
+            count: attCounts[i].count || 0
+          }))
+        );
+      }
+
       setLoading(false);
     }
     load();
@@ -143,25 +167,118 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
 
             <div className="card">
               <div className="card-header">
-                <span className="card-title">Upcoming Events</span>
+                <span className="card-title">Event Attendance</span>
                 <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("events")}>View All →</button>
               </div>
-              {recentEvents.length === 0 ? (
+              {chartData.length === 0 ? (
                 <div className="empty-state"><div className="icon"><span className="material-symbols-outlined">event_busy</span></div><p>No events yet</p></div>
               ) : (
-                <div className="table-wrap">
-                  <table className="table-fit table-cards">
-                    <thead><tr><th>Event ID</th><th>Name</th><th>Date</th></tr></thead>
-                    <tbody>
-                      {recentEvents.map(e => (
-                        <tr key={e.event_id}>
-                          <td className="mono col-secondary">{e.event_id}</td>
-                          <td className="col-name">{e.name}</td>
-                          <td className="mono">{e.date}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div style={{ padding: '16px 8px 8px', position: 'relative' }}>
+                  {(() => {
+                    const W = 400, H = 200, PX = 44, PY = 24, PB = 36;
+                    const plotW = W - PX * 2, plotH = H - PY - PB;
+                    const maxVal = Math.max(...chartData.map(d => d.count), 1);
+                    const ceil = Math.ceil(maxVal / 5) * 5 || 5;
+                    const points = chartData.map((d, i) => ({
+                      x: PX + (chartData.length === 1 ? plotW / 2 : (i / (chartData.length - 1)) * plotW),
+                      y: PY + plotH - (d.count / ceil) * plotH,
+                      ...d
+                    }));
+
+                    // Catmull-Rom to cubic bezier for smooth curve
+                    const smoothPath = (pts) => {
+                      if (pts.length < 2) return `M${pts[0].x},${pts[0].y}`;
+                      if (pts.length === 2) return `M${pts[0].x},${pts[0].y}L${pts[1].x},${pts[1].y}`;
+                      let d = `M${pts[0].x},${pts[0].y}`;
+                      for (let i = 0; i < pts.length - 1; i++) {
+                        const p0 = pts[i - 1] || pts[i];
+                        const p1 = pts[i];
+                        const p2 = pts[i + 1];
+                        const p3 = pts[i + 2] || p2;
+                        const t = 0.35;
+                        const cp1x = p1.x + (p2.x - p0.x) * t;
+                        const cp1y = p1.y + (p2.y - p0.y) * t;
+                        const cp2x = p2.x - (p3.x - p1.x) * t;
+                        const cp2y = p2.y - (p3.y - p1.y) * t;
+                        d += `C${cp1x},${cp1y},${cp2x},${cp2y},${p2.x},${p2.y}`;
+                      }
+                      return d;
+                    };
+
+                    const linePath = smoothPath(points);
+                    const areaPath = linePath + `L${points[points.length - 1].x},${PY + plotH}L${points[0].x},${PY + plotH}Z`;
+                    const gridLines = [0, 0.25, 0.5, 0.75, 1];
+
+                    return (
+                      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
+                        <defs>
+                          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.35" />
+                            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.02" />
+                          </linearGradient>
+                          <filter id="glow">
+                            <feGaussianBlur stdDeviation="3" result="g" />
+                            <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+                          </filter>
+                        </defs>
+
+                        {/* Grid lines & Y labels */}
+                        {gridLines.map((frac, i) => {
+                          const y = PY + plotH - frac * plotH;
+                          const val = Math.round(frac * ceil);
+                          return (
+                            <g key={i}>
+                              <line x1={PX} y1={y} x2={PX + plotW} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+                              <text x={PX - 8} y={y + 4} fill="rgba(255,255,255,0.35)" fontSize="10" textAnchor="end" fontFamily="monospace">{val}</text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Area fill */}
+                        <path d={areaPath} fill="url(#areaGrad)" />
+
+                        {/* Smooth curve line */}
+                        <path d={linePath} fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
+
+                        {/* Data points & X labels */}
+                        {points.map((p, i) => {
+                          const label = p.name.length > 10 ? p.name.slice(0, 9) + '…' : p.name;
+                          return (
+                            <g key={i}
+                              onMouseEnter={() => setHoveredPoint(i)}
+                              onMouseLeave={() => setHoveredPoint(null)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {/* Vertical hover line */}
+                              {hoveredPoint === i && (
+                                <line x1={p.x} y1={PY} x2={p.x} y2={PY + plotH} stroke="rgba(167,139,250,0.2)" strokeWidth="1" strokeDasharray="4,3" />
+                              )}
+
+                              {/* Outer ring */}
+                              <circle cx={p.x} cy={p.y} r={hoveredPoint === i ? 7 : 5} fill="rgba(15,15,20,0.8)" stroke="#a78bfa" strokeWidth="2" style={{ transition: 'r 0.2s' }} />
+                              {/* Inner dot */}
+                              <circle cx={p.x} cy={p.y} r={hoveredPoint === i ? 3.5 : 2.5} fill="#c4b5fd" style={{ transition: 'r 0.2s' }} />
+
+                              {/* Hit area */}
+                              <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+
+                              {/* Tooltip */}
+                              {hoveredPoint === i && (
+                                <g>
+                                  <rect x={p.x - 30} y={p.y - 30} width="60" height="20" rx="6" fill="rgba(15,15,20,0.92)" stroke="#a78bfa" strokeWidth="1" />
+                                  <text x={p.x} y={p.y - 17} fill="#e0e0e0" fontSize="11" textAnchor="middle" fontWeight="600" fontFamily="monospace">{p.count}</text>
+                                </g>
+                              )}
+
+                              {/* X axis label */}
+                              <text x={p.x} y={PY + plotH + 16} fill="rgba(255,255,255,0.45)" fontSize="9" textAnchor="middle" fontFamily="sans-serif">{label}</text>
+                              <text x={p.x} y={PY + plotH + 28} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="middle" fontFamily="monospace">{p.date}</text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    );
+                  })()}
                 </div>
               )}
             </div>
