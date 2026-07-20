@@ -5,6 +5,14 @@ import PhoneContact from "./PhoneContact";
 export default function StudentProfileModal({ stId, onClose }) {
   const [profileTarget, setProfileTarget] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const copyEmail = (email) => {
+    navigator.clipboard.writeText(email).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   useEffect(() => {
     if (!stId) return;
@@ -136,9 +144,34 @@ export default function StudentProfileModal({ stId, onClose }) {
         <div className="form-row form-row-3" style={{ background: "var(--bg3)", padding: "12px 16px", borderRadius: "var(--r)", marginBottom: "20px", border: "1px solid var(--border)" }}>
           <div className="form-group">
             <label>📧 Email Address</label>
-            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px" }}>
+            <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
               {profileTarget.email ? (
-                <a href={`mailto:${profileTarget.email}`} style={{ color: "var(--accent2)", textDecoration: "none" }}>{profileTarget.email}</a>
+                <>
+                  <a href={`mailto:${profileTarget.email}`} style={{ color: "var(--accent2)", textDecoration: "none" }}>{profileTarget.email}</a>
+                  <button
+                    onClick={() => copyEmail(profileTarget.email)}
+                    title="Copy email"
+                    style={{
+                      background: copied ? "var(--green)" : "var(--bg2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "4px",
+                      padding: "2px 6px",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "3px",
+                      fontSize: "11px",
+                      color: copied ? "#fff" : "var(--text2)",
+                      transition: "all 0.2s",
+                      flexShrink: 0
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>
+                      {copied ? "check" : "content_copy"}
+                    </span>
+                    {copied ? "Copied" : ""}
+                  </button>
+                </>
               ) : (
                 <span className="text-muted">Not provided</span>
               )}
