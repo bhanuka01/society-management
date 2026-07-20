@@ -1,88 +1,139 @@
-# Society Management System
+<![CDATA[<div align="center">
 
-A React + Supabase web app for managing society members, events, organizing committee assignments, and attendance records.
+# ADSS Ruhuna — Society Management System
 
-## Features
+**Actuarial & Data Science Society, University of Ruhuna**
 
-- Member directory with search, pagination, add, edit, and delete actions
-- Event management with event dates and assigned OC members
-- Attendance tracking per event with YES/NO status
-- Organizing committee assignment by event, function, position, and application status
-- Dashboard overview for members, events, committee records, and attendance totals
-- Guest, member, editor, and admin views
-- Supabase Auth email/password login for editor and admin users
-- Admin-only registration invites for new editors/admins
-- Supabase connection status indicator
+A modern, full-featured web application for managing society members, events, committees, attendance, notices, and more — built with React, Supabase, and Tailwind CSS.
 
-## Tech Stack
+[![Live Demo](https://img.shields.io/badge/Live-adssruhuna.vercel.app-6366f1?style=for-the-badge&logo=vercel&logoColor=white)](https://adssruhuna.vercel.app/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-CDN-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#progressive-web-app)
 
-- React 18
-- Vite 5
-- Supabase JavaScript Client v2
-- Supabase PostgreSQL database
+</div>
 
-## Requirements
+---
 
-Install these before starting:
+## ✨ Features
 
-- Node.js 18 or newer
-- npm
-- A Supabase account and project
+| Category | Highlights |
+| --- | --- |
+| **Member Management** | Search, paginate, add, edit, delete members; profile images; phone contacts |
+| **Events** | Create / manage events with dates, OC assignments, event flyers, and a public event page |
+| **Attendance** | Per-event attendance (YES / NO); seed attendance rows; QR-based scan attendance |
+| **Committee** | Assign members to organizing committees by event, function, position & application status |
+| **Notices** | Create and publish society notices; public notice board view |
+| **OC Tasks** | Track organizing committee task assignments |
+| **Letter Requests** | Members can request letters; admins manage and respond |
+| **Messages** | Internal messaging system for society communication |
+| **Dashboard** | Overview cards for members, events, committee records, and attendance totals |
+| **Authentication** | Email / password login (Supabase Auth); guest, member, editor & admin roles |
+| **Access Control** | Admin-only registration invites; Row Level Security on all tables |
+| **PWA Support** | Installable as a mobile / desktop app with offline Service Worker caching |
+| **Dark Mode** | Default dark theme with Indigo / Zinc design system |
 
-Check your installed versions:
+---
 
-```bash
-node -v
-npm -v
-```
+## 🛠 Tech Stack
 
-## Project Structure
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 18, Vite 5 |
+| Styling | Tailwind CSS (Play CDN), Inter font, Material Symbols icons |
+| Backend | Supabase (PostgreSQL, Auth, Storage, RLS) |
+| Deployment | Vercel |
+| PWA | Service Worker + Web App Manifest |
+| Markdown | `marked` library for rich text rendering |
+
+---
+
+## 📁 Project Structure
 
 ```text
 society-management/
-+-- src/
-|   +-- App.jsx
-|   +-- App.css
-|   +-- main.jsx
-|   +-- supabaseClient.js
-|   +-- components/
-|   |   +-- Pagination.jsx
-|   +-- pages/
-|       +-- About.jsx
-|       +-- Attendance.jsx
-|       +-- Committee.jsx
-|       +-- Dashboard.jsx
-|       +-- Events.jsx
-|       +-- Members.jsx
-|       +-- Setup.jsx
-+-- index.html
-+-- package.json
-+-- package-lock.json
-+-- vite.config.js
-+-- README.md
+├── public/
+│   ├── icons/                    # PWA icons (192×192, 512×512, maskable)
+│   ├── manifest.json             # PWA manifest
+│   ├── sw.js                     # Service Worker
+│   ├── logo.png                  # Favicon & logos
+│   ├── logo_dark.png
+│   ├── logo_light.png
+│   ├── logo_trans_dark.png
+│   └── logo_trans_light.png
+├── src/
+│   ├── main.jsx                  # React entry point
+│   ├── App.jsx                   # Root component, routing, auth, sidebar
+│   ├── App.css                   # Global styles
+│   ├── supabaseClient.js         # Supabase client init
+│   ├── components/
+│   │   ├── Pagination.jsx        # Shared pagination control
+│   │   ├── PhoneContact.jsx      # Phone contact display
+│   │   └── StudentProfileModal.jsx # Student profile modal
+│   ├── pages/
+│   │   ├── About.jsx             # Society details page
+│   │   ├── Access.jsx            # Admin invite / access management
+│   │   ├── Attendance.jsx        # Event attendance tracking
+│   │   ├── Committee.jsx         # Organizing committee management
+│   │   ├── Dashboard.jsx         # Overview dashboard
+│   │   ├── Events.jsx            # Event CRUD
+│   │   ├── Landing.jsx           # Public landing page
+│   │   ├── Letters.jsx           # Letter request system
+│   │   ├── Members.jsx           # Member directory
+│   │   ├── Messages.jsx          # Internal messaging
+│   │   ├── MyInfo.jsx            # Member self-service profile
+│   │   ├── Notices.jsx           # Notice management
+│   │   ├── PublicEvent.jsx       # Public event display
+│   │   ├── PublicNotice.jsx      # Public notice board
+│   │   ├── ScanAttendance.jsx    # QR scan attendance
+│   │   ├── Setup.jsx             # DB setup guide (hidden)
+│   │   └── Tasks.jsx             # OC task tracking
+│   └── utils/
+│       └── imageOptimizer.js     # Client-side image resizing
+├── *.sql                         # Database migration scripts
+├── index.html                    # HTML entry with Tailwind config
+├── package.json
+├── vite.config.js
+├── vercel.json                   # SPA rewrite rules
+└── .env                          # Supabase credentials (git-ignored)
 ```
 
-## Full Local Setup
+---
 
-### 1. Install Dependencies
+## 🚀 Getting Started
 
-From the project root, run:
+### Prerequisites
+
+- **Node.js** 18+ and **npm**
+- A **Supabase** account and project → [supabase.com](https://supabase.com)
 
 ```bash
+node -v   # verify >= 18
+npm -v
+```
+
+### 1 — Clone & Install
+
+```bash
+git clone https://github.com/<your-username>/society-management.git
+cd society-management
 npm install
 ```
 
-### 2. Create a Supabase Project
+### 2 — Create a Supabase Project
 
-1. Go to https://supabase.com.
-2. Sign in or create an account.
-3. Click `New Project`.
-4. Choose an organization, project name, database password, and region.
-5. Wait until the project is ready.
+1. Sign in at [supabase.com](https://supabase.com).
+2. Click **New Project** → choose an organization, name, database password, and region.
+3. Wait for the project to finish provisioning.
 
-### 3. Create the Database Tables
+### 3 — Set Up the Database
 
-Open your Supabase project, go to `SQL Editor`, create a new query, paste this SQL, and run it:
+Open your Supabase project → **SQL Editor** → **New Query**, then paste and run the following SQL:
+
+<details>
+<summary><strong>Click to expand — Core tables SQL</strong></summary>
 
 ```sql
 -- 1. Members
@@ -97,7 +148,7 @@ CREATE TABLE IF NOT EXISTS members (
 ALTER TABLE members
 ADD COLUMN IF NOT EXISTS member_function VARCHAR(100);
 
--- 2. Functions / departments / sub-teams
+-- 2. Functions (departments / sub-teams)
 CREATE TABLE IF NOT EXISTS functions (
   id            BIGSERIAL PRIMARY KEY,
   function_name VARCHAR(100) UNIQUE NOT NULL
@@ -118,7 +169,8 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 ALTER TABLE events
-ADD COLUMN IF NOT EXISTS oc_st_id VARCHAR(50) REFERENCES members(st_id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS oc_st_id VARCHAR(50)
+  REFERENCES members(st_id) ON DELETE SET NULL;
 
 -- 5. Organizing Committee
 CREATE TABLE IF NOT EXISTS oc (
@@ -131,19 +183,17 @@ CREATE TABLE IF NOT EXISTS oc (
 );
 
 ALTER TABLE oc
-ADD COLUMN IF NOT EXISTS event_id VARCHAR(50) REFERENCES events(event_id) ON DELETE CASCADE;
+ADD COLUMN IF NOT EXISTS event_id VARCHAR(50)
+  REFERENCES events(event_id) ON DELETE CASCADE;
 
-ALTER TABLE oc
-DROP COLUMN IF EXISTS role_id;
+ALTER TABLE oc DROP COLUMN IF EXISTS role_id;
 
 DO $$
-DECLARE
-  pk_name text;
+DECLARE pk_name text;
 BEGIN
   SELECT conname INTO pk_name
   FROM pg_constraint
   WHERE conrelid = 'oc'::regclass AND contype = 'p';
-
   IF pk_name IS NOT NULL THEN
     EXECUTE 'ALTER TABLE oc DROP CONSTRAINT ' || quote_ident(pk_name);
   END IF;
@@ -152,10 +202,12 @@ END $$;
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'oc_event_member_function_key'
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'oc_event_member_function_key'
   ) THEN
     ALTER TABLE oc
-    ADD CONSTRAINT oc_event_member_function_key UNIQUE (event_id, st_id, function_id);
+    ADD CONSTRAINT oc_event_member_function_key
+      UNIQUE (event_id, st_id, function_id);
   END IF;
 END $$;
 
@@ -169,223 +221,221 @@ CREATE TABLE IF NOT EXISTS attendance (
   PRIMARY KEY (st_id, event_id)
 );
 
+-- 7. Seed default roles
 INSERT INTO roles (role_name) VALUES ('Admin'), ('Editor'), ('Member')
 ON CONFLICT DO NOTHING;
 ```
 
-### 4. Get Supabase API Credentials
+</details>
 
-In Supabase:
+Next, run the additional SQL scripts from the repo in **SQL Editor** (in this order):
 
-1. Open your project.
-2. Go to `Project Settings`.
-3. Go to `API`.
-4. Copy the `Project URL`.
-5. Copy the `anon public` key.
+| Script | Purpose |
+| --- | --- |
+| `supabase-rls-auth.sql` | Creates `profiles` & `access_invites` tables, enables RLS on all tables |
+| `registration-review-setup.sql` | Registration review workflow |
+| `event-csv-attendance-setup.sql` | CSV attendance import support |
+| `event_flyers.sql` | Event flyer image support |
+| `notices-setup.sql` | Notices table |
+| `letter-requests-setup.sql` | Letter request system |
+| `self-attendance-setup.sql` | Self-service attendance |
+| `public-events-setup.sql` | Public events configuration |
+| `profile_images.sql` | Profile image storage |
+| `fix-profiles-rls.sql` | Profiles RLS patch |
+| `migrate-member-id-to-sc.sql` | Member ID migration |
 
-### 5. Create Environment File
+### 4 — Configure Environment Variables
 
-Create a `.env` file in the project root:
+1. In Supabase → **Project Settings** → **API** → copy the **Project URL** and **anon public** key.
+2. Create a `.env` file in the project root:
 
 ```env
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
-Important:
+> **Important:** Restart the dev server after changing `.env`. The file is already git-ignored.
 
-- Restart the Vite dev server after changing `.env`.
-- Do not commit `.env` to Git.
-- `.env` is already listed in `.gitignore`.
+### 5 — Create the First Admin
 
-### 6. Run the App
-
-```bash
-npm run dev
-```
-
-Open the local URL shown in the terminal. Vite usually uses:
-
-```text
-http://localhost:5173
-```
-
-If Supabase is configured correctly, the sidebar will show a live database connection.
-
-### 3b. Enable Supabase Auth and RLS
-
-After creating the base tables, run the extra SQL file in this repo:
-
-```text
-supabase-rls-auth.sql
-```
-
-This creates `profiles` and `access_invites`, enables Row Level Security on all app tables, allows public read access for guest/member views, and allows write access only for authenticated `admin` or `editor` users.
-
-To create the first admin:
-
-1. In Supabase, go to `Authentication` and create a user with your admin email/password.
-2. Run this in SQL Editor, replacing the email:
+1. In Supabase → **Authentication** → create a user with your admin email / password.
+2. Run this in SQL Editor (replace the email):
 
 ```sql
-update profiles
-set role = 'admin', full_name = 'Main Admin'
-where email = 'your-admin-email@example.com';
+UPDATE profiles
+SET role = 'admin', full_name = 'Main Admin'
+WHERE email = 'your-admin-email@example.com';
 ```
 
-3. Log in from the app with that email/password.
-4. Open `Access` and enable registration for each new editor/admin email.
+3. Log in from the app → open **Access** → enable registration for new editors / admins.
 
-## Login Details
-
-| Role | Login method | Notes |
-| --- | --- | --- |
-| Guest | Default view | Can read public records |
-| Member | Student ID only | No password; Student ID must exist in `members` |
-| Editor | Email/password | Must be enabled by an admin invite before registration |
-| Admin | Email/password | Can manage Access invites and all records |
-
-## Recommended First Data Setup
-
-After the database is ready:
-
-1. Log in as admin.
-2. Add members from the `Members` page.
-3. Add functions such as `Logistics`, `Marketing`, `Finance`, or `Media` from the `Committee` page.
-4. Create events from the `Events` page.
-5. Click `Seed Att.` on an event to create attendance rows for all members.
-6. Manage attendance from the `Attendance` page.
-7. Add organizing committee assignments from the `Committee` page.
-
-## Available Scripts
+### 6 — Start the Dev Server
 
 ```bash
 npm run dev
 ```
 
-Starts the local development server.
+Open [http://localhost:5173](http://localhost:5173). If Supabase is configured correctly the sidebar will show a live connection indicator.
 
-```bash
-npm run build
-```
+---
 
-Creates a production build in the `dist` folder.
+## 🔐 Roles & Permissions
 
-```bash
-npm run preview
-```
+| Role | Login Method | Capabilities |
+| --- | --- | --- |
+| **Guest** | Default (no login) | View public records, landing page, public events & notices |
+| **Member** | Student ID | View personal info, attendance, notices — no edit access |
+| **Editor** | Email / Password | Add & edit members, events, attendance, committees |
+| **Admin** | Email / Password | Full control — manage Access invites, all records, settings |
 
-Serves the production build locally for preview.
+> Editors and admins must be pre-approved via an admin invite before they can register.
 
-## Production Build
+---
 
-Run:
+## 📋 Recommended First Data Setup
 
-```bash
-npm run build
-```
+After the database is ready and you're logged in as admin:
 
-The compiled files will be created in:
+1. **Members** — Add members from the Members page.
+2. **Functions** — Add departments (`Logistics`, `Marketing`, `Finance`, `Media`, etc.) from the Committee page.
+3. **Events** — Create events from the Events page.
+4. **Attendance** — Click **Seed Att.** on an event to create attendance rows for all members.
+5. **Attendance** — Manage attendance from the Attendance page.
+6. **Committee** — Add organizing committee assignments from the Committee page.
 
-```text
-dist/
-```
+---
 
-Preview the build:
+## 📦 Available Scripts
 
-```bash
-npm run preview
-```
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite development server |
+| `npm run build` | Create a production build in `dist/` |
+| `npm run preview` | Preview the production build locally |
 
-## Deploy to Vercel
+---
 
-1. Push the project to GitHub.
-2. Log in to https://vercel.com.
-3. Click `Add New Project`.
-4. Import the GitHub repository.
-5. Add these environment variables in Vercel:
+## 🚢 Deploy to Vercel
 
-```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-```
+1. Push the repo to GitHub.
+2. Log in at [vercel.com](https://vercel.com) → **Add New Project** → import the repository.
+3. Add environment variables:
 
-6. Build command:
+   ```
+   VITE_SUPABASE_URL=https://your-project-id.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
 
-```bash
-npm run build
-```
+4. Build command: `npm run build` · Output directory: `dist`
+5. Click **Deploy**.
 
-7. Output directory:
+The included `vercel.json` already configures SPA rewrites.
 
-```text
-dist
-```
+---
 
-8. Click `Deploy`.
+## 📱 Progressive Web App
 
-## Database Tables
+The app ships as an installable PWA:
+
+- **Service Worker** (`public/sw.js`) — caches static assets for offline use.
+- **Web App Manifest** (`public/manifest.json`) — enables "Add to Home Screen" on mobile and desktop.
+- Supports iOS, Android, and Windows PWA installations.
+
+---
+
+## 🗄 Database Tables
 
 | Table | Purpose |
 | --- | --- |
-| `members` | Stores student/member records |
-| `functions` | Stores committee functions or departments |
-| `roles` | Stores role names |
-| `events` | Stores society events |
-| `oc` | Stores event-wise organizing committee assignments |
-| `attendance` | Stores event attendance for each member |
+| `members` | Student / member records |
+| `functions` | Committee functions or departments |
+| `roles` | Role names (Admin, Editor, Member) |
+| `events` | Society events |
+| `oc` | Event-wise organizing committee assignments |
+| `attendance` | Per-event attendance records |
+| `profiles` | Auth user profiles with roles |
+| `access_invites` | Admin-managed registration invites |
 
-## Security Notes
+---
 
-This app uses the Supabase anon key on the frontend, which is normal for Supabase apps. Security should be enforced with Row Level Security policies in Supabase.
+## 🔒 Security Notes
 
-Run `supabase-rls-auth.sql` before production use. Never expose the Supabase service role key in frontend code.
+- The Supabase **anon key** is used on the frontend — this is expected. All security is enforced via **Row Level Security (RLS)** policies in Supabase.
+- Run `supabase-rls-auth.sql` **before production use**.
+- **Never** expose the Supabase **service role key** in frontend code.
 
-## Troubleshooting
+---
 
-### App Shows Not Connected
+## 🐛 Troubleshooting
 
-- Check that `.env` exists in the project root.
-- Check that `VITE_SUPABASE_URL` is correct.
-- Check that `VITE_SUPABASE_ANON_KEY` is correct.
+<details>
+<summary><strong>App shows "Not Connected"</strong></summary>
+
+- Verify `.env` exists in the project root.
+- Check that `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct.
 - Restart the dev server after editing `.env`.
 - Confirm the `members` table exists in Supabase.
 
-### Blank Page or Build Error
+</details>
 
-Run:
+<details>
+<summary><strong>Blank page or build error</strong></summary>
 
 ```bash
 npm install
 npm run build
 ```
 
-Then fix any error shown in the terminal.
+Fix any errors shown in the terminal output.
 
-### Member Login Fails
+</details>
 
-- Confirm the member ST ID exists in the `members` table.
-- Enter the ST ID exactly as stored.
-- Check Supabase table permissions if Row Level Security is enabled.
+<details>
+<summary><strong>Member login fails</strong></summary>
 
-### Attendance Is Empty
+- Confirm the Student ID exists in the `members` table.
+- Enter the ID exactly as stored (case-sensitive).
+- Check Supabase table permissions if RLS is enabled.
 
-- Create at least one event.
-- Add members first.
-- On the `Events` page, click `Seed Att.` for the event.
-- Then open the `Attendance` page.
+</details>
 
-### Committee Function List Is Empty
+<details>
+<summary><strong>Attendance page is empty</strong></summary>
 
-- Log in as admin or editor.
-- Open the `Committee` page.
-- Click `+ Function`.
-- Add functions such as `Logistics`, `Marketing`, or `Media`.
+1. Create at least one event.
+2. Add members first.
+3. On the Events page, click **Seed Att.** for the event.
+4. Then open the Attendance page.
 
-## Notes for Developers
+</details>
 
-- Supabase client configuration is in `src/supabaseClient.js`.
-- Main app navigation and demo login logic are in `src/App.jsx`.
-- Pages live in `src/pages`.
-- Shared pagination lives in `src/components/Pagination.jsx`.
-- The hidden setup guide component is in `src/pages/Setup.jsx`.
+<details>
+<summary><strong>Committee function list is empty</strong></summary>
+
+1. Log in as admin or editor.
+2. Open the Committee page → click **+ Function**.
+3. Add functions such as `Logistics`, `Marketing`, or `Media`.
+
+</details>
+
+---
+
+## 🧑‍💻 Developer Notes
+
+| File | Purpose |
+| --- | --- |
+| `src/supabaseClient.js` | Supabase client initialization |
+| `src/App.jsx` | Root component — navigation, auth flow, sidebar |
+| `src/pages/` | All page-level components (17 pages) |
+| `src/components/` | Shared UI components (Pagination, PhoneContact, StudentProfileModal) |
+| `src/utils/imageOptimizer.js` | Client-side image resizing before upload |
+| `index.html` | Tailwind config, fonts, OG meta, PWA registration |
+
+---
+
+<div align="center">
+
+**ADSS Ruhuna** · University of Ruhuna · Built with ❤️ using React & Supabase
+
+</div>
+]]>
