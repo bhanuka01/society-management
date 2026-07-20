@@ -438,4 +438,4 @@ Fix any errors shown in the terminal output.
 **ADSS Ruhuna** · University of Ruhuna · Built with ❤️ using React & Supabase
 
 </div>
-]]>
+

@@ -9,11 +9,27 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
 
   useEffect(() => {
     async function load() {
+      // First, fetch the last event to scope Committee & Attendance cards
+      const lastEventRes = await supabase
+        .from("events")
+        .select("event_id, name")
+        .order("date", { ascending: false })
+        .limit(1)
+        .single();
+
+      const lastEvent = lastEventRes.data; // may be null if no events
+
       const promises = [
         supabase.from("members").select("*", { count: "exact", head: true }).lte("level", 4),
         supabase.from("events").select("*", { count: "exact", head: true }),
-        supabase.from("oc").select("*", { count: "exact", head: true }),
-        supabase.from("attendance").select("*", { count: "exact", head: true }).eq("attend", "YES"),
+        // OC count for last event only
+        lastEvent
+          ? supabase.from("oc").select("*", { count: "exact", head: true }).eq("event_id", lastEvent.event_id)
+          : Promise.resolve({ count: 0 }),
+        // Attendance YES count for last event only
+        lastEvent
+          ? supabase.from("attendance").select("*", { count: "exact", head: true }).eq("attend", "YES").eq("event_id", lastEvent.event_id)
+          : Promise.resolve({ count: 0 }),
         supabase.from("profiles")
           .select("st_id, full_name, status, created_at, members(level)")
           .eq("status", "approved")
@@ -35,7 +51,8 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
         events: e.count || 0,
         oc: oc.count || 0,
         attendance: att.count || 0,
-        activeLetters: lr ? (lr.count || 0) : 0
+        activeLetters: lr ? (lr.count || 0) : 0,
+        lastEventName: lastEvent ? lastEvent.name : null
       });
 
       const mappedMembers = [];
@@ -59,11 +76,13 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
     load();
   }, [isAdmin]);
 
+  const lastEvtLabel = stats.lastEventName ? stats.lastEventName : "no events";
+
   const statCards = [
     { label: "Total Members", value: stats.members, sub: "registered students", cls: "" },
     { label: "Events", value: stats.events, sub: "created events", cls: "gold" },
-    { label: "Committee", value: stats.oc, sub: "OC assignments", cls: "green" },
-    { label: "Attendances", value: stats.attendance, sub: "YES records", cls: "red" },
+    { label: "Committee", value: stats.oc, sub: `OC assignments · ${lastEvtLabel}`, cls: "green" },
+    { label: "Attendances", value: stats.attendance, sub: `YES records · ${lastEvtLabel}`, cls: "red" },
   ];
 
   if (isAdmin) {
