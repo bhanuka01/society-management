@@ -297,7 +297,6 @@ export default function MyInfo({ session }) {
             <button className="btn btn-ghost btn-sm" onClick={openRequestModal} style={{ color: "var(--accent)" }}>
               📄 Request Letter
             </button>
-            <span className="badge badge-purple">{profile.st_id}</span>
           </div>
         </div>
 
