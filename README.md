@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+
 
 # ADSS Ruhuna — Society Management System
 
