@@ -46,13 +46,38 @@ const ROLE_LABELS = {
 
 const canEdit = (role) => role === "admin" || role === "editor";
 
+// --- Profile cache for instant startup (like Facebook) ---
+const PROFILE_CACHE_KEY = 'adss-profile-cache';
+const getCachedProfile = () => { try { const c = localStorage.getItem(PROFILE_CACHE_KEY); return c ? JSON.parse(c) : null; } catch { return null; } };
+const setCachedProfile = (p) => { try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(p)); } catch {} };
+const clearCachedProfile = () => { try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch {} };
+
+// Check if Supabase has a stored auth token (synchronous localStorage read)
+const hasStoredAuth = () => { try { const s = localStorage.getItem('adss-auth'); return s && JSON.parse(s)?.user; } catch { return false; } };
+
 export default function App() {
+  // Read cached profile synchronously on startup — instant dashboard, no loading screen
+  const _cached = getCachedProfile();
+  const _hasAuth = hasStoredAuth();
+  const _isReturningUser = !!(_cached && _hasAuth);
+
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
-  const [page, setPage] = useState("about");
+  const [page, setPage] = useState(() => {
+    if (_isReturningUser) {
+      // Instantly set the correct page from cache
+      if (_cached.status === "pending") return "about";
+      return _cached.role === "member" ? "attendance" : "dashboard";
+    }
+    return "about";
+  });
   const [connected, setConnected] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
-  const [session, setSession] = useState({ role: "guest", stId: "", name: "", email: "", userId: "", status: "approved" });
-  const [authLoading, setAuthLoading] = useState(true);
+  const [session, setSession] = useState(() => {
+    if (_isReturningUser) return _cached;  // Instant session from cache!
+    return { role: "guest", stId: "", name: "", email: "", userId: "", status: "approved" };
+  });
+  // If we have a cached profile, skip loading entirely — dashboard renders instantly
+  const [authLoading, setAuthLoading] = useState(!_isReturningUser);
   const [showLogin, setShowLogin] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "", level: "1", phone: "", memberFunction: "Finance" });
@@ -163,14 +188,16 @@ export default function App() {
       if (alive) {
         const userRole = data?.role || "member";
         const userStatus = data?.status || "approved";
-        setSession({
+        const profileData = {
           role: userRole,
           stId: data?.st_id || "",
           name: data?.full_name || user.email || "",
           email: data?.email || user.email || "",
           userId: user.id,
           status: userStatus,
-        });
+        };
+        setSession(profileData);
+        setCachedProfile(profileData);  // Cache for instant startup next time
         setViewAsMember(false);
         setPage(prev => {
           if (userStatus === "pending") return "about";
@@ -415,8 +442,9 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    clearCachedProfile();  // Clear cached profile so next visit shows login
     await supabase.auth.signOut();
-    setSession({ role: "guest", stId: "", name: "", email: "", userId: "" });
+    setSession({ role: "guest", stId: "", name: "", email: "", userId: "", status: "approved" });
     setViewAsMember(false);
     setPage("about");
   };
@@ -560,13 +588,13 @@ export default function App() {
     );
   }
 
-  // Show a loading spinner while checking auth session — prevents landing page flash for logged-in users
-  if (authLoading) {
+  // Only show minimal loading for first-time visitors (no cached profile)
+  // Returning users NEVER see this — their dashboard renders instantly from cache
+  if (authLoading && !session.userId) {
     return (
       <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
         <div style={{ textAlign: "center" }}>
-          <div className="spinner" style={{ width: "40px", height: "40px", border: "3px solid var(--border)", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-          <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Loading...</p>
+          <div style={{ width: "32px", height: "32px", border: "3px solid var(--border)", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.6s linear infinite", margin: "0 auto 12px" }} />
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>

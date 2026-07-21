@@ -175,6 +175,26 @@
     </style>
   </head>
   <body>
+    <!-- Instant pre-React auth check: redirect /login to dashboard if already logged in -->
+    <script>
+      (function() {
+        // Set background instantly from cached theme to prevent white flash
+        var theme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.style.background = theme === 'dark' ? '#09090b' : '#fafafa';
+
+        // If visiting /login and already have a cached session, redirect immediately (before React loads)
+        var path = window.location.pathname;
+        if (path === '/login') {
+          try {
+            var auth = localStorage.getItem('adss-auth');
+            var profile = localStorage.getItem('adss-profile-cache');
+            if (auth && JSON.parse(auth).user && profile) {
+              window.location.replace('/');
+            }
+          } catch(e) {}
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
