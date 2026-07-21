@@ -93,6 +93,72 @@ export default function Members({ isAdmin = false }) {
   const [profileTarget, setProfileTarget] = useState(null);
   const [editProfileTarget, setEditProfileTarget] = useState(null);
 
+  // Member Self-Edit Settings State
+  const [editSettingsModal, setEditSettingsModal] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState(null);
+  const [editPermissions, setEditPermissions] = useState({
+    name: false,
+    photo: true,
+    whatsapp: false,
+    linkedin: true,
+    position: false,
+    function: false
+  });
+
+  const loadEditPermissions = async () => {
+    const { data } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", [
+        "member_edit_name",
+        "member_edit_photo",
+        "member_edit_whatsapp",
+        "member_edit_linkedin",
+        "member_edit_position",
+        "member_edit_function"
+      ]);
+
+    if (data) {
+      const perms = {
+        name: false,
+        photo: true,
+        whatsapp: false,
+        linkedin: true,
+        position: false,
+        function: false
+      };
+      data.forEach(item => {
+        if (item.key === "member_edit_name") perms.name = item.value === "true";
+        if (item.key === "member_edit_photo") perms.photo = item.value === "true";
+        if (item.key === "member_edit_whatsapp") perms.whatsapp = item.value === "true";
+        if (item.key === "member_edit_linkedin") perms.linkedin = item.value === "true";
+        if (item.key === "member_edit_position") perms.position = item.value === "true";
+        if (item.key === "member_edit_function") perms.function = item.value === "true";
+      });
+      setEditPermissions(perms);
+    }
+  };
+
+  const togglePermission = async (key, checked) => {
+    setSavingSettings(true);
+    setSettingsMsg(null);
+    const dbKey = `member_edit_${key}`;
+    const val = checked ? "true" : "false";
+
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert({ key: dbKey, value: val }, { onConflict: "key" });
+
+    setSavingSettings(false);
+    if (error) {
+      setSettingsMsg({ type: "error", text: "Failed to update permission: " + error.message });
+    } else {
+      setEditPermissions(prev => ({ ...prev, [key]: checked }));
+      setSettingsMsg({ type: "success", text: `Permission updated.` });
+    }
+  };
+
   const load = async (pageToLoad = page, searchText = search) => {
     setLoading(true);
     const from = pageToLoad * PAGE_SIZE;
@@ -160,7 +226,7 @@ export default function Members({ isAdmin = false }) {
     setLoading(false);
   };
 
-  useEffect(() => { load(page, search); }, [page, search, viewFilter]);
+  useEffect(() => { load(page, search); loadEditPermissions(); }, [page, search, viewFilter]);
 
   const openAdd = () => { setForm(EMPTY_FORM); setEditTarget(null); setModal(true); setMsg(null); };
   const openEdit = (m) => {
@@ -653,6 +719,7 @@ export default function Members({ isAdmin = false }) {
 
         {isAdmin && (
           <div className="flex gap-2" style={{ marginLeft: "auto", flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" onClick={() => { setSettingsMsg(null); setEditSettingsModal(true); }}>⚙️ Edit Permissions</button>
             <button className="btn btn-ghost" onClick={openImportCSV}>Import CSV</button>
             <button className="btn btn-ghost" onClick={promoteAll} style={{ color: "var(--accent)" }}>Promote All</button>
             <button className="btn btn-primary" onClick={openAdd}>+ Add Member</button>
@@ -1118,6 +1185,195 @@ export default function Members({ isAdmin = false }) {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {editSettingsModal && (
+        <div className="modal-overlay" style={{ zIndex: 110 }} onClick={e => e.target === e.currentTarget && setEditSettingsModal(false)}>
+          <div className="modal" style={{ maxWidth: "520px" }}>
+            <div className="modal-header">
+              <h2 className="modal-title">⚙️ Member Profile Self-Edit Permissions</h2>
+              <button className="modal-close" onClick={() => setEditSettingsModal(false)}>x</button>
+            </div>
+            
+            <p className="text-muted" style={{ fontSize: "13px", marginBottom: "16px" }}>
+              Toggle switch buttons to allow or restrict members from editing their own profile fields.
+            </p>
+
+            {settingsMsg && <div className={`alert alert-${settingsMsg.type}`} style={{ marginBottom: "16px" }}>{settingsMsg.text}</div>}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg3)", padding: "16px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+              
+              {/* Field 1: Name */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", display: "block" }}>Full Name</strong>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit their own full name</span>
+                </div>
+                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissions.name}
+                    disabled={savingSettings}
+                    onChange={e => togglePermission("name", e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span className={`slider round ${editPermissions.name ? "active" : ""}`} style={{
+                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: editPermissions.name ? "var(--accent)" : "#ccc",
+                    transition: ".3s", borderRadius: "24px"
+                  }}>
+                    <span style={{
+                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.name ? "24px" : "3px", bottom: "3px",
+                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Field 2: Photo */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", display: "block" }}>Profile Photo</strong>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to upload/change profile photo</span>
+                </div>
+                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissions.photo}
+                    disabled={savingSettings}
+                    onChange={e => togglePermission("photo", e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span className={`slider round ${editPermissions.photo ? "active" : ""}`} style={{
+                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: editPermissions.photo ? "var(--accent)" : "#ccc",
+                    transition: ".3s", borderRadius: "24px"
+                  }}>
+                    <span style={{
+                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.photo ? "24px" : "3px", bottom: "3px",
+                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Field 3: WhatsApp Number */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", display: "block" }}>WhatsApp / Mobile Number</strong>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit their phone number</span>
+                </div>
+                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissions.whatsapp}
+                    disabled={savingSettings}
+                    onChange={e => togglePermission("whatsapp", e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span className={`slider round ${editPermissions.whatsapp ? "active" : ""}`} style={{
+                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: editPermissions.whatsapp ? "var(--accent)" : "#ccc",
+                    transition: ".3s", borderRadius: "24px"
+                  }}>
+                    <span style={{
+                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.whatsapp ? "24px" : "3px", bottom: "3px",
+                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Field 4: LinkedIn Link */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", display: "block" }}>LinkedIn Link</strong>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to update LinkedIn profile link</span>
+                </div>
+                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissions.linkedin}
+                    disabled={savingSettings}
+                    onChange={e => togglePermission("linkedin", e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span className={`slider round ${editPermissions.linkedin ? "active" : ""}`} style={{
+                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: editPermissions.linkedin ? "var(--accent)" : "#ccc",
+                    transition: ".3s", borderRadius: "24px"
+                  }}>
+                    <span style={{
+                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.linkedin ? "24px" : "3px", bottom: "3px",
+                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Field 5: Position */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", display: "block" }}>Position</strong>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit student position</span>
+                </div>
+                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissions.position}
+                    disabled={savingSettings}
+                    onChange={e => togglePermission("position", e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span className={`slider round ${editPermissions.position ? "active" : ""}`} style={{
+                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: editPermissions.position ? "var(--accent)" : "#ccc",
+                    transition: ".3s", borderRadius: "24px"
+                  }}>
+                    <span style={{
+                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.position ? "24px" : "3px", bottom: "3px",
+                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Field 6: Function Name */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", display: "block" }}>Function Name</strong>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit member function name</span>
+                </div>
+                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissions.function}
+                    disabled={savingSettings}
+                    onChange={e => togglePermission("function", e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span className={`slider round ${editPermissions.function ? "active" : ""}`} style={{
+                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: editPermissions.function ? "var(--accent)" : "#ccc",
+                    transition: ".3s", borderRadius: "24px"
+                  }}>
+                    <span style={{
+                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.function ? "24px" : "3px", bottom: "3px",
+                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: "20px" }}>
+              <button className="btn btn-primary" onClick={() => setEditSettingsModal(false)}>
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

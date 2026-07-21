@@ -7,7 +7,14 @@ export default function MyInfo({ session }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ profile_image_url: "", linkedin_url: "" });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    profile_image_url: "",
+    mobile_number: "",
+    linkedin_url: "",
+    st_position: "",
+    member_function: ""
+  });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -20,7 +27,13 @@ export default function MyInfo({ session }) {
   const [settings, setSettings] = useState({
     letter_show_name: true,
     letter_show_events: true,
-    letter_show_details: true
+    letter_show_details: true,
+    member_edit_name: false,
+    member_edit_photo: true,
+    member_edit_whatsapp: false,
+    member_edit_linkedin: true,
+    member_edit_position: false,
+    member_edit_function: false
   });
   const [thisYearEvents, setThisYearEvents] = useState([]);
   const [submittingRequest, setSubmittingRequest] = useState(false);
@@ -45,8 +58,12 @@ export default function MyInfo({ session }) {
 
   const openEditModal = () => {
     setEditForm({
-      profile_image_url: profile.profile_image_url || "",
-      linkedin_url: profile.linkedin_url || ""
+      name: profile?.name || "",
+      profile_image_url: profile?.profile_image_url || "",
+      mobile_number: profile?.mobile_number || "",
+      linkedin_url: profile?.linkedin_url || "",
+      st_position: profile?.st_position || "",
+      member_function: profile?.member_function || ""
     });
     setProfileImageFile(null);
     setPreviewUrl(null);
@@ -68,49 +85,87 @@ export default function MyInfo({ session }) {
     setSaving(true);
     setMsg(null);
     try {
-      let finalImageUrl = editForm.profile_image_url.trim() || null;
+      const updates = {};
+      const profileUpdates = {};
 
-      if (profileImageFile) {
-        // Optimize the image to exactly 500x600 px
-        const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
+      if (settings.member_edit_name) {
+        if (!editForm.name.trim()) {
+          throw new Error("Full Name cannot be empty.");
+        }
+        updates.name = editForm.name.trim();
+        profileUpdates.full_name = editForm.name.trim();
+      }
 
-        // Upload to bucket
-        const cleanStId = session.stId.replace(/\//g, "-");
-        const fileName = `${cleanStId}_${Date.now()}.jpg`;
+      if (settings.member_edit_photo) {
+        let finalImageUrl = editForm.profile_image_url.trim() || null;
 
-        const { error: uploadError } = await supabase.storage
-          .from("profile_images")
-          .upload(fileName, optimizedFile, {
-            cacheControl: "3600",
-            upsert: true
-          });
+        if (profileImageFile) {
+          // Optimize the image to exactly 500x600 px
+          const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
 
-        if (uploadError) {
-          throw new Error("Failed to upload profile image: " + uploadError.message);
+          // Upload to bucket
+          const cleanStId = session.stId.replace(/\//g, "-");
+          const fileName = `${cleanStId}_${Date.now()}.jpg`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("profile_images")
+            .upload(fileName, optimizedFile, {
+              cacheControl: "3600",
+              upsert: true
+            });
+
+          if (uploadError) {
+            throw new Error("Failed to upload profile image: " + uploadError.message);
+          }
+
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from("profile_images")
+            .getPublicUrl(fileName);
+
+          finalImageUrl = urlData?.publicUrl || finalImageUrl;
         }
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from("profile_images")
-          .getPublicUrl(fileName);
+        updates.profile_image_url = finalImageUrl;
+      }
 
-        finalImageUrl = urlData?.publicUrl || finalImageUrl;
+      if (settings.member_edit_whatsapp) {
+        updates.mobile_number = editForm.mobile_number.trim() || null;
+      }
+
+      if (settings.member_edit_linkedin) {
+        updates.linkedin_url = editForm.linkedin_url.trim() || null;
+      }
+
+      if (settings.member_edit_position) {
+        updates.st_position = editForm.st_position.trim() || null;
+      }
+
+      if (settings.member_edit_function) {
+        updates.member_function = editForm.member_function.trim() || null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        throw new Error("No editable fields are enabled by the administrator.");
       }
 
       const { error } = await supabase
         .from("members")
-        .update({
-          profile_image_url: finalImageUrl,
-          linkedin_url: editForm.linkedin_url.trim() || null
-        })
+        .update(updates)
         .eq("st_id", session.stId);
 
       if (error) throw error;
 
+      if (profileUpdates.full_name) {
+        await supabase
+          .from("profiles")
+          .update(profileUpdates)
+          .eq("st_id", session.stId);
+      }
+
       setProfile(prev => ({
         ...prev,
-        profile_image_url: finalImageUrl,
-        linkedin_url: editForm.linkedin_url.trim() || null
+        ...updates
       }));
 
       setMsg({ type: "success", text: "Profile updated successfully!" });
@@ -142,7 +197,11 @@ export default function MyInfo({ session }) {
         supabase
           .from("system_settings")
           .select("key, value")
-          .in("key", ["letter_show_name", "letter_show_events", "letter_show_details"]),
+          .in("key", [
+            "letter_show_name", "letter_show_events", "letter_show_details",
+            "member_edit_name", "member_edit_photo", "member_edit_whatsapp",
+            "member_edit_linkedin", "member_edit_position", "member_edit_function"
+          ]),
         supabase
           .from("events")
           .select("event_id, name, date")
@@ -490,62 +549,135 @@ export default function MyInfo({ session }) {
 
             {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
-            <div className="form-group" style={{ marginBottom: 15 }}>
-              <label>Profile Image</label>
-              <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)", marginTop: "6px" }}>
-                {previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt="Profile Preview"
-                    style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
-                  />
-                ) : editForm.profile_image_url ? (
-                  <img
-                    src={editForm.profile_image_url}
-                    alt="Current Profile"
-                    style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
-                  />
-                ) : (
-                  <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", color: "var(--text3)", flexShrink: 0 }}>
-                    👤
+            {!settings.member_edit_name &&
+             !settings.member_edit_photo &&
+             !settings.member_edit_whatsapp &&
+             !settings.member_edit_linkedin &&
+             !settings.member_edit_position &&
+             !settings.member_edit_function ? (
+              <div className="alert alert-error" style={{ marginBottom: 20 }}>
+                Profile field editing is currently disabled by the society administrator.
+              </div>
+            ) : (
+              <>
+                {settings.member_edit_name && (
+                  <div className="form-group" style={{ marginBottom: 15 }}>
+                    <label>Full Name</label>
+                    <input
+                      placeholder="Enter full name"
+                      value={editForm.name}
+                      onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                      required
+                    />
                   </div>
                 )}
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    id="profile-image-edit-upload"
-                    onChange={handleFileChange}
-                    style={{ display: "none" }}
-                  />
-                  <label
-                    htmlFor="profile-image-edit-upload"
-                    className="btn btn-ghost btn-sm"
-                    style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
-                  >
-                    Upload New Photo
-                  </label>
-                  <span className="text-muted" style={{ fontSize: "11px" }}>
-                    {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "Using current photo (Auto-resized to 500x600 px)"}
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            <div className="form-group" style={{ marginBottom: 20 }}>
-              <label>LinkedIn Profile URL</label>
-              <input
-                placeholder="e.g. https://linkedin.com/in/username"
-                value={editForm.linkedin_url}
-                onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })}
-              />
-            </div>
+                {settings.member_edit_photo && (
+                  <div className="form-group" style={{ marginBottom: 15 }}>
+                    <label>Profile Image</label>
+                    <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)", marginTop: "6px" }}>
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt="Profile Preview"
+                          style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
+                        />
+                      ) : editForm.profile_image_url ? (
+                        <img
+                          src={editForm.profile_image_url}
+                          alt="Current Profile"
+                          style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
+                        />
+                      ) : (
+                        <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", color: "var(--text3)", flexShrink: 0 }}>
+                          👤
+                        </div>
+                      )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          id="profile-image-edit-upload"
+                          onChange={handleFileChange}
+                          style={{ display: "none" }}
+                        />
+                        <label
+                          htmlFor="profile-image-edit-upload"
+                          className="btn btn-ghost btn-sm"
+                          style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
+                        >
+                          Upload New Photo
+                        </label>
+                        <span className="text-muted" style={{ fontSize: "11px" }}>
+                          {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "Using current photo (Auto-resized to 500x600 px)"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {settings.member_edit_whatsapp && (
+                  <div className="form-group" style={{ marginBottom: 15 }}>
+                    <label>WhatsApp / Mobile Number</label>
+                    <input
+                      placeholder="e.g. +94771234567"
+                      value={editForm.mobile_number}
+                      onChange={e => setEditForm({ ...editForm, mobile_number: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {settings.member_edit_linkedin && (
+                  <div className="form-group" style={{ marginBottom: 15 }}>
+                    <label>LinkedIn Profile URL</label>
+                    <input
+                      placeholder="e.g. https://linkedin.com/in/username"
+                      value={editForm.linkedin_url}
+                      onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {settings.member_edit_position && (
+                  <div className="form-group" style={{ marginBottom: 15 }}>
+                    <label>Position</label>
+                    <input
+                      placeholder="e.g. Committee Member"
+                      value={editForm.st_position}
+                      onChange={e => setEditForm({ ...editForm, st_position: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {settings.member_edit_function && (
+                  <div className="form-group" style={{ marginBottom: 20 }}>
+                    <label>Function Name</label>
+                    <select
+                      value={editForm.member_function}
+                      onChange={e => setEditForm({ ...editForm, member_function: e.target.value })}
+                    >
+                      <option value="">Select Function</option>
+                      <option value="Finance">Finance</option>
+                      <option value="Marketing">Marketing</option>
+                      <option value="Operation & Academic Management">Operation & Academic Management</option>
+                      <option value="Personal Development">Personal Development</option>
+                      <option value="Public Relations">Public Relations</option>
+                      <option value="Research & Analyst">Research & Analyst</option>
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={closeEditModal} disabled={saving}>
                 Cancel
               </button>
-              <button className="btn btn-primary" onClick={handleSaveProfile} disabled={saving}>
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveProfile}
+                disabled={saving || (!settings.member_edit_name && !settings.member_edit_photo && !settings.member_edit_whatsapp && !settings.member_edit_linkedin && !settings.member_edit_position && !settings.member_edit_function)}
+              >
                 {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
