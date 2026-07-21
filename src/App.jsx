@@ -83,6 +83,7 @@ export default function App() {
   const isEventRoute = currentPath.startsWith("/event") || currentHash.startsWith("#/event") || currentHash.startsWith("#event");
   const isNoticeRoute = currentPath.startsWith("/notice") || currentHash.startsWith("#/notice") || currentHash.startsWith("#notice");
   const isScanAttendanceRoute = currentPath.startsWith("/scan-attendance") || currentHash.startsWith("#/scan-attendance") || currentHash.startsWith("#scan-attendance");
+  const isLoginRoute = currentPath === "/login" || currentHash === "#/login" || currentHash === "#login";
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -141,6 +142,14 @@ export default function App() {
           setViewAsMember(false);
           setPage("about");
           setAuthLoading(false);
+
+          // Auto-open login modal when visiting /login as guest
+          const path = window.location.pathname;
+          const hash = window.location.hash;
+          if (path === "/login" || hash === "#/login" || hash === "#login") {
+            setAuthMode("login");
+            setShowLogin(true);
+          }
         }
         return;
       }
@@ -171,6 +180,14 @@ export default function App() {
           return prev;
         });
         setAuthLoading(false);
+
+        // If user is already logged in and visits /login, redirect to home
+        const path = window.location.pathname;
+        const hash = window.location.hash;
+        if (path === "/login" || hash === "#/login" || hash === "#login") {
+          window.history.replaceState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }
       }
     };
 
@@ -538,6 +555,19 @@ export default function App() {
               Logout
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show a loading spinner while checking auth session — prevents landing page flash for logged-in users
+  if (authLoading) {
+    return (
+      <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
+        <div style={{ textAlign: "center" }}>
+          <div className="spinner" style={{ width: "40px", height: "40px", border: "3px solid var(--border)", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Loading...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     );
