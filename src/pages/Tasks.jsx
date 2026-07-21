@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import EventSelect from "../components/EventSelect";
 
 const EMPTY_FORM = { st_id: "", task_name: "", deadline: "" };
 
@@ -230,17 +231,12 @@ export default function Tasks({ isAdmin = false, session }) {
                 </span>
               )}
             </div>
-            <select
+            <EventSelect
+              events={events}
               value={selectedEvent}
-              onChange={e => setSelectedEvent(e.target.value)}
-              style={{ width: "100%" }}
-            >
-              {events.map(e => (
-                <option key={e.event_id} value={e.event_id}>
-                  {e.name} - {e.date}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => setSelectedEvent(id)}
+              placeholder="Search or select an event..."
+            />
           </div>
 
           <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import StudentProfileModal from "../components/StudentProfileModal";
+import EventSelect from "../components/EventSelect";
 
 const EMPTY = { st_id: "", function_id: "", oc_position: "", apply_status: "Pending" };
 const STATUS_OPTS = ["Pending", "Accept", "Reject"];
@@ -169,11 +170,12 @@ export default function Committee({ isAdmin = false }) {
           <span className="card-title">Event Committee</span>
           {selectedEventInfo && <span className="badge badge-gray">{selectedEventInfo.date}</span>}
         </div>
-        <select value={selectedEvent} onChange={e => { setPage(0); setSelectedEvent(e.target.value); }} style={{ width: "100%" }}>
-          {events.map(e => (
-            <option key={e.event_id} value={e.event_id}>{e.name} - {e.date} ({e.event_id})</option>
-          ))}
-        </select>
+        <EventSelect
+          events={events}
+          value={selectedEvent}
+          onChange={(id) => { setPage(0); setSelectedEvent(id); }}
+          placeholder="Search or select an event..."
+        />
       </div>
 
       <div className="toolbar">

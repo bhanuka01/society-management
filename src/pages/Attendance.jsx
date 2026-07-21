@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
+import EventSelect from "../components/EventSelect";
 
 export default function Attendance({ isAdmin = false, session = { role: "guest", stId: "" } }) {
   const [events, setEvents] = useState([]);
@@ -783,11 +784,14 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
                 {selectedEventInfo && <span className="badge badge-gray">{selectedEventInfo.date}</span>}
               </div>
               <div className="flex gap-2" style={{ flexWrap: "wrap", alignItems: "center" }}>
-                <select value={selectedEvent} onChange={e => { setPage(0); setSelectedEvent(e.target.value); }} style={{ flex: 1, minWidth: 200 }}>
-                  {events.map(e => (
-                    <option key={e.event_id} value={e.event_id}>{e.name} - {e.date} ({e.event_id})</option>
-                  ))}
-                </select>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <EventSelect
+                    events={events}
+                    value={selectedEvent}
+                    onChange={(id) => { setPage(0); setSelectedEvent(id); }}
+                    placeholder="Search or select an event..."
+                  />
+                </div>
                 {isAdmin && <button className="btn btn-ghost btn-sm" onClick={addMemberToEvent}>+ Add Member</button>}
               </div>
             </div>
