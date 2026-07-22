@@ -7,7 +7,9 @@ import ChatConversation from "./ChatConversation";
    All styling uses existing App.css design tokens (--bg, --accent, --text, etc.)
    so it automatically adapts to the user's chosen dark / light theme.
 ───────────────────────────────────────────────────────────────────────────── */
-export default function ChatWidget() {
+export default function ChatWidget({ role = "guest", session = {} }) {
+  const userRole = session?.role || role || "guest";
+
   const [open, setOpen]         = useState(false);
   const [messages, setMessages] = useState([]);   // { role: "user"|"assistant", text: string }
   const [input, setInput]       = useState("");
@@ -75,7 +77,7 @@ export default function ChatWidget() {
     }));
 
     try {
-      const result = await getAssistantReply(trimmed, historyForApi);
+      const result = await getAssistantReply(trimmed, historyForApi, userRole);
 
       setMessages(prev => [
         ...prev,
@@ -95,7 +97,7 @@ export default function ChatWidget() {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [loading, messages]);
+  }, [loading, messages, userRole]);
 
   return (
     <>
@@ -155,6 +157,7 @@ export default function ChatWidget() {
           onSendMessage={sendMessage}
           compact={true}
           inputRef={inputRef}
+          role={userRole}
         />
       </div>
 

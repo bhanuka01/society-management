@@ -87,6 +87,7 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
   const [authSaving, setAuthSaving] = useState(false);
   const [regEnabled, setRegEnabled] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState(true);
   const [viewAsMember, setViewAsMember] = useState(false);
   
   const [profileImageFile, setProfileImageFile] = useState(null);
@@ -154,9 +155,14 @@ export default function App() {
     supabase.from("members").select("count", { count: "exact", head: true })
       .then(({ error }) => setConnected(!error));
 
-    supabase.from("system_settings").select("value").eq("key", "registration_enabled").maybeSingle()
+    supabase.from("system_settings").select("key, value").in("key", ["registration_enabled", "ai_feature_enabled"])
       .then(({ data }) => {
-        if (data) setRegEnabled(data.value === "true");
+        if (data) {
+          const regSetting = data.find(s => s.key === "registration_enabled");
+          const aiSetting = data.find(s => s.key === "ai_feature_enabled");
+          if (regSetting) setRegEnabled(regSetting.value === "true");
+          if (aiSetting) setAiEnabled(aiSetting.value === "true");
+        }
       });
   }, []);
 
@@ -239,13 +245,16 @@ export default function App() {
   const isRealStaff = canEdit(session.role);
   const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
   const isEditor = canEdit(effectiveRole);
+  const canAccessAi = isEditor || aiEnabled;
+
   const visibleNavItems = effectiveRole === "guest"
-    ? NAV_ITEMS.filter(item => item.id === "about" || item.id === "assistant")
+    ? NAV_ITEMS.filter(item => item.id === "about" || (item.id === "assistant" && canAccessAi))
     : NAV_ITEMS.filter(item => {
       if (item.id === "access") return effectiveRole === "admin";
       if (item.id === "letters") return isEditor;
       if (item.id === "my_info") return !!session.stId;
       if (item.id === "members") return isEditor;
+      if (item.id === "assistant") return canAccessAi;
       return isEditor || item.id !== "dashboard";
     });
 
@@ -505,12 +514,37 @@ export default function App() {
   }
 
   if (isAssistantRoute) {
+    if (!canAccessAi) {
+      return (
+        <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)", padding: "2rem", color: "var(--text)" }}>
+          <div className="card" style={{ maxWidth: "440px", width: "100%", textAlign: "center", padding: "2.5rem 2rem", boxShadow: "var(--shadow-xl)" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: "48px", color: "var(--amber)", marginBottom: "1rem" }}>lock</span>
+            <h2 style={{ margin: "0 0 8px 0", fontSize: "20px" }}>AI Assistant Disabled</h2>
+            <p style={{ color: "var(--text3)", fontSize: "14px", margin: 0, lineHeight: 1.5 }}>
+              The AI Assistant feature is currently disabled for members by an administrator.
+            </p>
+            <button
+              className="btn btn-primary"
+              style={{ marginTop: "1.5rem", width: "100%" }}
+              onClick={() => {
+                window.history.pushState({}, "", "/");
+                window.dispatchEvent(new Event("popstate"));
+              }}
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <AssistantPage
         onBackToLanding={() => {
           window.history.pushState({}, "", "/");
           window.dispatchEvent(new Event("popstate"));
         }}
+        role={effectiveRole}
+        session={session}
       />
     );
   }
@@ -1068,8 +1102,8 @@ export default function App() {
         </div>
       </main>
 
-      {/* AI Assistant widget — hidden when user is on the dedicated full page */}
-      {page !== "assistant" && <ChatWidget />}
+      {/* AI Assistant widget — hidden when user is on full page or when disabled for members */}
+      {canAccessAi && page !== "assistant" && <ChatWidget role={effectiveRole} session={session} />}
     </div>
   );
 }

@@ -14,13 +14,15 @@ export default function Access({ role = "guest", session = {} }) {
   const [updatingReg, setUpdatingReg] = useState(false);
   const [autoApprove, setAutoApprove] = useState(false);
   const [updatingAutoApprove, setUpdatingAutoApprove] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [updatingAi, setUpdatingAi] = useState(false);
 
   const load = async () => {
     setLoading(true);
     const [inviteRes, profileRes, settingsRes] = await Promise.all([
       supabase.from("access_invites").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, email, full_name, role, created_at").in("role", ["admin", "editor"]).order("created_at", { ascending: false }),
-      supabase.from("system_settings").select("key, value").in("key", ["registration_enabled", "registration_auto_approve"])
+      supabase.from("system_settings").select("key, value").in("key", ["registration_enabled", "registration_auto_approve", "ai_feature_enabled"])
     ]);
     if (inviteRes.error) setMsg({ type: "error", text: inviteRes.error.message });
     else setInvites(inviteRes.data || []);
@@ -28,8 +30,10 @@ export default function Access({ role = "guest", session = {} }) {
     if (settingsRes.data) {
       const regEnabledSetting = settingsRes.data.find(s => s.key === "registration_enabled");
       const autoApproveSetting = settingsRes.data.find(s => s.key === "registration_auto_approve");
+      const aiSetting = settingsRes.data.find(s => s.key === "ai_feature_enabled");
       setRegEnabled(regEnabledSetting ? regEnabledSetting.value === "true" : true);
       setAutoApprove(autoApproveSetting ? autoApproveSetting.value === "true" : false);
+      setAiEnabled(aiSetting ? aiSetting.value === "true" : true);
     }
     setLoading(false);
   };
@@ -125,6 +129,23 @@ export default function Access({ role = "guest", session = {} }) {
     } else {
       setAutoApprove(checked);
       setMsg({ type: "success", text: `Auto-approve registrations has been turned ${checked ? "ON" : "OFF"}.` });
+    }
+  };
+
+  const toggleAiFeature = async (checked) => {
+    setUpdatingAi(true);
+    setMsg(null);
+    const val = checked ? "true" : "false";
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert({ key: "ai_feature_enabled", value: val }, { onConflict: "key" });
+
+    setUpdatingAi(false);
+    if (error) {
+      setMsg({ type: "error", text: "Failed to update AI feature setting: " + error.message });
+    } else {
+      setAiEnabled(checked);
+      setMsg({ type: "success", text: `Member AI Feature access has been turned ${checked ? "ON" : "OFF"}.` });
     }
   };
 
@@ -254,6 +275,52 @@ export default function Access({ role = "guest", session = {} }) {
                     content: '""',
                     height: "20px", width: "20px",
                     left: autoApprove ? "26px" : "3px",
+                    bottom: "2px",
+                    backgroundColor: "white",
+                    transition: ".4s",
+                    borderRadius: "50%",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                  }} />
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <hr style={{ border: "none", borderTop: "1px dashed rgba(0, 98, 255, 0.15)", margin: 0 }} />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "12px" }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>Member & Guest AI Feature Access</h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text-secondary)" }}>
+                Enable or disable AI Assistant access (widget & full-page assistant) for members and visitors. Staff can always configure or access.
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "14px", fontWeight: "700", color: aiEnabled ? "var(--green)" : "var(--text-secondary)" }}>
+                {aiEnabled ? "Active (ON)" : "Disabled (OFF)"}
+              </span>
+              <label className="switch" style={{ position: "relative", display: "inline-block", width: "50px", height: "26px" }}>
+                <input 
+                  type="checkbox" 
+                  checked={aiEnabled} 
+                  disabled={updatingAi}
+                  onChange={e => toggleAiFeature(e.target.checked)}
+                  style={{ opacity: 0, width: 0, height: 0 }}
+                />
+                <span className="slider" style={{
+                  position: "absolute",
+                  cursor: "pointer",
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: aiEnabled ? "#0062ff" : "#ccc",
+                  transition: ".4s",
+                  borderRadius: "34px",
+                  border: "1px solid rgba(255,255,255,0.1)"
+                }}>
+                  <span style={{
+                    position: "absolute",
+                    content: '""',
+                    height: "20px", width: "20px",
+                    left: aiEnabled ? "26px" : "3px",
                     bottom: "2px",
                     backgroundColor: "white",
                     transition: ".4s",

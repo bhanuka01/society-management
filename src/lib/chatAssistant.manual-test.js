@@ -5,7 +5,7 @@
  * This file is NOT a production module — it is a developer verification tool.
  *
  * HOW TO RUN:
- *   1. Make sure VITE_GEMINI_API_KEY is set in your .env file.
+ *   1. Make sure GEMINI_API_KEY secret is deployed to Supabase Edge Functions.
  *   2. Open this file in a browser-based dev environment, OR run the Vite dev
  *      server and import this file temporarily from main.jsx for one run.
  *      (Vite is required because this file uses `import.meta.env` and ?raw imports.)
@@ -73,7 +73,7 @@ export async function runTests() {
     console.log("Q:", tc.message);
 
     try {
-      const result = await getAssistantReply(tc.message, []);
+      const result = await getAssistantReply(tc.message, [], tc.role || "admin");
 
       if (result.success) {
         console.log("✅ PASS — Response received");
@@ -96,7 +96,8 @@ export async function runTests() {
   try {
     const result = await getAssistantReply(
       "What is the last step when registering as a member?",
-      LONG_HISTORY
+      LONG_HISTORY,
+      "member"
     );
 
     if (result.success) {

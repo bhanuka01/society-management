@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabaseClient";
 
-export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, onRegisterClick, regEnabled = true }) {
+export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, onRegisterClick, regEnabled = true, aiEnabled = true }) {
   const glowRef = useRef(null);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -130,16 +130,18 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             >
               Contact
             </button>
-            <button
-              onClick={() => {
-                window.history.pushState({}, "", "/assistant");
-                window.dispatchEvent(new Event("popstate"));
-              }}
-              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-lg text-[#818cf8]">auto_awesome</span>
-              <span>AI Assistant</span>
-            </button>
+            {aiEnabled && (
+              <button
+                onClick={() => {
+                  window.history.pushState({}, "", "/assistant");
+                  window.dispatchEvent(new Event("popstate"));
+                }}
+                className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-lg text-[#818cf8]">auto_awesome</span>
+                <span>AI Assistant</span>
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -169,7 +171,20 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} />
           </div>
           
-          {/* Join Society in the center */}
+          <div className="flex items-center gap-2">
+            {aiEnabled && (
+              <button
+                onClick={() => {
+                  window.history.pushState({}, "", "/assistant");
+                  window.dispatchEvent(new Event("popstate"));
+                }}
+                className="bg-[#6366f1]/20 border border-[#6366f1]/40 text-[#818cf8] p-2 rounded-full active:scale-95 transition-all flex items-center justify-center"
+                title="AI Assistant"
+              >
+                <span className="material-symbols-outlined text-lg">auto_awesome</span>
+              </button>
+            )}{/* Join Society in the center */}
+          </div>
           <button
             onClick={onLoginClick}
             className="bg-[#6366f1] text-white px-5 py-2 rounded-full font-bold text-sm active:scale-95 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
@@ -226,15 +241,17 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                 Join Membership
               </button>
             )}
-            <button
-              onClick={() => {
-                window.history.pushState({}, "", "/assistant");
-                window.dispatchEvent(new Event("popstate"));
-              }}
-              className="w-full sm:w-auto px-6 py-4 bg-[#6366f1]/15 border border-[#6366f1]/35 text-[#818cf8] rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:bg-[#6366f1]/25 transition-all"
-            >
-              <span className="material-symbols-outlined text-lg">auto_awesome</span> Ask AI Assistant
-            </button>
+            {aiEnabled && (
+              <button
+                onClick={() => {
+                  window.history.pushState({}, "", "/assistant");
+                  window.dispatchEvent(new Event("popstate"));
+                }}
+                className="w-full sm:w-auto px-6 py-4 bg-[#6366f1]/15 border border-[#6366f1]/35 text-[#818cf8] rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:bg-[#6366f1]/25 transition-all"
+              >
+                <span className="material-symbols-outlined text-lg">auto_awesome</span> Ask AI Assistant
+              </button>
+            )}
           </div>
         </div>
 

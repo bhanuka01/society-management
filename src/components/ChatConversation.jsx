@@ -1,23 +1,37 @@
 import { useState, useEffect, useRef } from "react";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Default suggestion chips
+   Default suggestion chips by user role
 ───────────────────────────────────────────────────────────────────────────── */
-const DEFAULT_SUGGESTIONS = [
+const STAFF_SUGGESTIONS = [
   "How do I import members via CSV?",
   "How do I generate a QR code for attendance?",
   "How do I invite a new editor?",
   "Can a member delete another member?",
 ];
 
+const MEMBER_SUGGESTIONS = [
+  "How do I register as a society member?",
+  "How do I apply for the Organizing Committee (OC)?",
+  "How do I request an appreciation letter?",
+  "How do I check in for event attendance?",
+];
+
 /* ─────────────────────────────────────────────────────────────────────────────
-   Quick-ask pills row (always available above the input bar)
+   Quick-ask pills row (always available above the input bar) by user role
 ───────────────────────────────────────────────────────────────────────────── */
-const QUICK_ASK_PILLS = [
+const STAFF_QUICK_ASK_PILLS = [
   "How do I import members?",
   "How does QR attendance work?",
-  "How do I request a letter?",
+  "How do I manage letter requests?",
   "How do I invite an editor?",
+];
+
+const MEMBER_QUICK_ASK_PILLS = [
+  "How do I register?",
+  "How to apply for OC?",
+  "How to request a letter?",
+  "How to check in via QR?",
 ];
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -83,13 +97,22 @@ export default function ChatConversation({
   input = "",
   onInputChange,
   onSendMessage,
-  suggestions = DEFAULT_SUGGESTIONS,
+  role = "guest",
+  suggestions,
+  quickPills,
   placeholder = "Ask about a feature…",
   compact = false,
   inputRef,
   className = "",
 }) {
   const bottomRef = useRef(null);
+
+  const isStaff = role === "admin" || role === "editor";
+  const effectiveSuggestions = suggestions || (isStaff ? STAFF_SUGGESTIONS : MEMBER_SUGGESTIONS);
+  const effectiveQuickPills = quickPills || (isStaff ? STAFF_QUICK_ASK_PILLS : MEMBER_QUICK_ASK_PILLS);
+  const emptySubText = isStaff
+    ? "Ask any question about member management, events, attendance, access roles, or society settings."
+    : "Ask any question about registration, event attendance, OC applications, letter requests, or your profile.";
 
   // Client-side rate limit guard (2 second cooldown)
   const [cooldown, setCooldown] = useState(false);
@@ -139,10 +162,10 @@ export default function ChatConversation({
             </div>
             <p className="chat-conv-empty-title">ADSS Society AI Assistant</p>
             <p className="chat-conv-empty-sub">
-              Ask any question about member management, events, attendance, access roles, or society settings.
+              {emptySubText}
             </p>
             <div className="chat-conv-chips">
-              {suggestions.map((s) => (
+              {effectiveSuggestions.map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -196,7 +219,7 @@ export default function ChatConversation({
       {/* Suggested Quick Questions Row above Input */}
       {messages.length > 0 && (
         <div className="chat-conv-quick-row">
-          {QUICK_ASK_PILLS.map((q) => (
+          {effectiveQuickPills.map((q) => (
             <button
               key={q}
               type="button"

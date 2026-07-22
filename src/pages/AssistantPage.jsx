@@ -6,7 +6,10 @@ import ChatConversation from "../components/ChatConversation";
    AssistantPage — Full-page dedicated AI Assistant experience.
    Accessible via Sidebar ("AI Assistant") or URL route `/assistant`.
 ───────────────────────────────────────────────────────────────────────────── */
-export default function AssistantPage({ onBackToLanding }) {
+export default function AssistantPage({ onBackToLanding, role = "guest", session = {} }) {
+  const userRole = session?.role || role || "guest";
+  const isStaff = userRole === "admin" || userRole === "editor";
+
   const [messages, setMessages] = useState([]);
   const [input, setInput]       = useState("");
   const [loading, setLoading]   = useState(false);
@@ -27,7 +30,7 @@ export default function AssistantPage({ onBackToLanding }) {
       }));
 
       try {
-        const result = await getAssistantReply(trimmed, historyForApi);
+        const result = await getAssistantReply(trimmed, historyForApi, userRole);
 
         setMessages((prev) => [
           ...prev,
@@ -47,7 +50,7 @@ export default function AssistantPage({ onBackToLanding }) {
         setLoading(false);
       }
     },
-    [loading, messages]
+    [loading, messages, userRole]
   );
 
   const handleClearChat = () => {
@@ -88,7 +91,9 @@ export default function AssistantPage({ onBackToLanding }) {
               </span>
             </h1>
             <p className="page-subtitle">
-              Get instant, accurate answers about members, events, attendance, roles, and administrative tasks.
+              {isStaff
+                ? "Get instant, accurate answers about members, events, attendance, roles, and administrative tasks."
+                : "Get instant, accurate answers about registration, event attendance, OC applications, and letter requests."}
             </p>
           </div>
         </div>
@@ -117,6 +122,7 @@ export default function AssistantPage({ onBackToLanding }) {
           onInputChange={setInput}
           onSendMessage={sendMessage}
           compact={false}
+          role={userRole}
         />
       </div>
 
