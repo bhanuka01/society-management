@@ -130,6 +130,16 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             >
               Contact
             </button>
+            <button
+              onClick={() => {
+                window.history.pushState({}, "", "/assistant");
+                window.dispatchEvent(new Event("popstate"));
+              }}
+              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-lg text-[#818cf8]">auto_awesome</span>
+              <span>AI Assistant</span>
+            </button>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -216,6 +226,15 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                 Join Membership
               </button>
             )}
+            <button
+              onClick={() => {
+                window.history.pushState({}, "", "/assistant");
+                window.dispatchEvent(new Event("popstate"));
+              }}
+              className="w-full sm:w-auto px-6 py-4 bg-[#6366f1]/15 border border-[#6366f1]/35 text-[#818cf8] rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:bg-[#6366f1]/25 transition-all"
+            >
+              <span className="material-symbols-outlined text-lg">auto_awesome</span> Ask AI Assistant
+            </button>
           </div>
         </div>
 

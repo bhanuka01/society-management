@@ -18,6 +18,8 @@ import Notices from "./pages/Notices";
 import PublicNotice from "./pages/PublicNotice";
 import ScanAttendance from "./pages/ScanAttendance";
 import Letters from "./pages/Letters";
+import AssistantPage from "./pages/AssistantPage";
+import ChatWidget from "./components/ChatWidget";
 import "./App.css";
 
 const NAV_ITEMS = [
@@ -32,6 +34,7 @@ const NAV_ITEMS = [
   { id: "messages", label: "Messages", icon: "mail" },
   { id: "letters", label: "Letter Requests", icon: "description" },
   { id: "access", label: "Access", icon: "admin_panel_settings" },
+  { id: "assistant", label: "AI Assistant", icon: "auto_awesome" },
   { id: "about", label: "Society Details", icon: "info" },
 
   // { id: "setup", label: "DB Setup", icon: "database" },
@@ -108,6 +111,7 @@ export default function App() {
   const isEventRoute = currentPath.startsWith("/event") || currentHash.startsWith("#/event") || currentHash.startsWith("#event");
   const isNoticeRoute = currentPath.startsWith("/notice") || currentHash.startsWith("#/notice") || currentHash.startsWith("#notice");
   const isScanAttendanceRoute = currentPath.startsWith("/scan-attendance") || currentHash.startsWith("#/scan-attendance") || currentHash.startsWith("#scan-attendance");
+  const isAssistantRoute = currentPath.startsWith("/assistant") || currentHash.startsWith("#/assistant") || currentHash.startsWith("#assistant");
   const isLoginRoute = currentPath === "/login" || currentHash === "#/login" || currentHash === "#login";
 
   const handleFileChange = (e) => {
@@ -230,13 +234,13 @@ export default function App() {
     };
   }, []);
 
-  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters };
+  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage };
   const PageComponent = pages[page];
   const isRealStaff = canEdit(session.role);
   const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
   const isEditor = canEdit(effectiveRole);
   const visibleNavItems = effectiveRole === "guest"
-    ? NAV_ITEMS.filter(item => item.id === "about")
+    ? NAV_ITEMS.filter(item => item.id === "about" || item.id === "assistant")
     : NAV_ITEMS.filter(item => {
       if (item.id === "access") return effectiveRole === "admin";
       if (item.id === "letters") return isEditor;
@@ -492,6 +496,17 @@ export default function App() {
   if (isScanAttendanceRoute) {
     return (
       <ScanAttendance
+        onBackToLanding={() => {
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+      />
+    );
+  }
+
+  if (isAssistantRoute) {
+    return (
+      <AssistantPage
         onBackToLanding={() => {
           window.history.pushState({}, "", "/");
           window.dispatchEvent(new Event("popstate"));
@@ -1052,6 +1067,9 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* AI Assistant widget — hidden when user is on the dedicated full page */}
+      {page !== "assistant" && <ChatWidget />}
     </div>
   );
 }
