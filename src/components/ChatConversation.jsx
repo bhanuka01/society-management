@@ -34,57 +34,165 @@ const MEMBER_QUICK_ASK_PILLS = [
   "How to check in via QR?",
 ];
 
+export function CsvDownloadButton({ filename = "event_attendance.csv", csvData }) {
+  const handleDownload = () => {
+    const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div style={{ margin: "10px 0 6px" }}>
+      <button
+        type="button"
+        onClick={handleDownload}
+        className="chat-csv-download-btn"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "8px 14px",
+          background: "var(--accent-dim, rgba(99, 102, 241, 0.15))",
+          border: "1px solid var(--accent, #6366f1)",
+          borderRadius: "var(--r, 8px)",
+          color: "var(--accent2, #818cf8)",
+          fontWeight: "600",
+          fontSize: "13px",
+          cursor: "pointer",
+          transition: "all 0.15s ease",
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
+          download
+        </span>
+        <span>Download Attendance CSV</span>
+      </button>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Lightweight inline Markdown renderer — zero external dependencies.
-   Handles: **bold**, *italic*, `code`, and blank-line paragraph breaks.
+   Handles: **bold**, *italic*, `code`, ```code/csv``` blocks, and blank-line breaks.
 ───────────────────────────────────────────────────────────────────────────── */
 export function renderMdText(text) {
   if (!text) return null;
-  const lines = text.split("\n");
-  const elements = [];
 
-  lines.forEach((line, li) => {
-    if (li > 0) {
-      if (line.trim() === "") {
-        elements.push(<div key={`gap-${li}`} style={{ height: "6px" }} />);
-        return;
-      }
-      elements.push(<br key={`br-${li}`} />);
+  // Detect code blocks (including ```csv ... ```)
+  const codeBlockRx = /```(?:csv|text)?\n([\s\S]*?)\n```/g;
+  const blocks = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRx.exec(text)) !== null) {
+    const textBefore = text.slice(lastIndex, match.index);
+    if (textBefore) {
+      blocks.push({ type: "text", content: textBefore });
     }
 
-    const tokens = [];
-    const rx = /\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|([^*`]+)/g;
-    let m;
-    let tIdx = 0;
-    while ((m = rx.exec(line)) !== null) {
-      if (m[1] !== undefined) {
-        tokens.push(<strong key={`${li}-b-${tIdx++}`}>{m[1]}</strong>);
-      } else if (m[2] !== undefined) {
-        tokens.push(<em key={`${li}-i-${tIdx++}`}>{m[2]}</em>);
-      } else if (m[3] !== undefined) {
-        tokens.push(
-          <code
-            key={`${li}-c-${tIdx++}`}
-            style={{
-              background: "var(--bg)",
-              border: "1px solid var(--border2)",
-              borderRadius: "4px",
-              padding: "1px 5px",
-              fontSize: "0.85em",
-              fontFamily: "var(--mono, monospace)",
-            }}
-          >
-            {m[3]}
-          </code>
-        );
-      } else {
-        tokens.push(<span key={`${li}-t-${tIdx++}`}>{m[4]}</span>);
-      }
-    }
-    elements.push(...tokens);
-  });
+    const codeContent = match[1].trim();
+    const isCsv =
+      match[0].startsWith("```csv") ||
+      (codeContent.includes(",") &&
+        (codeContent.toLowerCase().includes("st id") ||
+          codeContent.toLowerCase().includes("email") ||
+          codeContent.toLowerCase().includes("attended")));
 
-  return elements;
+    if (isCsv) {
+      blocks.push({ type: "csv", content: codeContent });
+    } else {
+      blocks.push({ type: "code", content: codeContent });
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  const remaining = text.slice(lastIndex);
+  if (remaining) {
+    blocks.push({ type: "text", content: remaining });
+  }
+
+  return (
+    <>
+      {blocks.map((block, bIdx) => {
+        if (block.type === "csv") {
+          return <CsvDownloadButton key={`csv-${bIdx}`} csvData={block.content} />;
+        }
+        if (block.type === "code") {
+          return (
+            <pre
+              key={`code-${bIdx}`}
+              style={{
+                background: "var(--bg)",
+                border: "1px solid var(--border2)",
+                borderRadius: "6px",
+                padding: "8px 12px",
+                fontSize: "0.85em",
+                overflowX: "auto",
+                fontFamily: "var(--mono, monospace)",
+                margin: "8px 0",
+              }}
+            >
+              <code>{block.content}</code>
+            </pre>
+          );
+        }
+
+        // Standard text line rendering
+        const lines = block.content.split("\n");
+        const elements = [];
+
+        lines.forEach((line, li) => {
+          if (li > 0) {
+            if (line.trim() === "") {
+              elements.push(<div key={`gap-${li}`} style={{ height: "6px" }} />);
+              return;
+            }
+            elements.push(<br key={`br-${li}`} />);
+          }
+
+          const tokens = [];
+          const rx = /\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|([^*`]+)/g;
+          let m;
+          let tIdx = 0;
+          while ((m = rx.exec(line)) !== null) {
+            if (m[1] !== undefined) {
+              tokens.push(<strong key={`${bIdx}-${li}-b-${tIdx++}`}>{m[1]}</strong>);
+            } else if (m[2] !== undefined) {
+              tokens.push(<em key={`${bIdx}-${li}-i-${tIdx++}`}>{m[2]}</em>);
+            } else if (m[3] !== undefined) {
+              tokens.push(
+                <code
+                  key={`${bIdx}-${li}-c-${tIdx++}`}
+                  style={{
+                    background: "var(--bg)",
+                    border: "1px solid var(--border2)",
+                    borderRadius: "4px",
+                    padding: "1px 5px",
+                    fontSize: "0.85em",
+                    fontFamily: "var(--mono, monospace)",
+                  }}
+                >
+                  {m[3]}
+                </code>
+              );
+            } else {
+              tokens.push(<span key={`${bIdx}-${li}-t-${tIdx++}`}>{m[4]}</span>);
+            }
+          }
+          elements.push(...tokens);
+        });
+
+        return <span key={`text-block-${bIdx}`}>{elements}</span>;
+      })}
+    </>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
