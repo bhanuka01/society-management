@@ -30,11 +30,10 @@ serve(async (req) => {
   try {
     const GMAIL_USER = Deno.env.get('GMAIL_USER');
     const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD');
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 
-    if (!GMAIL_USER && !RESEND_API_KEY) {
+    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
       return new Response(
-        JSON.stringify({ error: 'Neither GMAIL_USER nor RESEND_API_KEY is set in Supabase Secrets.' }),
+        JSON.stringify({ error: 'GMAIL_USER and GMAIL_APP_PASSWORD must be configured in Supabase Secrets.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -163,68 +162,39 @@ serve(async (req) => {
         break;
     }
 
-    // 1. Preferred Option: Send via Gmail SMTP if GMAIL_USER and GMAIL_APP_PASSWORD are set
-    if (GMAIL_USER && GMAIL_APP_PASSWORD) {
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: GMAIL_USER,
-          pass: GMAIL_APP_PASSWORD,
-        },
-      });
+    // Helper to strip HTML tags for plain text fallback (reduces spam score)
+    const textContent = htmlContent
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\n\s*\n/g, '\n')
+      .trim();
 
-      const mailOptions = {
-        from: `Society Team <${GMAIL_USER}>`,
-        to: to,
-        subject: subject,
-        html: htmlContent,
-      };
+    // Send via Gmail SMTP with explicit host/port
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // SSL
+      auth: {
+        user: GMAIL_USER.trim(),
+        pass: GMAIL_APP_PASSWORD.trim().replace(/\s+/g, ''),
+      },
+    });
 
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Email sent successfully via Gmail SMTP:', info.messageId);
+    const mailOptions = {
+      from: GMAIL_USER.trim(),
+      to: to.trim(),
+      subject: subject,
+      text: textContent,
+      html: htmlContent,
+    };
 
-      return new Response(
-        JSON.stringify({ success: true, provider: 'gmail', messageId: info.messageId }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 2. Fallback Option: Send via Resend API
-    if (RESEND_API_KEY) {
-      const FROM_EMAIL = Deno.env.get('SOCIETY_FROM_EMAIL') || 'Society Team <onboarding@resend.dev>';
-      const resendRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-          from: FROM_EMAIL,
-          to: [to],
-          subject: subject,
-          html: htmlContent,
-        }),
-      });
-
-      const resendData = await resendRes.json();
-
-      if (!resendRes.ok) {
-        console.error('Resend Error:', resendData);
-        return new Response(
-          JSON.stringify({ error: 'Failed to send email via Resend', details: resendData }),
-          { status: resendRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, provider: 'resend', messageId: resendData.id }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent successfully via Gmail SMTP:', info.messageId);
 
     return new Response(
-      JSON.stringify({ error: 'No valid email configuration found' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, provider: 'gmail', messageId: info.messageId }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (err: any) {

@@ -32,7 +32,16 @@ export default function Committee({ isAdmin = false, session }) {
 
   // Cal.com Embed Modal state
   const [calModal, setCalModal] = useState({ isOpen: false, row: null });
-  const [customCalUrl, setCustomCalUrl] = useState("https://cal.com/adss-ruhuna/30min");
+  const [customCalUrl, setCustomCalUrl] = useState(() => {
+    return localStorage.getItem("committee_cal_url") || "https://cal.com/adss-ruhuna/committee-interview";
+  });
+  const [calSetupModalOpen, setCalSetupModalOpen] = useState(false);
+  const CAL_WEBHOOK_URL = "https://zbhwelmxdgldbwbnsfhd.supabase.co/functions/v1/cal-webhook";
+
+  const handleCalUrlChange = (url) => {
+    setCustomCalUrl(url);
+    localStorage.setItem("committee_cal_url", url);
+  };
   const [emailSendingId, setEmailSendingId] = useState(null);
 
   // Interviewer Selection Invite Modal State
@@ -185,7 +194,7 @@ export default function Committee({ isAdmin = false, session }) {
     // Send application received email if candidate email exists
     const { data: member } = await supabase.from("members").select("email, name").eq("st_id", form.st_id.trim()).maybeSingle();
     if (member?.email) {
-      triggerResendEmail({
+      triggerSendEmail({
         to: member.email,
         type: "APPLICATION_RECEIVED",
         data: {
@@ -200,8 +209,8 @@ export default function Committee({ isAdmin = false, session }) {
     setTimeout(closeModal, 700);
   };
 
-  // Dispatch Email via Supabase Edge Function (Gmail SMTP or Resend)
-  const triggerResendEmail = async (payload) => {
+  // Dispatch Email via Supabase Edge Function (Gmail SMTP)
+  const triggerSendEmail = async (payload) => {
     try {
       const { data, error } = await supabase.functions.invoke("send-email", {
         body: payload
@@ -231,13 +240,13 @@ export default function Committee({ isAdmin = false, session }) {
 
       if (recipientEmail) {
         if (status === "Accept") {
-          await triggerResendEmail({
+          await triggerSendEmail({
             to: recipientEmail,
             type: "STATUS_ACCEPTED",
             data: { studentName, eventName, ocPosition: position }
           });
         } else if (status === "Reject") {
-          await triggerResendEmail({
+          await triggerSendEmail({
             to: recipientEmail,
             type: "STATUS_REJECTED",
             data: { studentName, eventName, ocPosition: position }
@@ -303,7 +312,7 @@ export default function Committee({ isAdmin = false, session }) {
         bookingUrlObj.searchParams.set("guests", finalInterviewerEmail);
         bookingUrlObj.searchParams.set("interviewer_email", finalInterviewerEmail);
 
-        await triggerResendEmail({
+        await triggerSendEmail({
           to: recipientEmail,
           type: "INTERVIEW_INVITE",
           data: {
@@ -415,6 +424,58 @@ export default function Committee({ isAdmin = false, session }) {
               onChange={(id) => { setPage(0); setSelectedEvent(id); }}
               placeholder="Search or select an event..."
             />
+
+            {/* Editable Cal.com Interview Link & Setup Popup Button (Admins/Editors ONLY) */}
+            {isAdmin && (
+              <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
+                <div style={{ flex: 1, minWidth: "260px" }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: "600", color: "#94a3b8", marginBottom: "4px" }}>
+                    🔗 Cal.com Interview Link (Editable)
+                  </label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="text"
+                      value={customCalUrl}
+                      onChange={e => handleCalUrlChange(e.target.value)}
+                      placeholder="https://cal.com/adss-ruhuna/committee-interview"
+                      style={{ flex: 1, padding: "7px 12px", fontSize: "0.88rem", borderRadius: "6px" }}
+                    />
+                    <a
+                      href={customCalUrl.startsWith("http") ? customCalUrl : `https://${customCalUrl}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-ghost btn-sm"
+                      style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "7px 12px", fontSize: "0.82rem", border: "1px solid rgba(255, 255, 255, 0.15)", whiteSpace: "nowrap" }}
+                      title="Open link in new tab"
+                    >
+                      ↗️ Open Link
+                    </a>
+                  </div>
+                </div>
+
+                <div style={{ alignSelf: "flex-end" }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setCalSetupModalOpen(true)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      backgroundColor: "rgba(59, 130, 246, 0.15)",
+                      color: "#60a5fa",
+                      border: "1px solid rgba(59, 130, 246, 0.3)",
+                      padding: "8px 14px",
+                      fontWeight: "600",
+                      fontSize: "0.85rem",
+                      borderRadius: "6px"
+                    }}
+                  >
+                    ⚙️ How to Setup Cal.com
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="toolbar" style={{ gap: "12px", alignItems: "center", marginBottom: "16px" }}>
@@ -515,63 +576,55 @@ export default function Committee({ isAdmin = false, session }) {
                         <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "0.9rem", fontWeight: "500" }}>{o.oc_position || "-"}</td>
                         <td style={{ padding: "12px" }}>{statusBadge(o.apply_status)}</td>
                         
-                        {/* Assigned Interviewer (Name ONLY, hidden for other members) */}
+                        {/* Assigned Interviewer (Name ONLY) */}
                         <td style={{ padding: "12px" }}>
-                          {canSeeDetails ? (
-                            interviewerDisplayName ? (
-                              <div style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                backgroundColor: "rgba(59, 130, 246, 0.15)",
-                                color: "#93c5fd",
-                                border: "1px solid rgba(59, 130, 246, 0.3)",
-                                padding: "4px 10px",
-                                borderRadius: "6px",
-                                fontSize: "0.85rem",
-                                fontWeight: "500"
-                              }}>
-                                👤 <span>{interviewerDisplayName}</span>
-                              </div>
-                            ) : (
-                              <span style={{
-                                backgroundColor: "rgba(148, 163, 184, 0.1)",
-                                color: "#cbd5e1",
-                                padding: "4px 8px",
-                                borderRadius: "6px",
-                                fontSize: "0.8rem"
-                              }}>Unassigned</span>
-                            )
+                          {interviewerDisplayName ? (
+                            <div style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              backgroundColor: "rgba(59, 130, 246, 0.15)",
+                              color: "#93c5fd",
+                              border: "1px solid rgba(59, 130, 246, 0.3)",
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              fontSize: "0.85rem",
+                              fontWeight: "500"
+                            }}>
+                              👤 <span>{interviewerDisplayName}</span>
+                            </div>
                           ) : (
-                            <span style={{ color: "#64748b", fontSize: "0.85rem" }}>—</span>
+                            <span style={{
+                              backgroundColor: "rgba(148, 163, 184, 0.1)",
+                              color: "#cbd5e1",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              fontSize: "0.8rem"
+                            }}>Unassigned</span>
                           )}
                         </td>
 
-                        {/* Interview Slot (Visible to Editors/Admins or Applicant ONLY) */}
+                        {/* Interview Slot (Scheduled date/time visible to all members; meeting link strictly private to applicant & admins) */}
                         <td style={{ padding: "12px" }}>
-                          {canSeeDetails ? (
-                            o.interview_date ? (
-                              <div>
-                                <div style={{ fontSize: "0.85rem", fontWeight: "600", color: "#34d399" }}>
-                                  📅 {new Date(o.interview_date).toLocaleString()}
-                                </div>
-                                {o.interview_link && (
-                                  <a href={o.interview_link} target="_blank" rel="noreferrer" style={{ fontSize: "0.8rem", color: "#60a5fa", textDecoration: "underline" }}>
-                                    🔗 Join Meeting
-                                  </a>
-                                )}
+                          {o.interview_date ? (
+                            <div>
+                              <div style={{ fontSize: "0.85rem", fontWeight: "600", color: "#34d399" }}>
+                                📅 {new Date(o.interview_date).toLocaleString()}
                               </div>
-                            ) : (
-                              <span style={{
-                                backgroundColor: "rgba(148, 163, 184, 0.1)",
-                                color: "#cbd5e1",
-                                padding: "4px 8px",
-                                borderRadius: "6px",
-                                fontSize: "0.82rem"
-                              }}>Not booked</span>
-                            )
+                              {canSeeDetails && o.interview_link && (
+                                <a href={o.interview_link} target="_blank" rel="noreferrer" style={{ fontSize: "0.8rem", color: "#60a5fa", textDecoration: "underline", display: "inline-block", marginTop: "2px" }}>
+                                  🔗 Join Meeting
+                                </a>
+                              )}
+                            </div>
                           ) : (
-                            <span style={{ color: "#64748b", fontSize: "0.85rem" }}>—</span>
+                            <span style={{
+                              backgroundColor: "rgba(148, 163, 184, 0.1)",
+                              color: "#cbd5e1",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              fontSize: "0.82rem"
+                            }}>Not booked</span>
                           )}
                         </td>
 
@@ -843,8 +896,8 @@ export default function Committee({ isAdmin = false, session }) {
               <label>Cal.com Link</label>
               <input
                 value={customCalUrl}
-                onChange={e => setCustomCalUrl(e.target.value)}
-                placeholder="https://cal.com/adss-ruhuna/30min"
+                onChange={e => handleCalUrlChange(e.target.value)}
+                placeholder="https://cal.com/adss-ruhuna/committee-interview"
               />
             </div>
 
@@ -876,6 +929,99 @@ export default function Committee({ isAdmin = false, session }) {
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={() => setFnModal(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={addFunction} disabled={fnSaving}>{fnSaving ? "Adding..." : "Add Function"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Setup Cal.com Modal */}
+      {calSetupModalOpen && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setCalSetupModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: 580 }}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>⚙️</span> Cal.com Setup Guide & Webhook Configuration
+              </h2>
+              <button className="modal-close" onClick={() => setCalSetupModalOpen(false)}>x</button>
+            </div>
+
+            <div style={{ fontSize: "0.9rem", color: "#e2e8f0", display: "flex", flexDirection: "column", gap: "16px" }}>
+              <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.5 }}>
+                Follow these instructions to connect your <strong>Cal.com</strong> account to Society Management for automated interview tracking and Google Meet booking updates.
+              </p>
+
+              {/* Step 1 */}
+              <div style={{ background: "var(--bg3)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <div style={{ fontWeight: "700", color: "#60a5fa", marginBottom: "4px" }}>
+                  Step 1: Set up Cal.com Event Type
+                </div>
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.4 }}>
+                  1. Log in to your <a href="https://cal.com" target="_blank" rel="noreferrer" style={{ color: "#38bdf8", textDecoration: "underline" }}>Cal.com</a> dashboard.<br/>
+                  2. Create or edit an Event Type (e.g. <code>committee-interview</code>).<br/>
+                  3. Copy your link (default: <code>https://cal.com/adss-ruhuna/committee-interview</code>) and save it in the <strong>Cal.com Interview Link</strong> box on the Event Committee panel.
+                </p>
+              </div>
+
+              {/* Step 2 - Critical Webhook */}
+              <div style={{ background: "rgba(234, 179, 8, 0.1)", padding: "14px", borderRadius: "8px", border: "1px solid rgba(234, 179, 8, 0.3)" }}>
+                <div style={{ fontWeight: "700", color: "#facc15", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>⚠️</span> Step 2: Add Webhook in Cal.com (REQUIRED)
+                </div>
+                <p style={{ margin: "0 0 10px 0", fontSize: "0.85rem", color: "#fef08a", lineHeight: 1.4 }}>
+                  To automatically change status to <strong>Interview Scheduled</strong> when a candidate books a slot, you MUST add this Webhook URL:
+                </p>
+
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    readOnly
+                    value={CAL_WEBHOOK_URL}
+                    style={{
+                      flex: 1,
+                      padding: "8px 10px",
+                      fontSize: "0.82rem",
+                      fontFamily: "monospace",
+                      backgroundColor: "rgba(0, 0, 0, 0.4)",
+                      color: "#38bdf8",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      borderRadius: "6px"
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(CAL_WEBHOOK_URL);
+                      alert("Webhook URL copied to clipboard!");
+                    }}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    📋 Copy Webhook
+                  </button>
+                </div>
+
+                <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "#cbd5e1", lineHeight: 1.4 }}>
+                  <strong>Where to add in Cal.com:</strong><br/>
+                  Navigate to <strong>Settings</strong> &gt; <strong>Developer</strong> &gt; <strong>Webhooks</strong> &gt; click <strong>Add Webhook</strong>.<br/>
+                  Paste the Webhook URL above, set Triggers to <strong>Booking Created</strong> and <strong>Booking Rescheduled</strong>, then click Save.
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div style={{ background: "var(--bg3)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <div style={{ fontWeight: "700", color: "#34d399", marginBottom: "4px" }}>
+                  Step 3: Automated Workflow
+                </div>
+                <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5 }}>
+                  <li>Click <strong>✉️ Invite</strong> next to an OC applicant to send an invitation email containing the personalized booking link.</li>
+                  <li>When the applicant books an interview time on Cal.com, the webhook updates their status to <span style={{ color: "#c084fc", fontWeight: "600" }}>Interview Scheduled</span> automatically!</li>
+                  <li>The meeting time and Google Meet link are saved directly into the candidate's table row.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: "20px" }}>
+              <button className="btn btn-primary" onClick={() => setCalSetupModalOpen(false)}>Got it!</button>
             </div>
           </div>
         </div>
