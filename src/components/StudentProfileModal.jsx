@@ -256,7 +256,17 @@ export default function StudentProfileModal({ stId, onClose }) {
                           <div style={{ fontSize: "11px", color: "var(--accent2)" }}>{o.functions?.function_name}</div>
                         </td>
                         <td>
-                          <div style={{ fontWeight: "600" }}>{o.oc_position || "Member"}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                            {o.oc_position ? (
+                              o.oc_position.split(",").map((pos, pIdx) => (
+                                <span key={pIdx} className="badge badge-purple" style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "12px" }}>
+                                  {pos.trim()}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="badge badge-gray" style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "12px" }}>Member</span>
+                            )}
+                          </div>
                           <div style={{ marginTop: "4px" }}>
                             {o.apply_status === "Accept" ? (
                               <span className="badge badge-green" style={{ fontSize: "9px", padding: "1px 6px" }}>Accepted</span>

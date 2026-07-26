@@ -3,8 +3,46 @@ import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 
-const EMPTY = { event_id: "", name: "", date: "", oc_st_id: "", apply_start_date: "", apply_end_date: "", description: "", time: "", tally_link: "", flyer_url: "", is_public: true, self_attendance_enabled: false };
-const APPLY_EMPTY = { function_id: "", oc_position: "", member_function_name: "" };
+const STANDARD_OC_POSITIONS = [
+  "OC President",
+  "OC Secretary",
+  "Content & Communication",
+  "Marketing",
+  "Session Moderating",
+  "Public Relations",
+  "Technical & Platform Management",
+  "Event & Logistics"
+];
+
+const parsePositionsList = (val) => {
+  if (!val) return STANDARD_OC_POSITIONS;
+  if (Array.isArray(val)) return val;
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+    return val.split(",").map(p => p.trim()).filter(Boolean);
+  }
+  return STANDARD_OC_POSITIONS;
+};
+
+const EMPTY = { 
+  event_id: "", 
+  name: "", 
+  date: "", 
+  oc_st_id: "", 
+  apply_start_date: "", 
+  apply_end_date: "", 
+  description: "", 
+  time: "", 
+  tally_link: "", 
+  flyer_url: "", 
+  is_public: true, 
+  self_attendance_enabled: false,
+  available_oc_positions: STANDARD_OC_POSITIONS
+};
+const APPLY_EMPTY = { function_id: "", selected_positions: [], member_function_name: "" };
 
 export default function Events({ isAdmin = false, session }) {
   const [events, setEvents] = useState([]);
@@ -27,6 +65,8 @@ export default function Events({ isAdmin = false, session }) {
   const [myAttendanceMap, setMyAttendanceMap] = useState({});
   const [markingMap, setMarkingMap] = useState({});
   const [eventOcMembers, setEventOcMembers] = useState([]);
+  const [existingApp, setExistingApp] = useState(null);
+  const [customPosInput, setCustomPosInput] = useState("");
 
   const load = async (pageToLoad = page, searchText = search) => {
     setLoading(true);
@@ -72,7 +112,7 @@ export default function Events({ isAdmin = false, session }) {
 
   useEffect(() => { load(page, search); }, [page, search]);
 
-  const openAdd = () => { setForm(EMPTY); setEditTarget(null); setEventOcMembers([]); setModal(true); setMsg(null); };
+  const openAdd = () => { setForm(EMPTY); setEditTarget(null); setEventOcMembers([]); setModal(true); setMsg(null); setCustomPosInput(""); };
   const openEdit = async (e) => {
     setForm({ 
       event_id: e.event_id, 
@@ -86,11 +126,13 @@ export default function Events({ isAdmin = false, session }) {
       tally_link: e.tally_link || "",
       flyer_url: e.flyer_url || "",
       is_public: e.is_public !== false,
-      self_attendance_enabled: e.self_attendance_enabled === true
+      self_attendance_enabled: e.self_attendance_enabled === true,
+      available_oc_positions: parsePositionsList(e.available_oc_positions)
     });
     setEditTarget(e.event_id);
     setModal(true);
     setMsg(null);
+    setCustomPosInput("");
     setFlyerFile(null);
     setFlyerPreview(null);
     setEventOcMembers([]);
@@ -135,6 +177,7 @@ export default function Events({ isAdmin = false, session }) {
   const openApply = async (e) => {
     setApplyTarget(e);
     setApplyForm(APPLY_EMPTY);
+    setExistingApp(null);
     setApplyModal(true);
     setMsg(null);
 
@@ -179,22 +222,36 @@ export default function Events({ isAdmin = false, session }) {
           }
         }
 
-        if (matchedFunc) {
-          setApplyForm(prev => ({
-            ...prev,
-            function_id: matchedFunc.id.toString(),
-            member_function_name: matchedFunc.function_name
-          }));
-        } else {
-          setMsg({ type: "error", text: "Could not resolve your member function." });
+        // Check if member already applied for this event
+        const { data: existingData } = await supabase
+          .from("oc")
+          .select("*, functions(function_name)")
+          .eq("event_id", e.event_id)
+          .eq("st_id", session.stId)
+          .maybeSingle();
+
+        let selectedPos = [];
+        if (existingData) {
+          setExistingApp(existingData);
+          if (existingData.oc_position) {
+            selectedPos = existingData.oc_position.split(",").map(p => p.trim()).filter(Boolean);
+          }
         }
+
+        setApplyForm(prev => ({
+          ...prev,
+          function_id: matchedFunc ? matchedFunc.id.toString() : (existingData?.function_id?.toString() || prev.function_id),
+          member_function_name: matchedFunc ? matchedFunc.function_name : (existingData?.functions?.function_name || memberFunc),
+          selected_positions: selectedPos
+        }));
+
       } catch (err) {
         console.error("Error in openApply:", err);
         setMsg({ type: "error", text: "Failed to load member profile: " + err.message });
       }
     }
   };
-  const closeApplyModal = () => { setApplyModal(false); setMsg(null); };
+  const closeApplyModal = () => { setApplyModal(false); setMsg(null); setExistingApp(null); };
 
   const getMemberName = (stId) => members.find(m => m.st_id === stId)?.name || stId;
 
@@ -247,7 +304,10 @@ export default function Events({ isAdmin = false, session }) {
       tally_link: form.tally_link || null,
       flyer_url: flyerUrl,
       is_public: form.is_public !== false,
-      self_attendance_enabled: form.self_attendance_enabled === true
+      self_attendance_enabled: form.self_attendance_enabled === true,
+      available_oc_positions: Array.isArray(form.available_oc_positions)
+        ? JSON.stringify(form.available_oc_positions)
+        : form.available_oc_positions || null
     };
 
     let error;
@@ -268,18 +328,37 @@ export default function Events({ isAdmin = false, session }) {
       setMsg({ type: "error", text: "Function is required." });
       return;
     }
+    if (!applyForm.selected_positions || applyForm.selected_positions.length === 0) {
+      setMsg({ type: "error", text: "Please select at least one preferred position." });
+      return;
+    }
     setSaving(true);
-    const payload = {
-      event_id: applyTarget.event_id,
-      st_id: session.stId,
-      function_id: parseInt(applyForm.function_id),
-      oc_position: applyForm.oc_position.trim() || null,
-      apply_status: "Pending",
-    };
-    const { error } = await supabase.from("oc").insert([payload]);
+    const positionStr = applyForm.selected_positions.join(", ");
+    
+    let error;
+    if (existingApp) {
+      ({ error } = await supabase
+        .from("oc")
+        .update({ oc_position: positionStr })
+        .eq("event_id", applyTarget.event_id)
+        .eq("st_id", session.stId));
+    } else {
+      const payload = {
+        event_id: applyTarget.event_id,
+        st_id: session.stId,
+        function_id: parseInt(applyForm.function_id),
+        oc_position: positionStr,
+        apply_status: "Pending",
+      };
+      ({ error } = await supabase.from("oc").insert([payload]));
+    }
+
     setSaving(false);
     if (error) { setMsg({ type: "error", text: error.message }); return; }
-    setMsg({ type: "success", text: "Application submitted successfully." });
+    setMsg({ 
+      type: "success", 
+      text: existingApp ? "Application choices updated successfully." : "Application submitted successfully." 
+    });
     setTimeout(closeApplyModal, 1500);
   };
 
@@ -615,6 +694,87 @@ export default function Events({ isAdmin = false, session }) {
                 <input type="date" value={form.apply_end_date} onChange={e => setForm({ ...form, apply_end_date: e.target.value })} />
               </div>
             </div>
+            <div className="form-row" style={{ marginBottom: "15px" }}>
+              <div className="form-group" style={{ background: "var(--bg3)", padding: "14px", borderRadius: "var(--r)", border: "1px solid var(--border)", width: "100%" }}>
+                <label style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", display: "block" }}>
+                  Available OC Preferred Positions for Applicants
+                </label>
+                <span className="text-muted" style={{ fontSize: "11px", display: "block", marginBottom: "10px" }}>
+                  Select which positions applicants can choose for this event:
+                </span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+                  {STANDARD_OC_POSITIONS.map(pos => {
+                    const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
+                    const isSelected = currentArr.includes(pos);
+                    return (
+                      <button
+                        key={pos}
+                        type="button"
+                        className={`btn btn-sm ${isSelected ? "btn-primary" : "btn-ghost"}`}
+                        style={{ borderRadius: "20px", fontSize: "12px", padding: "4px 12px" }}
+                        onClick={() => {
+                          const nextArr = isSelected
+                            ? currentArr.filter(p => p !== pos)
+                            : [...currentArr, pos];
+                          setForm({ ...form, available_oc_positions: nextArr });
+                        }}
+                      >
+                        {isSelected ? "✓ " : "+ "}{pos}
+                      </button>
+                    );
+                  })}
+                  {Array.isArray(form.available_oc_positions) && form.available_oc_positions.filter(p => !STANDARD_OC_POSITIONS.includes(p)).map(customPos => (
+                    <button
+                      key={customPos}
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      style={{ borderRadius: "20px", fontSize: "12px", padding: "4px 12px" }}
+                      onClick={() => {
+                        const nextArr = form.available_oc_positions.filter(p => p !== customPos);
+                        setForm({ ...form, available_oc_positions: nextArr });
+                      }}
+                    >
+                      ✓ {customPos} ✕
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    placeholder="Add custom position (e.g. Design Lead)..."
+                    value={customPosInput}
+                    onChange={e => setCustomPosInput(e.target.value)}
+                    style={{ fontSize: "12px", padding: "6px 10px", flexGrow: 1 }}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (customPosInput.trim()) {
+                          const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
+                          if (!currentArr.includes(customPosInput.trim())) {
+                            setForm({ ...form, available_oc_positions: [...currentArr, customPosInput.trim()] });
+                          }
+                          setCustomPosInput("");
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      if (customPosInput.trim()) {
+                        const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
+                        if (!currentArr.includes(customPosInput.trim())) {
+                          setForm({ ...form, available_oc_positions: [...currentArr, customPosInput.trim()] });
+                        }
+                        setCustomPosInput("");
+                      }
+                    }}
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+            </div>
             <div className="form-row">
               <div className="form-group">
                 <label>Assigned OC Lead</label>
@@ -661,6 +821,25 @@ export default function Events({ isAdmin = false, session }) {
 
             {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
+            {existingApp && (
+              <div style={{
+                padding: "12px 14px",
+                background: existingApp.apply_status === "Accept" ? "rgba(34, 197, 94, 0.15)" : existingApp.apply_status === "Reject" ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                border: `1px solid ${existingApp.apply_status === "Accept" ? "#22c55e" : existingApp.apply_status === "Reject" ? "#ef4444" : "#f59e0b"}`,
+                borderRadius: "var(--r)",
+                marginBottom: 15
+              }}>
+                <div style={{ fontWeight: "600", fontSize: "13px", color: existingApp.apply_status === "Accept" ? "#4ade80" : existingApp.apply_status === "Reject" ? "#f87171" : "#fbbf24", marginBottom: "4px" }}>
+                  {existingApp.apply_status === "Accept" ? "✓ Application Accepted" : existingApp.apply_status === "Reject" ? "✕ Application Rejected" : "⏳ Application Submitted (Pending)"}
+                </div>
+                <div style={{ fontSize: "12px", color: "var(--text)" }}>
+                  {existingApp.apply_status === "Pending" 
+                    ? "You have already applied for this event. Members can only apply once per event, but you can update your preferred positions below."
+                    : `Your application has been processed (Status: ${existingApp.apply_status}).`}
+                </div>
+              </div>
+            )}
+
             {applyForm.member_function_name ? (
               <div className="form-group" style={{ marginBottom: 15 }}>
                 <label>Your Function (Auto-detected)</label>
@@ -675,25 +854,72 @@ export default function Events({ isAdmin = false, session }) {
             )}
 
             <div className="form-group" style={{ marginBottom: 15 }}>
-              <label>Preferred Position (Optional)</label>
-              <select value={applyForm.oc_position} onChange={e => setApplyForm({ ...applyForm, oc_position: e.target.value })}>
-                <option value="">-- Choose preferred position --</option>
-                <option value="OC President">OC President</option>
-                <option value="OC Secretary">OC Secretary</option>
-                <option value="Content & Communication">Content & Communication</option>
-                <option value="Marketing">Marketing</option>
-                <option value="Session Moderating">Session Moderating</option>
-                <option value="Public Relations">Public Relations</option>
-                <option value="Technical & Platform Management">Technical & Platform Management</option>
-                <option value="Event & Logistics">Event & Logistics</option>
-              </select>
+              <label style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", display: "block" }}>
+                Preferred Positions (Select 1 or more) *
+              </label>
+              <span className="text-muted" style={{ fontSize: "11px", display: "block", marginBottom: "8px" }}>
+                Select one or multiple preferred positions offered for this event:
+              </span>
+
+              {(() => {
+                const available = parsePositionsList(applyTarget?.available_oc_positions);
+                const selected = applyForm.selected_positions || [];
+                const isLocked = existingApp && existingApp.apply_status !== "Pending";
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {available.map(pos => {
+                      const checked = selected.includes(pos);
+                      return (
+                        <label
+                          key={pos}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "8px 12px",
+                            background: checked ? "rgba(0, 98, 255, 0.12)" : "var(--bg3)",
+                            border: `1px solid ${checked ? "#0062ff" : "var(--border)"}`,
+                            borderRadius: "var(--r)",
+                            cursor: isLocked ? "not-allowed" : "pointer",
+                            transition: "all 0.15s ease",
+                            opacity: isLocked && !checked ? 0.6 : 1
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={isLocked}
+                            onChange={() => {
+                              if (isLocked) return;
+                              const nextSelected = checked
+                                ? selected.filter(p => p !== pos)
+                                : [...selected, pos];
+                              setApplyForm({ ...applyForm, selected_positions: nextSelected });
+                            }}
+                            style={{ width: "16px", height: "16px", accentColor: "#0062ff", cursor: isLocked ? "not-allowed" : "pointer" }}
+                          />
+                          <span style={{ fontSize: "13px", fontWeight: checked ? "600" : "400", color: "var(--text)" }}>
+                            {pos}
+                          </span>
+                        </label>
+                      );
+                    })}
+                    <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--text-muted)" }}>
+                      Selected ({selected.length}): <strong style={{ color: "var(--text)" }}>{selected.length > 0 ? selected.join(", ") : "None"}</strong>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={closeApplyModal}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleApplySave} disabled={saving || !applyForm.function_id}>
-                {saving ? "Submitting..." : "Submit Application"}
-              </button>
+              {(!existingApp || existingApp.apply_status === "Pending") && (
+                <button className="btn btn-primary" onClick={handleApplySave} disabled={saving || !applyForm.function_id}>
+                  {saving ? "Submitting..." : existingApp ? "Update Application" : "Submit Application"}
+                </button>
+              )}
             </div>
           </div>
         </div>

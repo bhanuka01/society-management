@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS events (
   tally_link TEXT,
   flyer_url TEXT,
   is_public BOOLEAN DEFAULT TRUE,
-  self_attendance_enabled BOOLEAN DEFAULT FALSE
+  self_attendance_enabled BOOLEAN DEFAULT FALSE,
+  available_oc_positions TEXT
 );
 
 -- If your events table already exists, run this once:
@@ -62,7 +63,8 @@ ADD COLUMN IF NOT EXISTS time VARCHAR(100),
 ADD COLUMN IF NOT EXISTS tally_link TEXT,
 ADD COLUMN IF NOT EXISTS flyer_url TEXT,
 ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE,
-ADD COLUMN IF NOT EXISTS self_attendance_enabled BOOLEAN DEFAULT FALSE;
+ADD COLUMN IF NOT EXISTS self_attendance_enabled BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS available_oc_positions TEXT;
 
 -- 5. Organizing Committee (per event task assignments)
 CREATE TABLE IF NOT EXISTS oc (

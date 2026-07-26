@@ -50,6 +50,63 @@ export default function Committee({ isAdmin = false, session }) {
   const [customInterviewerEmail, setCustomInterviewerEmail] = useState("");
   const [inviteSending, setInviteSending] = useState(false);
 
+  // Accept Position Selection Modal State
+  const [acceptModal, setAcceptModal] = useState({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" });
+
+  const openAcceptModal = (o) => {
+    const posList = o.oc_position
+      ? o.oc_position.split(",").map(p => p.trim()).filter(Boolean)
+      : [];
+    const defaultPos = posList.length > 0 ? posList[0] : (o.functions?.function_name || "Committee Member");
+    setAcceptModal({
+      isOpen: true,
+      row: o,
+      positions: posList,
+      selectedPosition: defaultPos,
+      customPosition: ""
+    });
+  };
+
+  const handleConfirmAccept = async () => {
+    const o = acceptModal.row;
+    if (!o) return;
+
+    const finalPos = acceptModal.customPosition.trim() || acceptModal.selectedPosition.trim();
+    if (!finalPos) {
+      alert("Please select or enter a position to assign.");
+      return;
+    }
+
+    setEmailSendingId(`${o.st_id}-${o.function_id}`);
+    const { error } = await supabase.from("oc")
+      .update({
+        apply_status: "Accept",
+        oc_position: finalPos
+      })
+      .eq("event_id", selectedEvent)
+      .eq("st_id", o.st_id)
+      .eq("function_id", o.function_id);
+
+    if (error) {
+      alert(error.message);
+    } else {
+      const recipientEmail = o.members?.email;
+      const studentName = o.members?.name || "Applicant";
+      const eventName = selectedEventInfo?.name || "Society Event";
+
+      if (recipientEmail) {
+        await triggerSendEmail({
+          to: recipientEmail,
+          type: "STATUS_ACCEPTED",
+          data: { studentName, eventName, ocPosition: finalPos }
+        });
+      }
+      setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" });
+      loadOc(selectedEvent, page, filterStatus, search);
+    }
+    setEmailSendingId(null);
+  };
+
   // Search & Pagination inside Invite Modal for Interviewers
   const [interviewerSearch, setInterviewerSearch] = useState("");
   const [interviewerPage, setInterviewerPage] = useState(0);
@@ -480,7 +537,7 @@ export default function Committee({ isAdmin = false, session }) {
 
           <div className="toolbar" style={{ gap: "12px", alignItems: "center", marginBottom: "16px" }}>
             <div className="search-input-wrap" style={{ position: "relative", flex: 1, minWidth: "220px" }}>
-              <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: "1rem" }}>🔍</span>
+              {/* <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: "1rem" }}>🔍</span> */}
               <input
                 placeholder="Search by ID, position, status..."
                 value={search}
@@ -574,7 +631,29 @@ export default function Committee({ isAdmin = false, session }) {
                           </div>
                         </td>
                         <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "13px" }}>{o.functions?.function_name || "-"}</td>
-                        <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "13px", fontWeight: "500" }}>{o.oc_position || "-"}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          {o.oc_position ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxWidth: "240px" }}>
+                              {o.oc_position.split(",").map((pos, idx) => (
+                                <span
+                                  key={idx}
+                                  className="badge badge-purple"
+                                  style={{
+                                    fontSize: "11px",
+                                    padding: "2px 8px",
+                                    fontWeight: "500",
+                                    whiteSpace: "nowrap",
+                                    borderRadius: "12px"
+                                  }}
+                                >
+                                  {pos.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: "12px" }}>-</span>
+                          )}
+                        </td>
                         <td style={{ padding: "12px" }}>{statusBadge(o.apply_status)}</td>
 
                         {/* Assigned Interviewer (Name ONLY) */}
@@ -640,7 +719,7 @@ export default function Committee({ isAdmin = false, session }) {
                                 disabled={isProcessing}
                                 title="Select Interviewer and send Cal.com invitation email"
                               >
-                                ✉️ Invite
+                                Invite
                               </button>
 
                               {/* Open Cal.com Embed Modal */}
@@ -650,14 +729,14 @@ export default function Committee({ isAdmin = false, session }) {
                                 onClick={() => setCalModal({ isOpen: true, row: o })}
                                 title="Book via Cal.com Embed"
                               >
-                                📅 Cal
+                                Cal
                               </button>
 
                               {o.apply_status !== "Accept" && (
                                 <button
                                   className="btn btn-success btn-sm"
                                   style={{ backgroundColor: "#16a34a", color: "#ffffff", border: "none", padding: "4px 10px" }}
-                                  onClick={() => updateStatus(o, "Accept")}
+                                  onClick={() => openAcceptModal(o)}
                                   disabled={isProcessing}
                                 >
                                   Accept
@@ -1009,6 +1088,104 @@ export default function Committee({ isAdmin = false, session }) {
         eventName={selectedEventInfo?.name}
         position={calModal.row?.oc_position || calModal.row?.functions?.function_name}
       />
+
+      {/* Accept & Select Position Modal */}
+      {acceptModal.isOpen && acceptModal.row && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}>
+          <div className="modal" style={{ maxWidth: "500px" }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Accept Committee Member</h2>
+              <button className="modal-close" onClick={() => setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}>x</button>
+            </div>
+
+            <div style={{ marginBottom: "15px", fontSize: "13px", color: "var(--text)" }}>
+              <p style={{ margin: "0 0 6px 0" }}>
+                <strong>Applicant:</strong> {acceptModal.row.members?.name || acceptModal.row.st_id} ({acceptModal.row.st_id})
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Function:</strong> {acceptModal.row.functions?.function_name || "General"}
+              </p>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: "15px" }}>
+              <label style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", display: "block" }}>
+                Assign Official Position (Select ONLY 1) *
+              </label>
+              <span className="text-muted" style={{ fontSize: "11px", display: "block", marginBottom: "10px" }}>
+                The applicant selected preferred position(s). Choose the single position to assign for this member:
+              </span>
+
+              {acceptModal.positions && acceptModal.positions.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                  {acceptModal.positions.map((pos, idx) => {
+                    const isChecked = acceptModal.selectedPosition === pos && !acceptModal.customPosition;
+                    return (
+                      <label
+                        key={idx}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "10px 14px",
+                          background: isChecked ? "rgba(34, 197, 94, 0.15)" : "var(--bg3)",
+                          border: `1px solid ${isChecked ? "#22c55e" : "var(--border)"}`,
+                          borderRadius: "var(--r)",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="accept-position-radio"
+                          checked={isChecked}
+                          onChange={() => setAcceptModal(prev => ({ ...prev, selectedPosition: pos, customPosition: "" }))}
+                          style={{ width: "16px", height: "16px", accentColor: "#22c55e", cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: "13px", fontWeight: isChecked ? "600" : "400", color: "var(--text)" }}>
+                          {pos}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "10px" }}>
+                  No preferred position was specified by applicant.
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label style={{ fontSize: "12px", fontWeight: "500", color: "var(--text-muted)" }}>
+                  Or type a custom assigned position:
+                </label>
+                <input
+                  placeholder="e.g. Design Lead..."
+                  value={acceptModal.customPosition}
+                  onChange={e => setAcceptModal(prev => ({ ...prev, customPosition: e.target.value }))}
+                  style={{ fontSize: "13px" }}
+                />
+              </div>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: "20px" }}>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={handleConfirmAccept}
+                disabled={!!emailSendingId}
+                style={{ backgroundColor: "#16a34a", color: "#ffffff", border: "none" }}
+              >
+                {emailSendingId ? "Accepting..." : "Confirm & Accept Member"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <StudentProfileModal stId={profileTarget} onClose={() => setProfileTarget(null)} />
     </div>

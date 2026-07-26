@@ -598,8 +598,18 @@ export default function MyInfo({ session }) {
                       {/* Header: Event & Status Badge */}
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
                         <strong style={{ fontSize: "13px", color: "var(--text)" }}>{o.events?.name || "Unknown Event"}</strong>
-                        <div style={{ fontSize: "12px", color: "var(--accent2)", fontWeight: "500" }}>
-                          {o.functions?.function_name || "General Sub-team"} • <span style={{ color: "var(--text)" }}>{o.oc_position || "Committee Member"}</span>
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--accent2)", fontWeight: "500", marginTop: "2px" }}>
+                          <span>{o.functions?.function_name || "General Sub-team"}</span>
+                          <span style={{ color: "var(--text3)" }}>•</span>
+                          {o.oc_position ? (
+                            o.oc_position.split(",").map((pos, idx) => (
+                              <span key={idx} className="badge badge-purple" style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "12px" }}>
+                                {pos.trim()}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="badge badge-gray" style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "12px" }}>Committee Member</span>
+                          )}
                         </div>
                         <div style={{ marginTop: "2px" }}>{renderOcStatusBadge(o.apply_status)}</div>
                       </div>
