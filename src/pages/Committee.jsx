@@ -273,8 +273,8 @@ export default function Committee({ isAdmin = false, session }) {
     const o = inviteModal.row;
     if (!o) return;
 
-    const finalInterviewerEmail = selectedInterviewerEmail === "custom" 
-      ? customInterviewerEmail.trim() 
+    const finalInterviewerEmail = selectedInterviewerEmail === "custom"
+      ? customInterviewerEmail.trim()
       : selectedInterviewerEmail.trim();
 
     if (!finalInterviewerEmail) {
@@ -546,36 +546,37 @@ export default function Committee({ isAdmin = false, session }) {
                         }}
                       >
                         {isAdmin && (
-                          <td style={{ padding: "12px" }}>
-                            <span style={{ fontFamily: "monospace", color: "#e2e8f0", fontWeight: "600", fontSize: "0.88rem" }}>
-                              {o.st_id}
-                            </span>
+                          <td className="mono" style={{ padding: "12px" }}>
+                            {o.st_id}
                           </td>
                         )}
                         <td style={{ padding: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
                             {isAdmin ? (
                               <strong
                                 className="clickable-member"
                                 onClick={() => setProfileTarget(o.st_id)}
-                                style={{ cursor: "pointer", color: "#60a5fa", fontSize: "0.95rem", fontWeight: "600" }}
+                                style={{ cursor: "pointer", color: "#60a5fa", fontSize: "13px", fontWeight: "600" }}
                               >
                                 {o.members?.name || "-"}
                               </strong>
                             ) : (
-                              <strong style={{ color: "#f8fafc", fontSize: "0.95rem" }}>{o.members?.name || "-"}</strong>
+                              <strong style={{ color: "#f8fafc", fontSize: "13px" }}>{o.members?.name || "-"}</strong>
                             )}
-                            {own && (
-                              <span className="badge" style={{ backgroundColor: "#3b82f6", color: "#ffffff", fontSize: "0.7rem", padding: "2px 6px" }}>
-                                ⭐ Your Application
-                              </span>
-                            )}
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                              {/* {statusBadge(o.apply_status)} */}
+                              {/* {own && (
+                                <span className="badge" style={{ backgroundColor: "#3b82f6", color: "#ffffff", fontSize: "0.7rem", padding: "2px 6px" }}>
+                                  ⭐ Your Application
+                                </span>
+                              )} */}
+                            </div>
                           </div>
                         </td>
-                        <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "0.9rem" }}>{o.functions?.function_name || "-"}</td>
-                        <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "0.9rem", fontWeight: "500" }}>{o.oc_position || "-"}</td>
+                        <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "13px" }}>{o.functions?.function_name || "-"}</td>
+                        <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "13px", fontWeight: "500" }}>{o.oc_position || "-"}</td>
                         <td style={{ padding: "12px" }}>{statusBadge(o.apply_status)}</td>
-                        
+
                         {/* Assigned Interviewer (Name ONLY) */}
                         <td style={{ padding: "12px" }}>
                           {interviewerDisplayName ? (
@@ -591,7 +592,7 @@ export default function Committee({ isAdmin = false, session }) {
                               fontSize: "0.85rem",
                               fontWeight: "500"
                             }}>
-                              👤 <span>{interviewerDisplayName}</span>
+                              <span>{interviewerDisplayName}</span>
                             </div>
                           ) : (
                             <span style={{
@@ -956,66 +957,35 @@ export default function Committee({ isAdmin = false, session }) {
                   Step 1: Set up Cal.com Event Type
                 </div>
                 <p style={{ margin: 0, fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.4 }}>
-                  1. Log in to your <a href="https://cal.com" target="_blank" rel="noreferrer" style={{ color: "#38bdf8", textDecoration: "underline" }}>Cal.com</a> dashboard.<br/>
-                  2. Create or edit an Event Type (e.g. <code>committee-interview</code>).<br/>
+                  1. Log in to your <a href="https://cal.com" target="_blank" rel="noreferrer" style={{ color: "#38bdf8", textDecoration: "underline" }}>Cal.com</a> dashboard.<br />
+                  2. Create or edit an Event Type (e.g. <code>committee-interview</code>).<br />
                   3. Copy your link (default: <code>https://cal.com/adss-ruhuna/committee-interview</code>) and save it in the <strong>Cal.com Interview Link</strong> box on the Event Committee panel.
                 </p>
               </div>
 
-              {/* Step 2 - Critical Webhook */}
-              <div style={{ background: "rgba(234, 179, 8, 0.1)", padding: "14px", borderRadius: "8px", border: "1px solid rgba(234, 179, 8, 0.3)" }}>
+              {/* Step 2 - Date & Time Range & Date Overrides Setup */}
+              <div style={{ background: "var(--bg3)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
                 <div style={{ fontWeight: "700", color: "#facc15", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span>⚠️</span> Step 2: Add Webhook in Cal.com (REQUIRED)
+                  <span>📅</span> Step 2: Set Up Interview Time, Date Range & Date Overrides
                 </div>
-                <p style={{ margin: "0 0 10px 0", fontSize: "0.85rem", color: "#fef08a", lineHeight: 1.4 }}>
-                  To automatically change status to <strong>Interview Scheduled</strong> when a candidate books a slot, you MUST add this Webhook URL:
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5 }}>
+                  1. Log in to <a href="https://cal.com" target="_blank" rel="noreferrer" style={{ color: "#38bdf8", textDecoration: "underline" }}>Cal.com</a> and click <strong>Availability</strong> in the left sidebar.<br />
+                  2. Create a new Availability Schedule specifically for committee interviews.<br />
+                  3. Set your specific <strong>Date &amp; Time Range</strong> for interview days.<br />
+                  4. Use <strong>Date Overrides</strong> (<em>"Add dates when your availability changes from your daily hours"</em>) to pick exact interview dates and custom time slots for candidate interviews.<br />
+                  5. Go to <strong>Event Types</strong> &gt; select your <code>committee-interview</code> event &gt; assign this schedule under <strong>Availability</strong>.
                 </p>
-
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    readOnly
-                    value={CAL_WEBHOOK_URL}
-                    style={{
-                      flex: 1,
-                      padding: "8px 10px",
-                      fontSize: "0.82rem",
-                      fontFamily: "monospace",
-                      backgroundColor: "rgba(0, 0, 0, 0.4)",
-                      color: "#38bdf8",
-                      border: "1px solid rgba(255, 255, 255, 0.15)",
-                      borderRadius: "6px"
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(CAL_WEBHOOK_URL);
-                      alert("Webhook URL copied to clipboard!");
-                    }}
-                    style={{ whiteSpace: "nowrap" }}
-                  >
-                    📋 Copy Webhook
-                  </button>
-                </div>
-
-                <div style={{ marginTop: "10px", fontSize: "0.8rem", color: "#cbd5e1", lineHeight: 1.4 }}>
-                  <strong>Where to add in Cal.com:</strong><br/>
-                  Navigate to <strong>Settings</strong> &gt; <strong>Developer</strong> &gt; <strong>Webhooks</strong> &gt; click <strong>Add Webhook</strong>.<br/>
-                  Paste the Webhook URL above, set Triggers to <strong>Booking Created</strong> and <strong>Booking Rescheduled</strong>, then click Save.
-                </div>
               </div>
 
               {/* Step 3 */}
               <div style={{ background: "var(--bg3)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
                 <div style={{ fontWeight: "700", color: "#34d399", marginBottom: "4px" }}>
-                  Step 3: Automated Workflow
+                  Step 3: Interview Invitation & Booking
                 </div>
                 <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5 }}>
-                  <li>Click <strong>✉️ Invite</strong> next to an OC applicant to send an invitation email containing the personalized booking link.</li>
-                  <li>When the applicant books an interview time on Cal.com, the webhook updates their status to <span style={{ color: "#c084fc", fontWeight: "600" }}>Interview Scheduled</span> automatically!</li>
-                  <li>The meeting time and Google Meet link are saved directly into the candidate's table row.</li>
+                  <li>Click <strong>✉️ Invite</strong> next to an OC applicant to send an invitation email with the custom booking link.</li>
+                  <li>The candidate selects an open slot based on your configured Time Availability.</li>
+                  <li>The scheduled interview time automatically updates on the Committee dashboard!</li>
                 </ul>
               </div>
             </div>

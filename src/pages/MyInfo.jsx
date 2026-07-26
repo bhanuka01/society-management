@@ -226,6 +226,24 @@ export default function MyInfo({ session }) {
     }
   };
 
+  const [staffMap, setStaffMap] = useState({});
+  const [attPage, setAttPage] = useState(0);
+  const [ocPage, setOcPage] = useState(0);
+
+  const getInterviewerName = (email) => {
+    if (!email) return null;
+    const key = email.toLowerCase();
+    return staffMap[key] || email.split("@")[0];
+  };
+
+  const renderOcStatusBadge = (status) => {
+    if (status === "Accept") return <span className="badge badge-green" style={{ fontWeight: "600", fontSize: "11px" }}>Accepted</span>;
+    if (status === "Reject") return <span className="badge badge-red" style={{ fontWeight: "600", fontSize: "11px" }}>Rejected</span>;
+    if (status === "Invited") return <span className="badge" style={{ backgroundColor: "#2563eb", color: "#ffffff", fontWeight: "600", fontSize: "11px", padding: "3px 8px" }}>Invited</span>;
+    if (status === "Interview Scheduled") return <span className="badge" style={{ backgroundColor: "#9333ea", color: "#ffffff", fontWeight: "600", fontSize: "11px", padding: "3px 8px" }}>Interview Scheduled</span>;
+    return <span className="badge badge-amber" style={{ fontWeight: "600", fontSize: "11px" }}>Pending</span>;
+  };
+
   useEffect(() => {
     if (!session.stId) return;
 
@@ -239,16 +257,35 @@ export default function MyInfo({ session }) {
           .maybeSingle();
 
         if (member) {
-          const [ocRecords, attRecords] = await Promise.all([
+          const [ocRecords, attRecords, profileRes, memberRes] = await Promise.all([
             supabase
               .from("oc")
-              .select("oc_position, apply_status, events(name, date), functions(function_name)")
+              .select("oc_position, apply_status, interviewer_email, interview_date, interview_link, events(name, date), functions(function_name)")
               .eq("st_id", session.stId),
             supabase
               .from("attendance")
               .select("attend, events(name, date)")
-              .eq("st_id", session.stId)
+              .eq("st_id", session.stId),
+            supabase
+              .from("profiles")
+              .select("email, full_name"),
+            supabase
+              .from("members")
+              .select("email, name")
           ]);
+
+          const map = {};
+          if (profileRes.data) {
+            profileRes.data.forEach(p => {
+              if (p.email) map[p.email.toLowerCase()] = p.full_name || p.email;
+            });
+          }
+          if (memberRes.data) {
+            memberRes.data.forEach(m => {
+              if (m.email && !map[m.email.toLowerCase()]) map[m.email.toLowerCase()] = m.name || m.email;
+            });
+          }
+          setStaffMap(map);
 
           setProfile({
             ...member,
@@ -334,10 +371,21 @@ export default function MyInfo({ session }) {
   }
 
   // Calculate statistics
-  const totalEvents = profile.attendance.length;
-  const attendedEvents = profile.attendance.filter(a => a.attend === "YES").length;
+  const attendanceList = profile?.attendance || [];
+  const ocList = profile?.oc || [];
+
+  const totalEvents = attendanceList.length;
+  const attendedEvents = attendanceList.filter(a => a.attend === "YES").length;
   const absentEvents = totalEvents - attendedEvents;
   const attendanceRate = totalEvents ? Math.round((attendedEvents / totalEvents) * 100) : 0;
+
+  // Calculate 5-item pagination for Attendance & OC lists
+  const pageSize = 5;
+  const totalAttPages = Math.ceil(attendanceList.length / pageSize) || 1;
+  const paginatedAttendance = attendanceList.slice(attPage * pageSize, (attPage + 1) * pageSize);
+
+  const totalOcPages = Math.ceil(ocList.length / pageSize) || 1;
+  const paginatedOc = ocList.slice(ocPage * pageSize, (ocPage + 1) * pageSize);
 
   return (
     <div>
@@ -450,90 +498,193 @@ export default function MyInfo({ session }) {
       {/* Split lists: Attendance & OC */}
       <div className="grid-2">
         {/* Left Column: Attendance Details */}
-        <div className="card">
-          <div className="card-header" style={{ marginBottom: 14 }}>
-            <span className="card-title">📅 Event Attendance History</span>
-          </div>
-          {profile.attendance.length === 0 ? (
-            <div className="empty-state" style={{ padding: "30px 10px" }}>
-              <div className="icon">📅</div>
-              <p>No event attendance records on file</p>
+        <div className="card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <div className="card-header" style={{ marginBottom: 14 }}>
+              <span className="card-title">📅 Event Attendance History</span>
             </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="table-fit">
-                <thead>
-                  <tr>
-                    <th>Event</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profile.attendance.map((att, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <strong>{att.events?.name || "Unknown Event"}</strong>
-                        <div style={{ fontSize: "11px", color: "var(--text3)", fontFamily: "var(--mono)", marginTop: 2 }}>
-                          {att.events?.date}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge ${att.attend === "YES" ? "badge-green" : "badge-red"}`}>
-                          {att.attend}
-                        </span>
-                      </td>
+            {attendanceList.length === 0 ? (
+              <div className="empty-state" style={{ padding: "30px 10px" }}>
+                <div className="icon">📅</div>
+                <p>No event attendance records on file</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table-fit">
+                  <thead>
+                    <tr>
+                      <th>Event</th>
+                      <th>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {paginatedAttendance.map((att, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <strong>{att.events?.name || "Unknown Event"}</strong>
+                          <div style={{ fontSize: "11px", color: "var(--text3)", fontFamily: "var(--mono)", marginTop: 2 }}>
+                            {att.events?.date}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`badge ${att.attend === "YES" ? "badge-green" : "badge-red"}`}>
+                            {att.attend}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Attendance Pagination */}
+          {totalAttPages > 1 && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "14px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setAttPage(p => Math.max(0, p - 1))}
+                disabled={attPage === 0}
+                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+              >
+                ◀ Prev
+              </button>
+              <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>
+                Page {attPage + 1} of {totalAttPages}
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setAttPage(p => Math.min(totalAttPages - 1, p + 1))}
+                disabled={attPage >= totalAttPages - 1}
+                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+              >
+                Next ▶
+              </button>
             </div>
           )}
         </div>
 
         {/* Right Column: OC assignments */}
-        <div className="card">
-          <div className="card-header" style={{ marginBottom: 14 }}>
-            <span className="card-title">🛠 Committee (OC) Assignments</span>
-          </div>
-          {profile.oc.length === 0 ? (
-            <div className="empty-state" style={{ padding: "30px 10px" }}>
-              <div className="icon">🛠</div>
-              <p>No committee assignments on file</p>
+        <div className="card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <div className="card-header" style={{ marginBottom: 14 }}>
+              <span className="card-title">🛠 Committee (OC) Assignments</span>
             </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="table-fit">
-                <thead>
-                  <tr>
-                    <th>Event & Department</th>
-                    <th>Role & Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profile.oc.map((o, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <strong>{o.events?.name || "Unknown Event"}</strong>
-                        <div style={{ fontSize: "11px", color: "var(--accent2)", marginTop: 2 }}>
-                          {o.functions?.function_name || "Unassigned Sub-team"}
+            {ocList.length === 0 ? (
+              <div className="empty-state" style={{ padding: "30px 10px" }}>
+                <div className="icon">🛠</div>
+                <p>No committee assignments on file</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {paginatedOc.map((o, idx) => {
+                  const interviewerName = getInterviewerName(o.interviewer_email);
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        background: "var(--bg3)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
+                        padding: "14px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px"
+                      }}
+                    >
+                      {/* Header: Event & Status Badge */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+                        <strong style={{ fontSize: "13px", color: "var(--text)" }}>{o.events?.name || "Unknown Event"}</strong>
+                        <div style={{ fontSize: "12px", color: "var(--accent2)", fontWeight: "500" }}>
+                          {o.functions?.function_name || "General Sub-team"} • <span style={{ color: "var(--text)" }}>{o.oc_position || "Committee Member"}</span>
                         </div>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: "600", color: "var(--text)" }}>{o.oc_position || "Member"}</div>
-                        <div style={{ marginTop: 4 }}>
-                          {o.apply_status === "Accept" ? (
-                            <span className="badge badge-green" style={{ fontSize: "10px" }}>Accepted</span>
-                          ) : o.apply_status === "Reject" ? (
-                            <span className="badge badge-red" style={{ fontSize: "10px" }}>Rejected</span>
-                          ) : (
-                            <span className="badge badge-amber" style={{ fontSize: "10px" }}>Pending</span>
-                          )}
+                        <div style={{ marginTop: "2px" }}>{renderOcStatusBadge(o.apply_status)}</div>
+                      </div>
+
+                      {/* Details Grid (Only shown when interview is pending/invited/scheduled; hidden after Accept or Reject) */}
+                      {o.apply_status !== "Accept" && o.apply_status !== "Reject" && (
+                        <div style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                          gap: "10px",
+                          paddingTop: "10px",
+                          borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+                          fontSize: "0.84rem"
+                        }}>
+                          {/* Assigned Interviewer */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "0.74rem", color: "var(--text3)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                              Assigned Interviewer
+                            </span>
+                            <span style={{ color: interviewerName ? "#93c5fd" : "var(--text3)", fontWeight: interviewerName ? "500" : "normal" }}>
+                              {interviewerName ? `👤 ${interviewerName}` : "Unassigned"}
+                            </span>
+                          </div>
+
+                          {/* Interview Slot */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "0.74rem", color: "var(--text3)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                              Interview Slot
+                            </span>
+                            {o.interview_date ? (
+                              <div>
+                                <span style={{ color: "#34d399", fontWeight: "600" }}>
+                                  📅 {new Date(o.interview_date).toLocaleString()}
+                                </span>
+                                {o.interview_link && (
+                                  <div style={{ marginTop: "4px" }}>
+                                    <a
+                                      href={o.interview_link}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="btn btn-ghost btn-sm"
+                                      style={{ padding: "3px 8px", fontSize: "0.78rem", color: "#60a5fa", border: "1px solid rgba(96, 165, 250, 0.3)", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                                    >
+                                      🔗 Join Meeting
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: "var(--text3)" }}>Not booked yet</span>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Committee Assignments Pagination */}
+          {totalOcPages > 1 && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "14px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setOcPage(p => Math.max(0, p - 1))}
+                disabled={ocPage === 0}
+                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+              >
+                ◀ Prev
+              </button>
+              <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>
+                Page {ocPage + 1} of {totalOcPages}
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setOcPage(p => Math.min(totalOcPages - 1, p + 1))}
+                disabled={ocPage >= totalOcPages - 1}
+                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+              >
+                Next ▶
+              </button>
             </div>
           )}
         </div>

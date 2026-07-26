@@ -331,101 +331,237 @@ body {
   font-size: 13px;
 }
 
-/* ── Sidebar Footer ── */
+/* ── Modern Sidebar Footer & 2-Column Preferences ── */
 .sidebar-footer {
-  padding: 12px 16px;
+  padding: 12px 14px;
   border-top: 1px solid var(--border);
-  font-size: 11px;
-  font-family: var(--mono);
-  color: var(--text3);
-  font-weight: 500;
+  font-family: var(--sans);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg2);
 }
 
-/* ── Theme Switch ── */
-.theme-switch {
+.sidebar-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  padding-left: 2px;
+}
+
+.sidebar-grid-row {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebar-grid-row.two-cols {
+  grid-template-columns: 1fr 1fr;
+}
+
+.sidebar-grid-row.one-col {
+  grid-template-columns: 1fr;
+}
+
+.sidebar-compact-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  gap: 4px;
+  min-width: 0;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.sidebar-compact-card:hover {
+  background: var(--surface2);
+  border-color: var(--border2);
+  transform: translateY(-1px);
+}
+
+.sidebar-compact-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-compact-header .icon {
+  font-size: 15px;
+  color: var(--accent2);
+  flex-shrink: 0;
+}
+
+.sidebar-compact-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-compact-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 36px;
-  margin-top: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: transparent;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: var(--surface);
   color: var(--text3);
-  cursor: pointer;
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 600;
+  flex-shrink: 0;
   transition: all 0.2s ease;
 }
 
-.theme-switch:hover {
-  background: var(--surface2);
-  color: var(--text);
-  border-color: var(--border2);
+.sidebar-compact-card.active-staff .sidebar-compact-badge {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent2);
+  border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
-.theme-switch-track {
-  width: 32px;
-  height: 18px;
-  padding: 2px;
-  border-radius: 999px;
-  background: var(--bg3);
-  border: 1px solid var(--border2);
+.sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+.sidebar-pref-card {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  flex-shrink: 0;
-  transition: background 0.2s ease;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
 }
 
-.theme-switch-thumb {
+.sidebar-pref-card:hover {
+  background: var(--surface2);
+  border-color: var(--border2);
+  transform: translateY(-1px);
+}
+
+.sidebar-pref-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Custom Toggle Switch */
+.sidebar-toggle-switch {
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border2);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: background 0.25s ease;
+}
+
+.sidebar-toggle-switch.active {
+  background: var(--accent, #6366f1);
+}
+
+.sidebar-toggle-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--accent);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 7px;
-  line-height: 1;
-  font-weight: 700;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-[data-theme='light'] .theme-switch-thumb {
+.sidebar-toggle-switch.active .sidebar-toggle-thumb {
   transform: translateX(14px);
 }
 
-/* ── Role Switch ── */
-.role-switch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 36px;
-  margin-top: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: transparent;
-  color: var(--text3);
-  cursor: pointer;
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.2s ease;
+/* Logout Card styling */
+.sidebar-pref-card.logout-card {
+  margin-top: 2px;
+  background: rgba(244, 63, 94, 0.05);
+  border-color: rgba(244, 63, 94, 0.15);
 }
 
-.role-switch:hover {
-  background: var(--surface2);
+.sidebar-pref-card.logout-card:hover {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+.sidebar-logout-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f43f5e;
+}
+
+/* User Profile Section */
+.sidebar-user-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  flex: 1;
+  margin-left: 10px;
+}
+
+.sidebar-user-name {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text);
-  border-color: var(--border2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-email {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-more {
+  font-size: 18px;
+  color: var(--text3);
 }
 
 .role-switch-track {
@@ -727,6 +863,8 @@ tbody tr:hover td {
   font-family: var(--mono);
   font-weight: 600;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge-green {

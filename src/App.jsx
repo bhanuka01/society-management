@@ -49,6 +49,13 @@ const ROLE_LABELS = {
 
 const canEdit = (role) => role === "admin" || role === "editor";
 
+const getInitials = (name) => {
+  if (!name) return "U";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
 // --- Profile cache for instant startup (like Facebook) ---
 const PROFILE_CACHE_KEY = 'adss-profile-cache';
 const getCachedProfile = () => { try { const c = localStorage.getItem(PROFILE_CACHE_KEY); return c ? JSON.parse(c) : null; } catch { return null; } };
@@ -681,16 +688,6 @@ export default function App() {
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
                   <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>Register</button>
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Role</label>
-                    <select value={login.role} onChange={e => setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" })}>
-                      <option value="member">Member</option>
-                      <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
-                </div>
                 {authMode === "register" && (
                   <>
                     <div className="form-row">
@@ -880,41 +877,52 @@ export default function App() {
 
         {sidebarOpen && (
           <div className="sidebar-footer">
-            <p>
-              {authLoading
-                ? "Checking access..."
-                : session.role === "guest"
-                ? "Members can watch only"
-                : viewAsMember
-                ? `${ROLE_LABELS[session.role]} (Viewing as Member)`
-                : `${ROLE_LABELS[session.role]} mode${session.name ? `: ${session.name}` : ""}`}
-            </p>
-            {isRealStaff && (
-              <button
-                type="button"
-                className={`role-switch ${viewAsMember ? "active" : ""}`}
-                onClick={handleToggleViewAsMember}
-                aria-label={viewAsMember ? "Switch to staff view" : "Switch to member view"}
+            <div className="sidebar-section-label">
+              {session.role === "admin" || session.role === "editor" ? "Admin" : "Preferences"}
+            </div>
+
+            {/* Row 1: Side-by-side controls (View Staff & Dark Mode) */}
+            <div className={`sidebar-grid-row ${isRealStaff ? "two-cols" : "one-col"}`}>
+              {isRealStaff && (
+                <div
+                  className={`sidebar-compact-card ${!viewAsMember ? "active-staff" : ""}`}
+                  onClick={handleToggleViewAsMember}
+                  title={viewAsMember ? "Switch to Staff View" : "Switch to Member View"}
+                >
+                  <div className="sidebar-compact-header">
+                    <span className="material-symbols-outlined icon">
+                      {viewAsMember ? "person" : "group"}
+                    </span>
+                    <span className="sidebar-compact-title">{viewAsMember ? "Member" : "Staff"}</span>
+                  </div>
+                  <div className="sidebar-compact-badge">
+                    {viewAsMember ? "OFF" : "ON"}
+                  </div>
+                </div>
+              )}
+
+              <div
+                className={`sidebar-compact-card ${theme === "dark" ? "active-dark" : ""}`}
+                onClick={toggleTheme}
+                title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
               >
-                <span className="role-switch-track">
-                  <span className="role-switch-thumb">{viewAsMember ? "M" : "S"}</span>
-                </span>
-                <span>{viewAsMember ? "View: Member" : "View: Staff"}</span>
-              </button>
-            )}
-            <button
-              type="button"
-              className="theme-switch"
-              onClick={toggleTheme}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              <span className="theme-switch-track">
-                <span className="theme-switch-thumb">{theme === "dark" ? "●" : "○"}</span>
-              </span>
-              <span>{theme === "dark" ? "Dark" : "Light"}</span>
-            </button>
-            <button
-              className={`btn ${session.role !== "guest" ? "btn-ghost" : "btn-primary"} auth-btn`}
+                <div className="sidebar-compact-header">
+                  <span className="material-symbols-outlined icon">
+                    {theme === "dark" ? "dark_mode" : "light_mode"}
+                  </span>
+                  <span className="sidebar-compact-title">{theme === "dark" ? "Dark" : "Light"}</span>
+                </div>
+                <div className={`sidebar-toggle-switch mini ${theme === "dark" ? "active" : ""}`}>
+                  <div className="sidebar-toggle-thumb" />
+                </div>
+              </div>
+            </div>
+
+            <div className="sidebar-divider" />
+
+            {/* Row 2: Logout */}
+            <div
+              className="sidebar-pref-card logout-card"
               onClick={session.role !== "guest" ? handleLogout : () => {
                 setShowLogin(true);
                 resetAuthForm();
@@ -923,8 +931,16 @@ export default function App() {
                 }
               }}
             >
-              {session.role !== "guest" ? "Logout" : "Login"}
-            </button>
+              <div className="sidebar-pref-left">
+                <span className="material-symbols-outlined" style={{ color: "#f43f5e", fontSize: "18px" }}>
+                  logout
+                </span>
+                <span className="sidebar-logout-title">{session.role !== "guest" ? "Logout" : "Login"}</span>
+              </div>
+              <span className="material-symbols-outlined" style={{ color: "#f43f5e", fontSize: "18px" }}>
+                chevron_right
+              </span>
+            </div>
           </div>
         )}
       </aside>
@@ -942,16 +958,6 @@ export default function App() {
                 <div className="auth-tabs">
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); resetAuthForm(); }}>Login</button>
                   <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); resetAuthForm(); }}>Register</button>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Role</label>
-                    <select value={login.role} onChange={e => { setLogin({ ...login, role: e.target.value, email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>
-                      <option value="member">Member</option>
-                      <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
                 </div>
                 {authMode === "register" && (
                   <>

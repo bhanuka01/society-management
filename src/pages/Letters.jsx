@@ -11,6 +11,8 @@ export default function Letters({ session }) {
   });
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 5;
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [msg, setMsg] = useState(null);
 
@@ -186,11 +188,11 @@ export default function Letters({ session }) {
         <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span className="card-title">Review Requests</span>
           <div className="tabs" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            <button className={`btn btn-sm ${filterStatus === "all" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilterStatus("all")}>All ({requests.length})</button>
-            <button className={`btn btn-sm ${filterStatus === "not start" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilterStatus("not start")}>Not Started ({countNotStarted})</button>
-            <button className={`btn btn-sm ${filterStatus === "inprogress" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilterStatus("inprogress")}>In Progress ({countInProgress})</button>
-            <button className={`btn btn-sm ${filterStatus === "done" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilterStatus("done")}>Done ({countDone})</button>
-            <button className={`btn btn-sm ${filterStatus === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setFilterStatus("rejected")}>Rejected ({countRejected})</button>
+            <button className={`btn btn-sm ${filterStatus === "all" ? "btn-primary" : "btn-ghost"}`} onClick={() => { setPage(0); setFilterStatus("all"); }}>All ({requests.length})</button>
+            <button className={`btn btn-sm ${filterStatus === "not start" ? "btn-primary" : "btn-ghost"}`} onClick={() => { setPage(0); setFilterStatus("not start"); }}>Not Started ({countNotStarted})</button>
+            <button className={`btn btn-sm ${filterStatus === "inprogress" ? "btn-primary" : "btn-ghost"}`} onClick={() => { setPage(0); setFilterStatus("inprogress"); }}>In Progress ({countInProgress})</button>
+            <button className={`btn btn-sm ${filterStatus === "done" ? "btn-primary" : "btn-ghost"}`} onClick={() => { setPage(0); setFilterStatus("done"); }}>Done ({countDone})</button>
+            <button className={`btn btn-sm ${filterStatus === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => { setPage(0); setFilterStatus("rejected"); }}>Rejected ({countRejected})</button>
           </div>
         </div>
 
@@ -201,106 +203,140 @@ export default function Letters({ session }) {
             <div className="icon">📄</div>
             <p>No letter requests found in this category.</p>
           </div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Member (Click to View)</th>
-                  <th>Name on Letter</th>
-                  <th>Events</th>
-                  <th>Additional Details</th>
-                  <th>Request Date</th>
-                  <th>Status & Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRequests.map(r => (
-                  <tr key={r.id}>
-                    <td onClick={() => setSelectedMemberId(r.st_id)} style={{ cursor: "pointer" }} title="Click to view member details">
-                      <strong style={{ color: "var(--accent)", textDecoration: "underline" }}>{r.members?.name || "Unknown"}</strong>
-                      <div className="text-muted" style={{ fontSize: "11px", fontFamily: "var(--mono)" }}>{r.st_id}</div>
-                    </td>
-                    <td>{r.name_on_letter || <span className="text-muted">—</span>}</td>
-                    <td>
-                      {r.selected_events && Array.isArray(r.selected_events) && r.selected_events.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                          {r.selected_events.map((eName, idx) => (
-                            <span key={idx} className="badge badge-purple" style={{ fontSize: "11px", display: "inline-block", padding: "2px 6px" }}>
-                              {eName}
+        ) : (() => {
+          const totalPages = Math.ceil(filteredRequests.length / PAGE_SIZE) || 1;
+          const paginatedRequests = filteredRequests.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+          return (
+            <>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Member (Click to View)</th>
+                      <th>Name on Letter</th>
+                      <th>Events</th>
+                      <th>Additional Details</th>
+                      <th>Request Date</th>
+                      <th>Status & Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRequests.map(r => (
+                      <tr key={r.id}>
+                        <td onClick={() => setSelectedMemberId(r.st_id)} style={{ cursor: "pointer" }} title="Click to view member details">
+                          <strong style={{ color: "var(--accent)", textDecoration: "underline" }}>{r.members?.name || "Unknown"}</strong>
+                          <div className="text-muted" style={{ fontSize: "11px", fontFamily: "var(--mono)" }}>{r.st_id}</div>
+                        </td>
+                        <td>{r.name_on_letter || <span className="text-muted">—</span>}</td>
+                        <td>
+                          {r.selected_events && Array.isArray(r.selected_events) && r.selected_events.length > 0 ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              {r.selected_events.map((eName, idx) => (
+                                <span key={idx} className="badge badge-purple" style={{ fontSize: "11px", display: "inline-block", padding: "2px 6px" }}>
+                                  {eName}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td style={{ maxWidth: "200px", whiteSpace: "normal", wordBreak: "break-word" }}>
+                          {r.additional_details || <span className="text-muted">—</span>}
+                        </td>
+                        <td className="mono" style={{ fontSize: "12px" }}>
+                          {new Date(r.created_at).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            <span className={`badge ${r.status === "done" ? "badge-green" : r.status === "rejected" ? "badge-red" : r.status === "inprogress" ? "badge-purple" : "badge-amber"}`} style={{ textAlign: "center", textTransform: "uppercase", fontSize: "10px", padding: "4px 8px" }}>
+                              {r.status === "not start" ? "not started" : r.status === "inprogress" ? "in progress" : r.status}
                             </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td style={{ maxWidth: "200px", whiteSpace: "normal", wordBreak: "break-word" }}>
-                      {r.additional_details || <span className="text-muted">—</span>}
-                    </td>
-                    <td className="mono" style={{ fontSize: "12px" }}>
-                      {new Date(r.created_at).toLocaleDateString()}
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <span className={`badge ${r.status === "done" ? "badge-green" : r.status === "rejected" ? "badge-red" : r.status === "inprogress" ? "badge-purple" : "badge-amber"}`} style={{ textAlign: "center", textTransform: "uppercase", fontSize: "10px", padding: "4px 8px" }}>
-                          {r.status === "not start" ? "not started" : r.status === "inprogress" ? "in progress" : r.status}
-                        </span>
-                        
-                        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                          {r.status !== "not start" && (
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              style={{ padding: "4px 6px", fontSize: "11px", border: "1px solid var(--border)" }}
-                              onClick={() => handleUpdateStatus(r.id, "not start")}
-                            >
-                              Reset
-                            </button>
-                          )}
-                          {r.status === "not start" && (
-                            <button
-                              className="btn btn-primary btn-sm"
-                              style={{ padding: "4px 6px", fontSize: "11px" }}
-                              onClick={() => handleUpdateStatus(r.id, "inprogress")}
-                            >
-                              Start
-                            </button>
-                          )}
-                          {r.status !== "done" && (
-                            <button
-                              className="btn btn-green btn-sm"
-                              style={{ padding: "4px 6px", fontSize: "11px", color: "var(--green)", border: "1px solid rgba(74,222,128,0.25)", background: "rgba(74,222,128,0.12)" }}
-                              onClick={() => handleUpdateStatus(r.id, "done")}
-                            >
-                              Done
-                            </button>
-                          )}
-                          {r.status !== "rejected" && (
-                            <button
-                              className="btn btn-red btn-sm"
-                              style={{ padding: "4px 6px", fontSize: "11px", color: "var(--red)", border: "1px solid rgba(248,113,113,0.25)", background: "rgba(248,113,113,0.12)" }}
-                              onClick={() => handleUpdateStatus(r.id, "rejected")}
-                            >
-                              Reject
-                            </button>
-                          )}
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: "4px 6px", fontSize: "11px", color: "var(--red)", border: "1px solid var(--border)" }}
-                            onClick={() => handleDeleteRequest(r.id)}
-                            title="Delete Request"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                            
+                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                              {r.status !== "not start" && (
+                                <button
+                                  className="btn btn-ghost btn-sm"
+                                  style={{ padding: "4px 6px", fontSize: "11px", border: "1px solid var(--border)" }}
+                                  onClick={() => handleUpdateStatus(r.id, "not start")}
+                                >
+                                  Reset
+                                </button>
+                              )}
+                              {r.status === "not start" && (
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  style={{ padding: "4px 6px", fontSize: "11px" }}
+                                  onClick={() => handleUpdateStatus(r.id, "inprogress")}
+                                >
+                                  Start
+                                </button>
+                              )}
+                              {r.status !== "done" && (
+                                <button
+                                  className="btn btn-green btn-sm"
+                                  style={{ padding: "4px 6px", fontSize: "11px", color: "var(--green)", border: "1px solid rgba(74,222,128,0.25)", background: "rgba(74,222,128,0.12)" }}
+                                  onClick={() => handleUpdateStatus(r.id, "done")}
+                                >
+                                  Done
+                                </button>
+                              )}
+                              {r.status !== "rejected" && (
+                                <button
+                                  className="btn btn-red btn-sm"
+                                  style={{ padding: "4px 6px", fontSize: "11px", color: "var(--red)", border: "1px solid rgba(248,113,113,0.25)", background: "rgba(248,113,113,0.12)" }}
+                                  onClick={() => handleUpdateStatus(r.id, "rejected")}
+                                >
+                                  Reject
+                                </button>
+                              )}
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ padding: "4px 6px", fontSize: "11px", color: "var(--red)", border: "1px solid var(--border)" }}
+                                onClick={() => handleDeleteRequest(r.id)}
+                                title="Delete Request"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Letter Requests Pagination */}
+              {totalPages > 1 && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "14px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                  >
+                    ◀ Prev
+                  </button>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>
+                    Page {page + 1} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                    style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                  >
+                    Next ▶
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Student Profile Modal Popup */}
