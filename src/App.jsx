@@ -96,6 +96,7 @@ export default function App() {
   const [regEnabled, setRegEnabled] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [viewAsMember, setViewAsMember] = useState(false);
+  const [pendingMsgCount, setPendingMsgCount] = useState(0);
   
   const [profileImageFile, setProfileImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -172,6 +173,28 @@ export default function App() {
         }
       });
   }, []);
+
+  /* ─ Pending message badge count ─ */
+  useEffect(() => {
+    if (!session.stId) { setPendingMsgCount(0); return; }
+
+    const fetchCount = async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("id", { count: "exact" })
+        .eq("receiver_st_id", session.stId)
+        .eq("status", "pending");
+      setPendingMsgCount(data?.length ?? 0);
+    };
+    fetchCount();
+
+    const sub = supabase
+      .channel(`nav-pending-${session.stId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchCount())
+      .subscribe();
+
+    return () => supabase.removeChannel(sub);
+  }, [session.stId]);
 
   useEffect(() => {
     let alive = true;
@@ -864,13 +887,37 @@ export default function App() {
               className={`nav-item ${page === item.id ? "active" : ""}`}
               onClick={() => {
                 setPage(item.id);
-                if (window.innerWidth <= 768) {
-                  setSidebarOpen(false);
-                }
+                if (window.innerWidth <= 768) setSidebarOpen(false);
               }}
+              style={{ position: "relative" }}
             >
               <span className="nav-icon"><span className="material-symbols-outlined">{item.icon}</span></span>
               {sidebarOpen && <span className="nav-label">{item.label}</span>}
+              {/* Pending message badge */}
+              {item.id === "messages" && pendingMsgCount > 0 && (
+                <span style={{
+                  position: sidebarOpen ? "static" : "absolute",
+                  top: sidebarOpen ? undefined : "4px",
+                  right: sidebarOpen ? undefined : "4px",
+                  marginLeft: sidebarOpen ? "auto" : undefined,
+                  minWidth: "18px",
+                  height: "18px",
+                  borderRadius: "99px",
+                  background: "#f59e0b",
+                  color: "#fff",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 5px",
+                  lineHeight: 1,
+                  boxShadow: "0 0 0 2px var(--bg)",
+                  flexShrink: 0,
+                }}>
+                  {pendingMsgCount > 99 ? "99+" : pendingMsgCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
