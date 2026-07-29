@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import EventSelect from "../components/EventSelect";
+import DatePicker from "../components/DatePicker";
 
 const EMPTY_FORM = { st_id: "", task_name: "", deadline: "" };
 
@@ -396,10 +397,10 @@ export default function Tasks({ isAdmin = false, session }) {
 
             <div className="form-group" style={{ marginBottom: 15 }}>
               <label>Deadline Date</label>
-              <input
-                type="date"
+              <DatePicker
                 value={form.deadline}
-                onChange={e => setForm({ ...form, deadline: e.target.value })}
+                onChange={v => setForm({ ...form, deadline: v })}
+                placeholder="Select deadline"
               />
             </div>
 

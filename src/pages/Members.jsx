@@ -301,6 +301,94 @@ export default function Members({ isAdmin = false }) {
     setImportResult(null);
   };
 
+  const exportMembersCSV = async () => {
+    try {
+      let exportData = [];
+      let headers = [];
+      let fileName = "";
+
+      if (viewFilter === "pending") {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("st_id, full_name, email, role, status, members(mobile_number, level, member_function)")
+          .in("status", ["pending", "rejected"])
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          alert("Failed to export pending members: " + error.message);
+          return;
+        }
+
+        headers = ["ST ID", "Full Name", "Email", "Role", "Status", "Level", "Mobile Number", "Function"];
+        exportData = (data || []).map(p => [
+          p.st_id || "",
+          p.full_name || "",
+          p.email || "",
+          p.role || "",
+          p.status || "",
+          p.members?.level || "",
+          p.members?.mobile_number || "",
+          p.members?.member_function || ""
+        ]);
+        fileName = `pending_members_${new Date().toISOString().slice(0, 10)}.csv`;
+      } else {
+        let query = supabase.from("members").select("*").order("st_id");
+        if (viewFilter === "active") query = query.lte("level", 4);
+        else if (viewFilter === "alumni") query = query.gt("level", 4);
+
+        const q = search.trim();
+        if (q) {
+          query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+          alert("Failed to export members: " + error.message);
+          return;
+        }
+
+        headers = ["st_id", "name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
+        exportData = (data || []).map(m => [
+          m.st_id || "",
+          m.name || "",
+          m.email || "",
+          m.level || "",
+          m.st_position || "",
+          m.member_function || "",
+          m.mobile_number || "",
+          m.profile_image_url || "",
+          m.linkedin_url || ""
+        ]);
+        fileName = `members_${viewFilter}_${new Date().toISOString().slice(0, 10)}.csv`;
+      }
+
+      if (!exportData || exportData.length === 0) {
+        alert("No member records found to export.");
+        return;
+      }
+
+      const csvRows = [
+        headers.join(","),
+        ...exportData.map(row =>
+          row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+        )
+      ];
+
+      const csvContent = csvRows.join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", fileName);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert("Error exporting CSV: " + err.message);
+    }
+  };
+
   const downloadTemplate = () => {
     const headers = ["st_id", "name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
     const rows = [
@@ -717,14 +805,19 @@ export default function Members({ isAdmin = false }) {
           </select>
         </div>
 
-        {isAdmin && (
-          <div className="flex gap-2" style={{ marginLeft: "auto", flexWrap: "wrap" }}>
-            <button className="btn btn-ghost" onClick={() => { setSettingsMsg(null); setEditSettingsModal(true); }}>⚙️ Edit Permissions</button>
-            <button className="btn btn-ghost" onClick={openImportCSV}>Import CSV</button>
-            <button className="btn btn-ghost" onClick={promoteAll} style={{ color: "var(--accent)" }}>Promote All</button>
-            <button className="btn btn-primary" onClick={openAdd}>+ Add Member</button>
-          </div>
-        )}
+        <div className="flex gap-2" style={{ marginLeft: "auto", flexWrap: "wrap" }}>
+          <button className="btn btn-ghost" onClick={exportMembersCSV} title="Export members list to CSV file">
+            📥 Export CSV
+          </button>
+          {isAdmin && (
+            <>
+              <button className="btn btn-ghost" onClick={() => { setSettingsMsg(null); setEditSettingsModal(true); }}>⚙️ Edit Permissions</button>
+              <button className="btn btn-ghost" onClick={openImportCSV}>Import CSV</button>
+              <button className="btn btn-ghost" onClick={promoteAll} style={{ color: "var(--accent)" }}>Promote All</button>
+              <button className="btn btn-primary" onClick={openAdd}>+ Add Member</button>
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (

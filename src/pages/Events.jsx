@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
+import DatePicker from "../components/DatePicker";
 
 const STANDARD_OC_POSITIONS = [
   "OC President",
@@ -604,7 +605,11 @@ export default function Events({ isAdmin = false, session }) {
               </div>
               <div className="form-group">
                 <label>Date *</label>
-                <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+                <DatePicker
+                  value={form.date}
+                  onChange={v => setForm({ ...form, date: v })}
+                  placeholder="Select event date"
+                />
               </div>
             </div>
             <div className="form-row">
@@ -708,11 +713,19 @@ export default function Events({ isAdmin = false, session }) {
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label>Apply Start Date (for OC Applications)</label>
-                <input type="date" value={form.apply_start_date} onChange={e => setForm({ ...form, apply_start_date: e.target.value })} />
+                <DatePicker
+                  value={form.apply_start_date}
+                  onChange={v => setForm({ ...form, apply_start_date: v })}
+                  placeholder="Select start date"
+                />
               </div>
               <div className="form-group">
                 <label>Apply End Date (for OC Applications)</label>
-                <input type="date" value={form.apply_end_date} onChange={e => setForm({ ...form, apply_end_date: e.target.value })} />
+                <DatePicker
+                  value={form.apply_end_date}
+                  onChange={v => setForm({ ...form, apply_end_date: v })}
+                  placeholder="Select end date"
+                />
               </div>
             </div>
             <div className="form-row" style={{ marginBottom: "15px" }}>
