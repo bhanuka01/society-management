@@ -21,7 +21,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
   const [myCounts, setMyCounts] = useState({ yes: 0, no: 0 });
 
   const [adminTab, setAdminTab] = useState("members");
-  
+
   // CSV attendance state
   const [csvFile, setCsvFile] = useState(null);
   const [csvRegistrations, setCsvRegistrations] = useState([]);
@@ -33,7 +33,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
   const [csvStats, setCsvStats] = useState({ total: 0, members: 0, nonMembers: 0, present: 0 });
   const [memberIds, setMemberIds] = useState(new Set());
   const [dbSetupRequired, setDbSetupRequired] = useState(false);
-  
+
   // QR state
   const [showQR, setShowQR] = useState(false);
   const [qrToken, setQrToken] = useState("");
@@ -47,7 +47,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
     let inQuotes = false;
     for (let i = 0; i < text.length; i++) {
       const c = text[i];
-      const next = text[i+1];
+      const next = text[i + 1];
       if (c === '"') {
         if (inQuotes && next === '"') {
           row[row.length - 1] += '"';
@@ -88,14 +88,14 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
     if (!selectedEvent) return;
     setCsvLoading(true);
     setDbSetupRequired(false);
-    
+
     try {
       // 1. Fetch counts/stats
       const { data: statsData, error: statsError } = await supabase
         .from("event_registrations")
         .select("id, is_member, attend")
         .eq("event_id", selectedEvent);
-        
+
       if (statsError) {
         if (statsError.code === '42P01') {
           setDbSetupRequired(true);
@@ -104,7 +104,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
         }
         throw statsError;
       }
-      
+
       const stats = { total: 0, members: 0, nonMembers: 0, present: 0 };
       statsData?.forEach(r => {
         stats.total++;
@@ -114,26 +114,26 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
       });
       setCsvStats(stats);
       setLiveScans(stats.present);
-      
+
       // 2. Fetch paginated registrations
       const from = csvPage * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
-      
+
       let query = supabase
         .from("event_registrations")
         .select("*", { count: "exact" })
         .eq("event_id", selectedEvent)
         .order("st_id")
         .range(from, to);
-        
+
       if (csvSearch.trim()) {
         const q = csvSearch.trim();
         query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,attend.ilike.%${q}%`);
       }
-      
+
       const { data, count, error } = await query;
       if (error) throw error;
-      
+
       setCsvRegistrations(data || []);
       setCsvTotal(count || 0);
     } catch (err) {
@@ -217,21 +217,21 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
     if (!csvFile || !selectedEvent) return;
     setCsvLoading(true);
     setCsvMsg(null);
-    
+
     try {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const text = event.target.result;
         const rows = parseCSV(text);
-        
+
         if (rows.length < 2) {
           setCsvMsg({ type: "error", text: "The CSV file is empty or has no header." });
           setCsvLoading(false);
           return;
         }
-        
+
         const headers = rows[0].map(h => h.trim().toLowerCase());
-        
+
         // Find indices
         const stIdIdx = headers.findIndex(h => h.includes("index") || h.includes("student") || h.includes("st") || h.includes("id") || h.includes("reg"));
         const nameIdx = headers.findIndex(h => h.includes("name") || h.includes("full"));
@@ -240,27 +240,27 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
         const degreeIdx = headers.findIndex(h => h.includes("degree") || h.includes("program") || h.includes("course"));
         const levelIdx = headers.findIndex(h => h.includes("level") || h.includes("year"));
         const attendIdx = headers.findIndex(h => h.includes("attend") || h.includes("present") || h.includes("status"));
-        
+
         if (stIdIdx === -1 || nameIdx === -1) {
           setCsvMsg({ type: "error", text: "Could not find 'Index Number/Student ID' and 'Name' columns in CSV headers." });
           setCsvLoading(false);
           return;
         }
-        
+
         const registrationsToInsert = [];
         const seen = new Set();
-        
+
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           if (row.length <= Math.max(stIdIdx, nameIdx) || !row[stIdIdx]?.trim()) continue;
-          
+
           const stId = row[stIdIdx].trim();
           const normalized = stId.toLowerCase().replace(/^sc\//i, "").replace(/\s+/g, "");
-          
+
           // Deduplicate inside the CSV to avoid Postgres UNIQUE constraint conflict errors
           if (seen.has(normalized)) continue;
           seen.add(normalized);
-          
+
           let attendStatus = "NO";
           if (attendIdx !== -1 && row[attendIdx]) {
             const rawVal = row[attendIdx].trim().toUpperCase();
@@ -268,7 +268,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
               attendStatus = "YES";
             }
           }
-          
+
           // Determine is_member
           let isMember = false;
           for (let mId of memberIds) {
@@ -277,10 +277,10 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
               break;
             }
           }
-          
+
           const degreeVal = degreeIdx !== -1 ? row[degreeIdx]?.trim() || null : null;
           const levelVal = levelIdx !== -1 ? row[levelIdx]?.trim() || null : null;
-          
+
           registrationsToInsert.push({
             event_id: selectedEvent,
             st_id: stId,
@@ -293,18 +293,18 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
             is_member: isMember
           });
         }
-        
+
         if (registrationsToInsert.length === 0) {
           setCsvMsg({ type: "error", text: "No valid rows found in CSV." });
           setCsvLoading(false);
           return;
         }
-        
+
         // Upsert to Supabase
         const { error } = await supabase
           .from("event_registrations")
           .upsert(registrationsToInsert, { onConflict: "event_id,st_id" });
-          
+
         if (error) {
           if (error.code === '42P01') {
             setDbSetupRequired(true);
@@ -321,7 +321,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
         }
         setCsvLoading(false);
       };
-      
+
       reader.readAsText(csvFile);
     } catch (err) {
       console.error(err);
@@ -330,18 +330,39 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
     }
   };
 
+  const downloadExternalRegistrationTemplate = () => {
+    const headers = ["Student ID", "Full Name", "Phone", "Degree", "Level"];
+    const sampleRows = [
+      ["SC/2022/12345", "John Doe", "+94771234567", "Computer Science", "Year 4"],
+      ["SC/2023/54321", "Jane Smith", "0777654321", "Physical Science", "Year 1"]
+    ];
+    const csvContent = [
+      headers.join(","),
+      ...sampleRows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "external_registration_template.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleToggleCSVAttend = async (row) => {
     const newVal = row.attend === "YES" ? "NO" : "YES";
     setSaving(s => ({ ...s, [row.id]: true }));
-    
+
     try {
       const { error } = await supabase
         .from("event_registrations")
         .update({ attend: newVal })
         .eq("id", row.id);
-        
+
       if (error) throw error;
-      
+
       if (row.is_member) {
         if (newVal === "YES") {
           await supabase.from("attendance").upsert({
@@ -356,7 +377,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
             .eq("event_id", selectedEvent);
         }
       }
-      
+
       setCsvRegistrations(prev => prev.map(r => r.id === row.id ? { ...r, attend: newVal } : r));
       setCsvStats(prev => ({
         ...prev,
@@ -372,16 +393,16 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
   const handleClearCSVRegistrations = async () => {
     if (!selectedEvent) return;
     if (!confirm("Are you sure you want to delete ALL CSV registration and attendance records for this event? This action cannot be undone.")) return;
-    
+
     setCsvLoading(true);
     try {
       const { error } = await supabase
         .from("event_registrations")
         .delete()
         .eq("event_id", selectedEvent);
-        
+
       if (error) throw error;
-      
+
       setCsvRegistrations([]);
       setCsvTotal(0);
       setCsvStats({ total: 0, members: 0, nonMembers: 0, present: 0 });
@@ -395,7 +416,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
 
   const handleExportCSV = () => {
     if (!selectedEvent) return;
-    
+
     setCsvLoading(true);
     supabase.from("event_registrations")
       .select("*")
@@ -407,12 +428,12 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
           alert("Failed to fetch records for export: " + error.message);
           return;
         }
-        
+
         if (!data || data.length === 0) {
           alert("No records to export.");
           return;
         }
-        
+
         const escape = (val) => {
           if (val === null || val === undefined) return "";
           const str = String(val);
@@ -421,7 +442,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
           }
           return str;
         };
-        
+
         const header = ["Name", "Index Number", "Degree Program", "Level", "WhatsApp Number", "Attend"];
         const rows = data.map(r => [
           r.name,
@@ -431,12 +452,12 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
           r.phone,
           r.attend
         ]);
-        
+
         const csvContent = [
           header.join(","),
           ...rows.map(row => row.map(escape).join(","))
         ].join("\n");
-        
+
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -479,10 +500,10 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
       supabase.from("attendance").select("*", { count: "exact", head: true }).eq("st_id", session.stId).eq("attend", "YES"),
       supabase.from("attendance").select("*", { count: "exact", head: true }).eq("st_id", session.stId).eq("attend", "NO"),
     ]).then(([records, yes, no]) => {
-        setMyAttendance(records.data || []);
-        setMyTotal(records.count || 0);
-        setMyCounts({ yes: yes.count || 0, no: no.count || 0 });
-      });
+      setMyAttendance(records.data || []);
+      setMyTotal(records.count || 0);
+      setMyCounts({ yes: yes.count || 0, no: no.count || 0 });
+    });
   };
 
   useEffect(() => {
@@ -493,13 +514,13 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
     if (session.role !== "member" || !session.stId) return;
     setLoadingActiveEvents(true);
     const todayStr = new Date().toLocaleDateString("sv-SE");
-    
+
     const { data: eventsData, error: eventsError } = await supabase
       .from("events")
       .select("*")
       .eq("date", todayStr)
       .eq("self_attendance_enabled", true);
-      
+
     if (!eventsError && eventsData?.length) {
       const eventIds = eventsData.map(e => e.event_id);
       const { data: attData } = await supabase
@@ -507,12 +528,12 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
         .select("event_id, attend")
         .eq("st_id", session.stId)
         .in("event_id", eventIds);
-        
+
       const attMap = {};
       attData?.forEach(a => {
         attMap[a.event_id] = a.attend;
       });
-      
+
       const combined = eventsData.map(e => ({
         ...e,
         myAttendanceStatus: attMap[e.event_id] || "NO"
@@ -534,7 +555,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
       const cleanStr = timeStr.toLowerCase().replace(/\s+/g, ' ');
       const parts = cleanStr.split(/[-–—]| to /);
       if (parts.length !== 2) return true;
-      
+
       const parseTime = (str) => {
         const match = str.match(/(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?/);
         if (!match) return null;
@@ -559,7 +580,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
       }
       return currentMin >= startMin && currentMin <= endMin;
     } catch (e) {
-      return true; 
+      return true;
     }
   };
 
@@ -609,12 +630,12 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
       supabase.from("attendance").select("*", { count: "exact", head: true }).eq("event_id", selectedEvent).eq("attend", "YES"),
       supabase.from("attendance").select("*", { count: "exact", head: true }).eq("event_id", selectedEvent).eq("attend", "NO"),
     ]).then(([records, yes, no]) => {
-        if (records.error) setMsg({ type: "error", text: records.error.message });
-        else setAttendance(records.data || []);
-        setTotal(records.count || 0);
-        setAttendanceCounts({ yes: yes.count || 0, no: no.count || 0 });
-        setLoading(false);
-      });
+      if (records.error) setMsg({ type: "error", text: records.error.message });
+      else setAttendance(records.data || []);
+      setTotal(records.count || 0);
+      setAttendanceCounts({ yes: yes.count || 0, no: no.count || 0 });
+      setLoading(false);
+    });
   }, [selectedEvent, page, search]);
 
   const toggle = async (stId, currentVal) => {
@@ -694,7 +715,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
             {activeTodayEvents.map(event => {
               const isPresent = event.myAttendanceStatus === "YES";
               const inTimeRange = isTimeWithinRange(event.time);
-              
+
               return (
                 <div key={event.event_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", borderBottom: "1px solid var(--border)", lastChild: { border: 0 } }}>
                   <div>
@@ -714,8 +735,8 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
                         <span style={{ fontSize: "10px", color: "var(--red)", fontWeight: "600" }}>Outside time window</span>
                       </div>
                     ) : (
-                      <button 
-                        className="btn btn-primary btn-sm" 
+                      <button
+                        className="btn btn-primary btn-sm"
                         onClick={() => handleSelfMarkAttendance(event.event_id)}
                         disabled={markingMap[event.event_id]}
                       >
@@ -799,16 +820,16 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
             {/* Sub-tabs for members vs CSV registration */}
             {isAdmin && (
               <div className="auth-tabs" style={{ marginBottom: 16 }}>
-                <button 
-                  type="button" 
-                  className={adminTab === "members" ? "active" : ""} 
+                <button
+                  type="button"
+                  className={adminTab === "members" ? "active" : ""}
                   onClick={() => setAdminTab("members")}
                 >
                   Society Member Database
                 </button>
-                <button 
-                  type="button" 
-                  className={adminTab === "csv" ? "active" : ""} 
+                <button
+                  type="button"
+                  className={adminTab === "csv" ? "active" : ""}
                   onClick={() => setAdminTab("csv")}
                 >
                   External CSV Attendance
@@ -819,98 +840,98 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
             {adminTab === "members" ? (
               <>
                 {total > 0 && (
-              <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>
-                <div className="stat-card green">
-                  <div className="stat-label">Present</div>
-                  <div className="stat-value">{yesCount}</div>
-                  <div className="stat-sub">marked YES</div>
-                </div>
-                <div className="stat-card red">
-                  <div className="stat-label">Absent</div>
-                  <div className="stat-value">{noCount}</div>
-                  <div className="stat-sub">marked NO</div>
-                </div>
-                <div className="stat-card gold">
-                  <div className="stat-label">Attendance Rate</div>
-                  <div className="stat-value">{pct}%</div>
-                  <div className="stat-sub">of {total} members</div>
-                </div>
-              </div>
-            )}
+                  <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>
+                    <div className="stat-card green">
+                      <div className="stat-label">Present</div>
+                      <div className="stat-value">{yesCount}</div>
+                      <div className="stat-sub">marked YES</div>
+                    </div>
+                    <div className="stat-card red">
+                      <div className="stat-label">Absent</div>
+                      <div className="stat-value">{noCount}</div>
+                      <div className="stat-sub">marked NO</div>
+                    </div>
+                    <div className="stat-card gold">
+                      <div className="stat-label">Attendance Rate</div>
+                      <div className="stat-value">{pct}%</div>
+                      <div className="stat-sub">of {total} members</div>
+                    </div>
+                  </div>
+                )}
 
-            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+                {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
-            <div className="toolbar">
-              <div className="search-input-wrap">
-                <span className="search-icon">?</span>
-                <input placeholder="Search by ID or status..." value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} />
-              </div>
-              {isAdmin && (
-                <>
-                  <button className="btn btn-success btn-sm" onClick={() => markAll("YES")} disabled={saving._all}>All Present</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => markAll("NO")} disabled={saving._all}>All Absent</button>
-                </>
-              )}
-            </div>
+                <div className="toolbar">
+                  <div className="search-input-wrap">
+                    <span className="search-icon">?</span>
+                    <input placeholder="Search by ID or status..." value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} />
+                  </div>
+                  {isAdmin && (
+                    <>
+                      <button className="btn btn-success btn-sm" onClick={() => markAll("YES")} disabled={saving._all}>All Present</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => markAll("NO")} disabled={saving._all}>All Absent</button>
+                    </>
+                  )}
+                </div>
 
-            {loading ? (
-              <div className="loader"><div className="spinner" /></div>
-            ) : total === 0 ? (
-              <div className="card"><div className="empty-state"><div className="icon">*</div><p>No attendance records. Use "Seed Att." on the Events page first.</p></div></div>
+                {loading ? (
+                  <div className="loader"><div className="spinner" /></div>
+                ) : total === 0 ? (
+                  <div className="card"><div className="empty-state"><div className="icon">*</div><p>No attendance records. Use "Seed Att." on the Events page first.</p></div></div>
+                ) : (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          {isAdmin && <th>ST ID</th>}
+                          <th>Name</th>
+                          <th>Level</th>
+                          <th>Status</th>
+                          {isAdmin && <th>Toggle</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleAttendance.map(a => (
+                          <tr key={a.st_id}>
+                            {isAdmin && <td className="mono">{a.st_id}</td>}
+                            <td><strong>{a.members?.name || "-"}</strong></td>
+                            <td>{a.members?.level ? <span className="badge badge-purple">Y{a.members.level}</span> : "-"}</td>
+                            <td>
+                              <span className={`badge ${a.attend === "YES" ? "badge-green" : "badge-red"}`}>
+                                {a.attend}
+                              </span>
+                            </td>
+                            {isAdmin && (
+                              <td>
+                                <button
+                                  className={`btn btn-sm ${a.attend === "YES" ? "btn-danger" : "btn-success"}`}
+                                  onClick={() => toggle(a.st_id, a.attend)}
+                                  disabled={saving[a.st_id]}
+                                >
+                                  {saving[a.st_id] ? "..." : a.attend === "YES" ? "Mark Absent" : "Mark Present"}
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      {isAdmin && <th>ST ID</th>}
-                      <th>Name</th>
-                      <th>Level</th>
-                      <th>Status</th>
-                      {isAdmin && <th>Toggle</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleAttendance.map(a => (
-                      <tr key={a.st_id}>
-                        {isAdmin && <td className="mono">{a.st_id}</td>}
-                        <td><strong>{a.members?.name || "-"}</strong></td>
-                        <td>{a.members?.level ? <span className="badge badge-purple">Y{a.members.level}</span> : "-"}</td>
-                        <td>
-                          <span className={`badge ${a.attend === "YES" ? "badge-green" : "badge-red"}`}>
-                            {a.attend}
-                          </span>
-                        </td>
-                        {isAdmin && (
-                          <td>
-                            <button
-                              className={`btn btn-sm ${a.attend === "YES" ? "btn-danger" : "btn-success"}`}
-                              onClick={() => toggle(a.st_id, a.attend)}
-                              disabled={saving[a.st_id]}
-                            >
-                              {saving[a.st_id] ? "..." : a.attend === "YES" ? "Mark Absent" : "Mark Present"}
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
-              </div>
-            )}
-          </>
-        ) : (
-          /* CSV Registration Attendance panel */
-          <>
-            {dbSetupRequired ? (
-              <div className="card text-center" style={{ padding: "32px", border: "2px dashed var(--red)", background: "rgba(255, 77, 79, 0.05)" }}>
-                <div style={{ fontSize: "40px", marginBottom: "16px" }}>⚠️</div>
-                <h3 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>Database Setup Required</h3>
-                <p style={{ color: "var(--text2)", fontSize: "14px", maxWidth: "500px", margin: "0 auto 20px" }}>
-                  To use external CSV attendance, you need to set up the registration table in Supabase. Please copy and run the SQL migration in your Supabase SQL Editor.
-                </p>
-                <div style={{ textAlign: "left", background: "var(--bg3)", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "12px", fontFamily: "monospace", overflowX: "auto", maxHeight: "150px", marginBottom: "20px" }}>
-                  {`CREATE TABLE IF NOT EXISTS public.event_registrations (
+              /* CSV Registration Attendance panel */
+              <>
+                {dbSetupRequired ? (
+                  <div className="card text-center" style={{ padding: "32px", border: "2px dashed var(--red)", background: "rgba(255, 77, 79, 0.05)" }}>
+                    <div style={{ fontSize: "40px", marginBottom: "16px" }}>⚠️</div>
+                    <h3 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>Database Setup Required</h3>
+                    <p style={{ color: "var(--text2)", fontSize: "14px", maxWidth: "500px", margin: "0 auto 20px" }}>
+                      To use external CSV attendance, you need to set up the registration table in Supabase. Please copy and run the SQL migration in your Supabase SQL Editor.
+                    </p>
+                    <div style={{ textAlign: "left", background: "var(--bg3)", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "12px", fontFamily: "monospace", overflowX: "auto", maxHeight: "150px", marginBottom: "20px" }}>
+                      {`CREATE TABLE IF NOT EXISTS public.event_registrations (
   id BIGSERIAL PRIMARY KEY,
   event_id VARCHAR(50) REFERENCES public.events(event_id) ON DELETE CASCADE,
   st_id VARCHAR(50) NOT NULL,
@@ -925,252 +946,259 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
   UNIQUE (event_id, st_id)
 );
 -- See event-csv-attendance-setup.sql for the full schema and security functions.`}
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Statistics Overview */}
-                <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
-                  <div className="stat-card gold">
-                    <div className="stat-label">Total Registered</div>
-                    <div className="stat-value">{csvStats.total}</div>
-                    <div className="stat-sub">students in CSV</div>
-                  </div>
-                  <div className="stat-card green">
-                    <div className="stat-label">Present</div>
-                    <div className="stat-value">{csvStats.present}</div>
-                    <div className="stat-sub">marked YES</div>
-                  </div>
-                  <div className="stat-card red">
-                    <div className="stat-label">Absent</div>
-                    <div className="stat-value">{csvStats.total - csvStats.present}</div>
-                    <div className="stat-sub">marked NO</div>
-                  </div>
-                  <div className="stat-card purple">
-                    <div className="stat-label">Society Members</div>
-                    <div className="stat-value">{csvStats.members}</div>
-                    <div className="stat-sub">auto-linked</div>
-                  </div>
-                </div>
-
-                {csvMsg && <div className={`alert alert-${csvMsg.type}`}>{csvMsg.text}</div>}
-
-                {/* Upload & Actions toolbar */}
-                <div className="card mb-3" style={{ marginBottom: 16 }}>
-                  <div className="card-header">
-                    <span className="card-title">Manage External Registration CSV</span>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "center", padding: "8px 0" }}>
-                    <div style={{ flex: 1, minWidth: "250px" }}>
-                      <input 
-                        type="file" 
-                        accept=".csv" 
-                        id="csv-file-input"
-                        onChange={handleCSVUpload}
-                        style={{ display: "none" }}
-                      />
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <label 
-                          htmlFor="csv-file-input" 
-                          className="btn btn-ghost btn-sm"
-                          style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", margin: 0 }}
-                        >
-                          📁 Select CSV File
-                        </label>
-                        <button 
-                          className="btn btn-primary btn-sm"
-                          onClick={importCSVData}
-                          disabled={!csvFile || csvLoading}
-                        >
-                          {csvLoading ? "Processing..." : "Import CSV"}
-                        </button>
-                      </div>
-                      <p style={{ margin: "6px 0 0 0", fontSize: "11px", color: "var(--text2)" }}>
-                        {csvFile ? `Selected: ${csvFile.name}` : "Upload external CSV containing Student ID & Name."}
-                      </p>
-                    </div>
-                    
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <button 
-                        className={`btn btn-sm ${showQR ? "btn-danger" : "btn-success"}`}
-                        onClick={() => {
-                          setShowQR(!showQR);
-                          setQrCountdown(60);
-                        }}
-                        disabled={csvStats.total === 0}
-                      >
-                        {showQR ? "✕ Close QR Code" : "📢 Show Dynamic QR Code"}
-                      </button>
-                      
-                      <button 
-                        className="btn btn-primary btn-sm"
-                        onClick={handleExportCSV}
-                        disabled={csvStats.total === 0 || csvLoading}
-                      >
-                        📥 Export CSV Report
-                      </button>
-                      
-                      <button 
-                        className="btn btn-danger btn-sm"
-                        onClick={handleClearCSVRegistrations}
-                        disabled={csvStats.total === 0 || csvLoading}
-                      >
-                        🗑️ Clear Data
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dynamic QR Code Modal / Drawer */}
-                {showQR && (
-                  <div className="card mb-3" style={{ marginBottom: 16, border: "2px solid var(--accent)", background: "var(--bg2)" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", padding: "12px", alignItems: "center", justifyContent: "center" }}>
-                      
-                      {/* QR Image */}
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "white", padding: "16px", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-                        {qrToken ? (
-                          <img 
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                              `${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}&token=${qrToken}`
-                            )}`}
-                            alt="Scan Event Attendance"
-                            style={{ width: "200px", height: "200px" }}
-                          />
-                        ) : (
-                          <div style={{ width: "200px", height: "200px", display: "flex", alignItems: "center", justifyContent: "center", color: "black" }}>
-                            Generating QR...
-                          </div>
-                        )}
-                        
-                        {/* Visual timer */}
-                        <div style={{ color: "black", fontSize: "11px", fontWeight: "bold", marginTop: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#0062ff", animation: "ping 1s infinite" }} />
-                          Rotation: {qrCountdown}s remaining
-                        </div>
-                      </div>
-                      
-                      {/* QR Info and Details */}
-                      <div style={{ flex: 1, minWidth: "250px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                        <div>
-                          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "var(--accent)" }}>
-                            Anti-Fraud Student Attendance QR
-                          </h3>
-                          <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text2)", lineHeight: "1.5" }}>
-                            This QR code encodes an encrypted time-block signature. Sharing links or photo scanning later is blocked since the token changes every 1 minute.
-                          </p>
-                        </div>
-                        
-                        <div className="stat-card green" style={{ padding: "16px", width: "100%", maxWidth: "300px", background: "rgba(0,200,80,0.08)", border: "1px solid rgba(0,200,80,0.2)" }}>
-                          <div className="stat-label" style={{ fontSize: "11px" }}>Live Scanned Count</div>
-                          <div className="stat-value" style={{ fontSize: "28px" }}>{liveScans} / {csvStats.total}</div>
-                          <div className="stat-sub">students marked Present</div>
-                        </div>
-
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text2)" }}>Target Scan Link:</span>
-                          <div style={{ display: "flex", gap: "8px" }}>
-                            <input 
-                              readOnly 
-                              value={`${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}`}
-                              style={{ flex: 1, fontSize: "11px", padding: "6px", background: "var(--bg3)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "4px" }}
-                              onClick={(e) => e.target.select()}
-                            />
-                            <button 
-                              className="btn btn-ghost btn-sm" 
-                              onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}&token=${qrToken}`);
-                                alert("Scanned Link Copied!");
-                              }}
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Search Toolbar */}
-                <div className="toolbar">
-                  <div className="search-input-wrap">
-                    <span className="search-icon">?</span>
-                    <input 
-                      placeholder="Search registrations by ID or Name..." 
-                      value={csvSearch} 
-                      onChange={e => { setCsvPage(0); setCsvSearch(e.target.value); }} 
-                    />
-                  </div>
-                </div>
-
-                {/* CSV Table */}
-                {csvLoading ? (
-                  <div className="loader"><div className="spinner" /></div>
-                ) : csvTotal === 0 ? (
-                  <div className="card">
-                    <div className="empty-state">
-                      <div className="icon">📋</div>
-                      <p>No registration records found for this event. Please select a CSV file and click "Import CSV" to start.</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Index Number</th>
-                          <th>Name</th>
-                          <th>Degree Program</th>
-                          <th>Level</th>
-                          <th>WhatsApp Number</th>
-                          <th>Society Member?</th>
-                          <th>Status</th>
-                          <th>Toggle Present</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {csvRegistrations.map(r => {
-                          return (
-                            <tr key={r.id}>
-                              <td className="mono">{r.st_id}</td>
-                              <td><strong>{r.name}</strong></td>
-                              <td>{r.degree_program || "-"}</td>
-                              <td>{r.level ? <span className="badge badge-purple">{r.level}</span> : "-"}</td>
-                              <td className="mono">{r.phone || "-"}</td>
-                              <td>
-                                {r.is_member ? (
-                                  <span className="badge badge-green">✓ Member</span>
-                                ) : (
-                                  <span className="badge badge-gray" style={{ opacity: 0.6 }}>✗ Non-Member</span>
-                                )}
-                              </td>
-                              <td>
-                                <span className={`badge ${r.attend === "YES" ? "badge-green" : "badge-red"}`}>
-                                  {r.attend === "YES" ? "Present" : "Absent"}
-                                </span>
-                              </td>
-                              <td>
+                  <>
+                    {/* Statistics Overview */}
+                    <div className="stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
+                      <div className="stat-card gold">
+                        <div className="stat-label">Total Registered</div>
+                        <div className="stat-value">{csvStats.total}</div>
+                        <div className="stat-sub">students in CSV</div>
+                      </div>
+                      <div className="stat-card green">
+                        <div className="stat-label">Present</div>
+                        <div className="stat-value">{csvStats.present}</div>
+                        <div className="stat-sub">marked YES</div>
+                      </div>
+                      <div className="stat-card red">
+                        <div className="stat-label">Absent</div>
+                        <div className="stat-value">{csvStats.total - csvStats.present}</div>
+                        <div className="stat-sub">marked NO</div>
+                      </div>
+                      <div className="stat-card purple">
+                        <div className="stat-label">Society Members</div>
+                        <div className="stat-value">{csvStats.members}</div>
+                        <div className="stat-sub">auto-linked</div>
+                      </div>
+                    </div>
+
+                    {csvMsg && <div className={`alert alert-${csvMsg.type}`}>{csvMsg.text}</div>}
+
+                    {/* Upload & Actions toolbar */}
+                    <div className="card mb-3" style={{ marginBottom: 16 }}>
+                      <div className="card-header">
+                        <span className="card-title">Manage External Registration CSV</span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "center", padding: "8px 0" }}>
+                        <div style={{ flex: 1, minWidth: "250px" }}>
+                          <input
+                            type="file"
+                            accept=".csv"
+                            id="csv-file-input"
+                            onChange={handleCSVUpload}
+                            style={{ display: "none" }}
+                          />
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                            <label
+                              htmlFor="csv-file-input"
+                              className="btn btn-ghost btn-sm"
+                              style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", margin: 0 }}
+                            >
+                              📁 Select CSV File
+                            </label>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={importCSVData}
+                              disabled={!csvFile || csvLoading}
+                            >
+                              {csvLoading ? "Processing..." : "Import CSV"}
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={downloadExternalRegistrationTemplate}
+                              title="Download starter template CSV file for external registrations"
+                            >
+                              📄 Download Template CSV
+                            </button>
+                          </div>
+                          <p style={{ margin: "6px 0 0 0", fontSize: "11px", color: "var(--text2)" }}>
+                            {csvFile ? `Selected: ${csvFile.name}` : "Need a starter file? Download template CSV or upload external CSV containing Student ID & Name."}
+                          </p>
+                        </div>
+
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            className={`btn btn-sm ${showQR ? "btn-danger" : "btn-success"}`}
+                            onClick={() => {
+                              setShowQR(!showQR);
+                              setQrCountdown(60);
+                            }}
+                            disabled={csvStats.total === 0}
+                          >
+                            {showQR ? "✕ Close QR Code" : "📢 Show Dynamic QR Code"}
+                          </button>
+
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={handleExportCSV}
+                            disabled={csvStats.total === 0 || csvLoading}
+                          >
+                            📥 Export CSV Report
+                          </button>
+
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={handleClearCSVRegistrations}
+                            disabled={csvStats.total === 0 || csvLoading}
+                          >
+                            🗑️ Clear Data
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic QR Code Modal / Drawer */}
+                    {showQR && (
+                      <div className="card mb-3" style={{ marginBottom: 16, border: "2px solid var(--accent)", background: "var(--bg2)" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", padding: "12px", alignItems: "center", justifyContent: "center" }}>
+
+                          {/* QR Image */}
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "white", padding: "16px", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                            {qrToken ? (
+                              <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                                  `${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}&token=${qrToken}`
+                                )}`}
+                                alt="Scan Event Attendance"
+                                style={{ width: "200px", height: "200px" }}
+                              />
+                            ) : (
+                              <div style={{ width: "200px", height: "200px", display: "flex", alignItems: "center", justifyContent: "center", color: "black" }}>
+                                Generating QR...
+                              </div>
+                            )}
+
+                            {/* Visual timer */}
+                            <div style={{ color: "black", fontSize: "11px", fontWeight: "bold", marginTop: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#0062ff", animation: "ping 1s infinite" }} />
+                              Rotation: {qrCountdown}s remaining
+                            </div>
+                          </div>
+
+                          {/* QR Info and Details */}
+                          <div style={{ flex: 1, minWidth: "250px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                            <div>
+                              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "var(--accent)" }}>
+                                Anti-Fraud Student Attendance QR
+                              </h3>
+                              <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text2)", lineHeight: "1.5" }}>
+                                This QR code encodes an encrypted time-block signature. Sharing links or photo scanning later is blocked since the token changes every 1 minute.
+                              </p>
+                            </div>
+
+                            <div className="stat-card green" style={{ padding: "16px", width: "100%", maxWidth: "300px", background: "rgba(0,200,80,0.08)", border: "1px solid rgba(0,200,80,0.2)" }}>
+                              <div className="stat-label" style={{ fontSize: "11px" }}>Live Scanned Count</div>
+                              <div className="stat-value" style={{ fontSize: "28px" }}>{liveScans} / {csvStats.total}</div>
+                              <div className="stat-sub">students marked Present</div>
+                            </div>
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                              <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text2)" }}>Target Scan Link:</span>
+                              <div style={{ display: "flex", gap: "8px" }}>
+                                <input
+                                  readOnly
+                                  value={`${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}`}
+                                  style={{ flex: 1, fontSize: "11px", padding: "6px", background: "var(--bg3)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "4px" }}
+                                  onClick={(e) => e.target.select()}
+                                />
                                 <button
-                                  className={`btn btn-sm ${r.attend === "YES" ? "btn-danger" : "btn-success"}`}
-                                  onClick={() => handleToggleCSVAttend(r)}
-                                  disabled={saving[r.id]}
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#/scan-attendance?event_id=${selectedEvent}&token=${qrToken}`);
+                                    alert("Scanned Link Copied!");
+                                  }}
                                 >
-                                  {saving[r.id] ? "..." : r.attend === "YES" ? "Mark Absent" : "Mark Present"}
+                                  Copy
                                 </button>
-                              </td>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Search Toolbar */}
+                    <div className="toolbar">
+                      <div className="search-input-wrap">
+                        <span className="search-icon">?</span>
+                        <input
+                          placeholder="Search registrations by ID or Name..."
+                          value={csvSearch}
+                          onChange={e => { setCsvPage(0); setCsvSearch(e.target.value); }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* CSV Table */}
+                    {csvLoading ? (
+                      <div className="loader"><div className="spinner" /></div>
+                    ) : csvTotal === 0 ? (
+                      <div className="card">
+                        <div className="empty-state">
+                          <div className="icon">📋</div>
+                          <p>No registration records found for this event. Please select a CSV file and click "Import CSV" to start.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Index Number</th>
+                              <th>Name</th>
+                              <th>Degree Program</th>
+                              <th>Level</th>
+                              <th>WhatsApp Number</th>
+                              <th>Society Member?</th>
+                              <th>Status</th>
+                              <th>Toggle Present</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    <Pagination page={csvPage} total={csvTotal} loading={csvLoading} onPageChange={setCsvPage} />
-                  </div>
+                          </thead>
+                          <tbody>
+                            {csvRegistrations.map(r => {
+                              return (
+                                <tr key={r.id}>
+                                  <td className="mono">{r.st_id}</td>
+                                  <td><strong>{r.name}</strong></td>
+                                  <td>{r.degree_program || "-"}</td>
+                                  <td>{r.level ? <span className="badge badge-purple">{r.level}</span> : "-"}</td>
+                                  <td className="mono">{r.phone || "-"}</td>
+                                  <td>
+                                    {r.is_member ? (
+                                      <span className="badge badge-green">✓ Member</span>
+                                    ) : (
+                                      <span className="badge badge-gray" style={{ opacity: 0.6 }}>✗ Non-Member</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <span className={`badge ${r.attend === "YES" ? "badge-green" : "badge-red"}`}>
+                                      {r.attend === "YES" ? "Present" : "Absent"}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <button
+                                      className={`btn btn-sm ${r.attend === "YES" ? "btn-danger" : "btn-success"}`}
+                                      onClick={() => handleToggleCSVAttend(r)}
+                                      disabled={saving[r.id]}
+                                    >
+                                      {saving[r.id] ? "..." : r.attend === "YES" ? "Mark Absent" : "Mark Present"}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        <Pagination page={csvPage} total={csvTotal} loading={csvLoading} onPageChange={setCsvPage} />
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
           </>
-        )}
-      </>
         )
       )}
     </div>
