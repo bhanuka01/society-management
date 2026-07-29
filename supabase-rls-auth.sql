@@ -7,9 +7,11 @@ alter table members add column if not exists mobile_number varchar(50);
 alter table members add column if not exists profile_image_url text;
 alter table members add column if not exists linkedin_url text;
 
--- Add application date range to events
+-- Add application date range and available OC positions to events
 alter table events add column if not exists apply_start_date date;
 alter table events add column if not exists apply_end_date date;
+alter table events add column if not exists available_oc_positions text;
+
 
 
 create table if not exists profiles (

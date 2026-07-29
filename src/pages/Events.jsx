@@ -316,6 +316,27 @@ export default function Events({ isAdmin = false, session }) {
     } else {
       ({ error } = await supabase.from("events").insert([payload]));
     }
+
+    if (error && error.message && error.message.includes("available_oc_positions")) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.available_oc_positions;
+      if (editTarget) {
+        ({ error } = await supabase.from("events").update(fallbackPayload).eq("event_id", editTarget));
+      } else {
+        ({ error } = await supabase.from("events").insert([fallbackPayload]));
+      }
+      if (!error) {
+        setSaving(false);
+        setMsg({
+          type: "success",
+          text: (editTarget ? "Event updated." : "Event created.") + " (Note: Please run 'available-oc-positions-setup.sql' in Supabase SQL Editor)."
+        });
+        load(page, search);
+        setTimeout(closeModal, 1500);
+        return;
+      }
+    }
+
     setSaving(false);
     if (error) { setMsg({ type: "error", text: error.message }); return; }
     setMsg({ type: "success", text: editTarget ? "Event updated." : "Event created." });
