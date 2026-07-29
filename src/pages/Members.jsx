@@ -272,13 +272,13 @@ export default function Members({ isAdmin = false }) {
     const { data: activeMembers, error: fetchErr } = await supabase.from("members").select("*").lte("level", 4);
     if (fetchErr) { alert(fetchErr.message); setLoading(false); return; }
     if (!activeMembers || activeMembers.length === 0) { alert("No active members found to promote."); setLoading(false); return; }
-    
+
     const updated = activeMembers.map(m => ({ ...m, level: (parseInt(m.level) || 0) + 1 }));
     const { error: upsertErr } = await supabase.from("members").upsert(updated, { onConflict: "st_id" });
-    
+
     if (upsertErr) alert(upsertErr.message);
     else alert(`Successfully promoted ${updated.length} members.`);
-    
+
     load(page, search);
   };
 
@@ -328,15 +328,15 @@ export default function Members({ isAdmin = false }) {
         alert("The CSV file must contain a header row and at least one data row.");
         return;
       }
-      
+
       const headers = parsed[0];
       const rows = parsed.slice(1);
       const mapping = mapHeaders(headers);
-      
+
       const validRows = [];
       const invalidRows = [];
       const errors = [];
-      
+
       rows.forEach((row, idx) => {
         const rowNum = idx + 2;
         const st_id = mapping.st_id !== -1 ? row[mapping.st_id]?.trim() : "";
@@ -348,7 +348,7 @@ export default function Members({ isAdmin = false }) {
         const mobile_number = mapping.mobile_number !== -1 ? row[mapping.mobile_number]?.trim() : "";
         const profile_image_url = mapping.profile_image_url !== -1 ? row[mapping.profile_image_url]?.trim() : "";
         const linkedin_url = mapping.linkedin_url !== -1 ? row[mapping.linkedin_url]?.trim() : "";
-        
+
         let rowValid = true;
         let normalizedStId = st_id;
         if (!st_id) {
@@ -368,7 +368,7 @@ export default function Members({ isAdmin = false }) {
           errors.push(`Row ${rowNum}: Full Name is missing.`);
           rowValid = false;
         }
-        
+
         let level = null;
         if (levelRaw) {
           const parsedLevel = parseInt(levelRaw, 10);
@@ -379,7 +379,7 @@ export default function Members({ isAdmin = false }) {
             level = parsedLevel;
           }
         }
-        
+
         const payload = {
           st_id: normalizedStId || "",
           name: name || "",
@@ -391,14 +391,14 @@ export default function Members({ isAdmin = false }) {
           profile_image_url: profile_image_url || null,
           linkedin_url: linkedin_url || null
         };
-        
+
         if (rowValid) {
           validRows.push(payload);
         } else {
           invalidRows.push(payload);
         }
       });
-      
+
       setParsedData({
         headers,
         rows,
@@ -413,12 +413,12 @@ export default function Members({ isAdmin = false }) {
 
   const handleImportSubmit = async () => {
     if (!parsedData || parsedData.validRows.length === 0) return;
-    
+
     setImporting(true);
     setImportProgress(10);
-    
+
     const batchSize = 100;
-    
+
     if (duplicateStrategy === "ignore") {
       const { data: existing, error: fetchErr } = await supabase.from("members").select("st_id");
       if (fetchErr) {
@@ -429,7 +429,7 @@ export default function Members({ isAdmin = false }) {
       const existingSet = new Set(existing.map(m => m.st_id));
       const toInsert = parsedData.validRows.filter(row => !existingSet.has(row.st_id));
       const skippedCount = parsedData.validRows.length - toInsert.length;
-      
+
       if (toInsert.length === 0) {
         setImportResult({
           success: 0,
@@ -441,10 +441,10 @@ export default function Members({ isAdmin = false }) {
         load(page, search);
         return;
       }
-      
+
       let inserted = 0;
       let failed = 0;
-      
+
       for (let i = 0; i < toInsert.length; i += batchSize) {
         const chunk = toInsert.slice(i, i + batchSize);
         const { error: insertErr } = await supabase.from("members").insert(chunk);
@@ -456,7 +456,7 @@ export default function Members({ isAdmin = false }) {
         }
         setImportProgress(Math.min(95, Math.round(((i + chunk.length) / toInsert.length) * 80) + 10));
       }
-      
+
       setImportProgress(100);
       setImportResult({
         success: inserted,
@@ -469,7 +469,7 @@ export default function Members({ isAdmin = false }) {
       const toUpsert = parsedData.validRows;
       let upserted = 0;
       let failed = 0;
-      
+
       for (let i = 0; i < toUpsert.length; i += batchSize) {
         const chunk = toUpsert.slice(i, i + batchSize);
         const { error: upsertErr } = await supabase.from("members").upsert(chunk, { onConflict: "st_id" });
@@ -481,7 +481,7 @@ export default function Members({ isAdmin = false }) {
         }
         setImportProgress(Math.min(100, Math.round(((i + chunk.length) / toUpsert.length) * 90) + 10));
       }
-      
+
       setImportProgress(100);
       setImportResult({
         success: upserted,
@@ -490,7 +490,7 @@ export default function Members({ isAdmin = false }) {
         validationSkipped: parsedData.invalidRows.length
       });
     }
-    
+
     setImporting(false);
     load(page, search);
   };
@@ -519,7 +519,7 @@ export default function Members({ isAdmin = false }) {
 
     if (editProfileTarget) {
       const stIdChanged = finalStId !== editTarget;
-      
+
       if (stIdChanged) {
         // 1. Check if the new st_id is already in members
         const { data: exists } = await supabase
@@ -527,20 +527,20 @@ export default function Members({ isAdmin = false }) {
           .select("st_id")
           .eq("st_id", finalStId)
           .maybeSingle();
-          
+
         if (exists) {
           setMsg({ type: "error", text: `Student ID ${finalStId} is already in use.` });
           setSaving(false);
           return;
         }
-        
+
         // 2. Set profile st_id to null first to bypass foreign key constraint
         await supabase
           .from("profiles")
           .update({ st_id: null })
           .eq("id", editProfileTarget.profile_id);
       }
-      
+
       // 3. Update member details
       const { error: memberErr } = await supabase
         .from("members")
@@ -552,13 +552,13 @@ export default function Members({ isAdmin = false }) {
           mobile_number: form.mobile_number.trim() || null
         })
         .eq("st_id", editTarget);
-        
+
       if (memberErr) {
         setMsg({ type: "error", text: "Error updating member: " + memberErr.message });
         setSaving(false);
         return;
       }
-      
+
       // 4. Update profile details
       const { error: profileErr } = await supabase
         .from("profiles")
@@ -569,13 +569,13 @@ export default function Members({ isAdmin = false }) {
           role: form.role
         })
         .eq("id", editProfileTarget.profile_id);
-        
+
       if (profileErr) {
         setMsg({ type: "error", text: "Error updating profile: " + profileErr.message });
         setSaving(false);
         return;
       }
-      
+
       setSaving(false);
       setMsg({ type: "success", text: "Pending registration details updated." });
       load(page, search);
@@ -583,11 +583,11 @@ export default function Members({ isAdmin = false }) {
       return;
     }
 
-    const payload = { 
-      st_id: finalStId, 
-      name: form.name.trim(), 
+    const payload = {
+      st_id: finalStId,
+      name: form.name.trim(),
       email: form.email.trim() || null,
-      level: form.level ? parseInt(form.level) : null, 
+      level: form.level ? parseInt(form.level) : null,
       st_position: form.st_position.trim() || null,
       member_function: form.member_function.trim() || null,
       mobile_number: form.mobile_number.trim() || null,
@@ -631,7 +631,7 @@ export default function Members({ isAdmin = false }) {
 
     const { error: memberErr } = await supabase
       .from("members")
-      .update({ 
+      .update({
         st_position: m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin",
         member_function: m.role === "member" ? (m.member_function && m.member_function !== "Pending Review" ? m.member_function : "General") : "Staff"
       })
@@ -702,11 +702,11 @@ export default function Members({ isAdmin = false }) {
           <span className="search-icon">?</span>
           <input placeholder="Search by ID, name, position..." value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} />
         </div>
-        
+
         <div className="flex gap-2" style={{ alignItems: "center" }}>
           <label style={{ fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>View:</label>
-          <select 
-            value={viewFilter} 
+          <select
+            value={viewFilter}
             onChange={e => { setPage(0); setViewFilter(e.target.value); }}
             style={{ padding: "0.5rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}
           >
@@ -735,41 +735,46 @@ export default function Members({ isAdmin = false }) {
             <thead>
               <tr>
                 {isAdmin && <th>ST ID</th>}
-                <th>Name</th>
-                <th>Email</th>
+                <th>Name & Email</th>
                 {viewFilter === "pending" ? <th>Requested Role</th> : <th>Level</th>}
-                {viewFilter === "pending" ? <th>Phone</th> : <th>Position</th>}
-                {viewFilter === "pending" ? <th>Year</th> : <th>Function</th>}
+                {viewFilter === "pending" ? <th>Phone</th> : <th>Position & Function</th>}
+                {viewFilter === "pending" && <th>Year</th>}
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {members.length === 0 ? (
-                <tr><td colSpan={isAdmin ? 7 : 6}><div className="empty-state"><div className="icon">*</div><p>No members found</p></div></td></tr>
+                <tr><td colSpan={viewFilter === "pending" ? (isAdmin ? 6 : 5) : (isAdmin ? 5 : 4)}><div className="empty-state"><div className="icon">*</div><p>No members found</p></div></td></tr>
               ) : members.map(m => (
                 <tr key={m.st_id}>
                   {isAdmin && <td className="mono">{m.st_id}</td>}
                   <td>
-                    {viewFilter === "pending" ? (
-                      <strong>{m.name}</strong>
-                    ) : (
-                      <strong 
-                        className="clickable-member" 
-                        onClick={() => openViewProfile(m.st_id)}
-                        style={{ cursor: "pointer", color: "var(--accent2)" }}
-                      >
-                        {m.name}
-                      </strong>
-                    )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                      {viewFilter === "pending" ? (
+                        <span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text)" }}>
+                          {m.name}
+                        </span>
+                      ) : (
+                        <span
+                          className="clickable-member"
+                          onClick={() => openViewProfile(m.st_id)}
+                          style={{ cursor: "pointer", color: "var(--accent2)", fontWeight: 600, fontSize: "12px" }}
+                        >
+                          {m.name}
+                        </span>
+                      )}
+                      <span style={{ fontSize: "11px", color: "var(--text3)", wordBreak: "break-all" }}>
+                        {m.email || "-"}
+                      </span>
+                    </div>
                   </td>
-                  <td>{m.email || <span className="text-muted">-</span>}</td>
                   {viewFilter === "pending" ? (
                     <>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                           <span className="badge badge-purple">{m.role}</span>
-                          <span className="badge" style={{ 
-                            backgroundColor: m.status === "rejected" ? "rgba(220, 38, 38, 0.15)" : "rgba(245, 158, 11, 0.15)", 
+                          <span className="badge" style={{
+                            backgroundColor: m.status === "rejected" ? "rgba(220, 38, 38, 0.15)" : "rgba(245, 158, 11, 0.15)",
                             color: m.status === "rejected" ? "var(--red)" : "var(--amber)",
                             border: m.status === "rejected" ? "1px solid rgba(220, 38, 38, 0.2)" : "1px solid rgba(245, 158, 11, 0.2)"
                           }}>
@@ -793,8 +798,18 @@ export default function Members({ isAdmin = false }) {
                   ) : (
                     <>
                       <td>{m.level ? <span className="badge badge-purple">Year {m.level}</span> : <span className="text-muted">-</span>}</td>
-                      <td>{m.st_position || <span className="text-muted">-</span>}</td>
-                      <td>{m.member_function || <span className="text-muted">-</span>}</td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                          <span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text)" }}>
+                            {m.st_position || m.member_function || "-"}
+                          </span>
+                          {m.st_position && m.member_function && (
+                            <span style={{ fontSize: "11px", color: "var(--text3)" }}>
+                              {m.member_function}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       {isAdmin && (
                         <td>
                           <div className="flex gap-2">
@@ -826,7 +841,7 @@ export default function Members({ isAdmin = false }) {
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label>ST ID *</label>
-                <input placeholder="e.g. SC/2022/12984" value={form.st_id} onChange={e => setForm({...form, st_id: e.target.value})} disabled={!!editTarget && !editProfileTarget} />
+                <input placeholder="e.g. SC/2022/12984" value={form.st_id} onChange={e => setForm({ ...form, st_id: e.target.value })} disabled={!!editTarget && !editProfileTarget} />
                 {form.st_id && !/^(?:SC\/)?\d{4}\/\d{5}$/i.test(form.st_id.trim()) && (
                   <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
                     Invalid Student ID format. Correct format: SC/2022/12984
@@ -835,26 +850,26 @@ export default function Members({ isAdmin = false }) {
               </div>
               <div className="form-group">
                 <label>Level / Year</label>
-                <input type="number" placeholder="e.g. 2" min="1" max="6" value={form.level} onChange={e => setForm({...form, level: e.target.value})} />
+                <input type="number" placeholder="e.g. 2" min="1" max="6" value={form.level} onChange={e => setForm({ ...form, level: e.target.value })} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label>Full Name *</label>
-                <input placeholder="Student full name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                <input placeholder="Student full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label>Email Address</label>
-                <input type="email" placeholder="Student email address" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                <input type="email" placeholder="Student email address" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
               </div>
             </div>
             {editProfileTarget ? (
               <div className="form-row">
                 <div className="form-group">
                   <label>Requested Role / Access Level</label>
-                  <select value={form.role} onChange={e => setForm({...form, role: e.target.value})}>
+                  <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
                     <option value="member">Member</option>
                     <option value="editor">Editor</option>
                     <option value="admin">Admin</option>
@@ -866,13 +881,13 @@ export default function Members({ isAdmin = false }) {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Student Position</label>
-                    <input placeholder="e.g. President, Secretary..." value={form.st_position} onChange={e => setForm({...form, st_position: e.target.value})} />
+                    <input placeholder="e.g. President, Secretary..." value={form.st_position} onChange={e => setForm({ ...form, st_position: e.target.value })} />
                   </div>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Member Function</label>
-                    <input placeholder="e.g. Logistics, Marketing, Finance..." value={form.member_function} onChange={e => setForm({...form, member_function: e.target.value})} />
+                    <input placeholder="e.g. Logistics, Marketing, Finance..." value={form.member_function} onChange={e => setForm({ ...form, member_function: e.target.value })} />
                   </div>
                 </div>
               </>
@@ -880,17 +895,17 @@ export default function Members({ isAdmin = false }) {
             <div className="form-row form-row-2">
               <div className="form-group">
                 <label>Mobile Number</label>
-                <input placeholder="e.g. +94771234567" value={form.mobile_number} onChange={e => setForm({...form, mobile_number: e.target.value})} />
+                <input placeholder="e.g. +94771234567" value={form.mobile_number} onChange={e => setForm({ ...form, mobile_number: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>LinkedIn Profile URL</label>
-                <input placeholder="e.g. https://linkedin.com/in/..." value={form.linkedin_url} onChange={e => setForm({...form, linkedin_url: e.target.value})} />
+                <input placeholder="e.g. https://linkedin.com/in/..." value={form.linkedin_url} onChange={e => setForm({ ...form, linkedin_url: e.target.value })} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label>Profile Image URL</label>
-                <input placeholder="e.g. https://example.com/avatar.jpg" value={form.profile_image_url} onChange={e => setForm({...form, profile_image_url: e.target.value})} />
+                <input placeholder="e.g. https://example.com/avatar.jpg" value={form.profile_image_url} onChange={e => setForm({ ...form, profile_image_url: e.target.value })} />
               </div>
             </div>
 
@@ -1088,45 +1103,45 @@ export default function Members({ isAdmin = false }) {
                     <div className="table-wrap" style={{ marginBottom: "20px" }}>
                       <table className="csv-preview-table" style={{ border: "none" }}>
                         <thead>
-                        <tr>
-                          <th>Student ID</th>
-                          <th>Full Name</th>
-                          <th>Email</th>
-                          <th>Level</th>
-                          <th>Position</th>
-                          <th>Function</th>
-                          <th>Mobile</th>
-                          <th>LinkedIn</th>
-                          <th>Photo URL</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {parsedData.rows.slice(0, 5).map((row, idx) => {
-                          const st_id = parsedData.mapping.st_id !== -1 ? row[parsedData.mapping.st_id] : "";
-                          const name = parsedData.mapping.name !== -1 ? row[parsedData.mapping.name] : "";
-                          const email = parsedData.mapping.email !== -1 ? row[parsedData.mapping.email] : "";
-                          const level = parsedData.mapping.level !== -1 ? row[parsedData.mapping.level] : "";
-                          const position = parsedData.mapping.st_position !== -1 ? row[parsedData.mapping.st_position] : "";
-                          const memberFunction = parsedData.mapping.member_function !== -1 ? row[parsedData.mapping.member_function] : "";
-                          const mobile = parsedData.mapping.mobile_number !== -1 ? row[parsedData.mapping.mobile_number] : "";
-                          const linkedin = parsedData.mapping.linkedin_url !== -1 ? row[parsedData.mapping.linkedin_url] : "";
-                          const photo = parsedData.mapping.profile_image_url !== -1 ? row[parsedData.mapping.profile_image_url] : "";
-                          return (
-                            <tr key={idx}>
-                              <td className="mono">{st_id || <span className="text-red">Missing</span>}</td>
-                              <td><strong>{name || <span className="text-red">Missing</span>}</strong></td>
-                              <td>{email || "-"}</td>
-                              <td>{level || "-"}</td>
-                              <td>{position || "-"}</td>
-                              <td>{memberFunction || "-"}</td>
-                              <td>{mobile || "-"}</td>
-                              <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={linkedin}>{linkedin || "-"}</td>
-                              <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={photo}>{photo || "-"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          <tr>
+                            <th>Student ID</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Level</th>
+                            <th>Position</th>
+                            <th>Function</th>
+                            <th>Mobile</th>
+                            <th>LinkedIn</th>
+                            <th>Photo URL</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsedData.rows.slice(0, 5).map((row, idx) => {
+                            const st_id = parsedData.mapping.st_id !== -1 ? row[parsedData.mapping.st_id] : "";
+                            const name = parsedData.mapping.name !== -1 ? row[parsedData.mapping.name] : "";
+                            const email = parsedData.mapping.email !== -1 ? row[parsedData.mapping.email] : "";
+                            const level = parsedData.mapping.level !== -1 ? row[parsedData.mapping.level] : "";
+                            const position = parsedData.mapping.st_position !== -1 ? row[parsedData.mapping.st_position] : "";
+                            const memberFunction = parsedData.mapping.member_function !== -1 ? row[parsedData.mapping.member_function] : "";
+                            const mobile = parsedData.mapping.mobile_number !== -1 ? row[parsedData.mapping.mobile_number] : "";
+                            const linkedin = parsedData.mapping.linkedin_url !== -1 ? row[parsedData.mapping.linkedin_url] : "";
+                            const photo = parsedData.mapping.profile_image_url !== -1 ? row[parsedData.mapping.profile_image_url] : "";
+                            return (
+                              <tr key={idx}>
+                                <td className="mono">{st_id || <span className="text-red">Missing</span>}</td>
+                                <td><strong>{name || <span className="text-red">Missing</span>}</strong></td>
+                                <td>{email || "-"}</td>
+                                <td>{level || "-"}</td>
+                                <td>{position || "-"}</td>
+                                <td>{memberFunction || "-"}</td>
+                                <td>{mobile || "-"}</td>
+                                <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={linkedin}>{linkedin || "-"}</td>
+                                <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={photo}>{photo || "-"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </>
                 )}
@@ -1196,7 +1211,7 @@ export default function Members({ isAdmin = false }) {
               <h2 className="modal-title">⚙️ Member Profile Self-Edit Permissions</h2>
               <button className="modal-close" onClick={() => setEditSettingsModal(false)}>x</button>
             </div>
-            
+
             <p className="text-muted" style={{ fontSize: "13px", marginBottom: "16px" }}>
               Toggle switch buttons to allow or restrict members from editing their own profile fields.
             </p>
@@ -1204,7 +1219,7 @@ export default function Members({ isAdmin = false }) {
             {settingsMsg && <div className={`alert alert-${settingsMsg.type}`} style={{ marginBottom: "16px" }}>{settingsMsg.text}</div>}
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg3)", padding: "16px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
-              
+
               {/* Field 1: Name */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                 <div>

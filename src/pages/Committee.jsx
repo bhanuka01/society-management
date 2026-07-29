@@ -219,6 +219,81 @@ export default function Committee({ isAdmin = false, session }) {
     loadOc(selectedEvent, page, filterStatus, search);
   }, [selectedEvent, page, filterStatus, search]);
 
+  const exportCSV = async () => {
+    if (!selectedEvent) {
+      alert("Please select an event first.");
+      return;
+    }
+
+    setLoading(true);
+    let query = supabase
+      .from("oc")
+      .select("*, members(name, email, st_id), functions(function_name)")
+      .eq("event_id", selectedEvent)
+      .order("st_id");
+
+    if (filterStatus !== "All") {
+      query = query.eq("apply_status", filterStatus);
+    }
+
+    const q = search.trim();
+    if (q) {
+      query = query.or(`st_id.ilike.%${q}%,oc_position.ilike.%${q}%,apply_status.ilike.%${q}%`);
+    }
+
+    const { data, error } = await query;
+    setLoading(false);
+
+    if (error) {
+      alert("Failed to fetch data for export: " + error.message);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert("No records found to export.");
+      return;
+    }
+
+    const headers = ["ST ID", "Name", "Email", "OC Position", "Function", "Interview Status", "Assigned Interviewer", "Interview Slot"];
+    const rows = data.map(o => {
+      const interviewerName = (() => {
+        if (!o.interviewer_email) return "Unassigned";
+        const staffMatch = staffList.find(s => s.email?.toLowerCase() === o.interviewer_email?.toLowerCase());
+        return staffMatch ? `${staffMatch.name} (${o.interviewer_email})` : o.interviewer_email;
+      })();
+
+      const slot = o.interview_date ? new Date(o.interview_date).toLocaleString() : "Not Scheduled";
+
+      return [
+        o.st_id || "",
+        o.members?.name || "",
+        o.members?.email || "",
+        o.oc_position || "",
+        o.functions?.function_name || "",
+        o.apply_status || "",
+        interviewerName,
+        slot
+      ];
+    });
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const eventNameClean = (selectedEventInfo?.name || "oc_assignments").replace(/[^a-z0-9]/gi, "_").toLowerCase();
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${eventNameClean}_committee_oc.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const openAdd = () => {
     setForm({ ...EMPTY, interviewer_email: session?.email || "" });
     setModal(true);
@@ -549,6 +624,7 @@ export default function Committee({ isAdmin = false, session }) {
               <option value="All">All Statuses</option>
               {STATUS_OPTS.map(s => <option key={s}>{s}</option>)}
             </select>
+            <button className="btn btn-ghost" onClick={exportCSV}>Export CSV</button>
             {isAdmin && (
               <>
                 <button className="btn btn-ghost" onClick={() => setFnModal(true)}>+ Function</button>
@@ -568,8 +644,7 @@ export default function Committee({ isAdmin = false, session }) {
                   <tr style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
                     {isAdmin && <th style={{ textAlign: "left", padding: "12px" }}>ST ID</th>}
                     <th style={{ textAlign: "left", padding: "12px" }}>Name</th>
-                    <th style={{ textAlign: "left", padding: "12px" }}>Function</th>
-                    <th style={{ textAlign: "left", padding: "12px" }}>OC Position</th>
+                    <th style={{ textAlign: "left", padding: "12px" }}>OC Position & Function</th>
                     <th style={{ textAlign: "left", padding: "12px" }}>Interview Status</th>
                     <th style={{ textAlign: "left", padding: "12px" }}>Assigned Interviewer</th>
                     <th style={{ textAlign: "left", padding: "12px" }}>Interview Slot</th>
@@ -578,7 +653,7 @@ export default function Committee({ isAdmin = false, session }) {
                 </thead>
                 <tbody>
                   {oc.length === 0 ? (
-                    <tr><td colSpan={isAdmin ? 8 : 6}><div className="empty-state"><div className="icon">*</div><p>No records found</p></div></td></tr>
+                    <tr><td colSpan={isAdmin ? 7 : 5}><div className="empty-state"><div className="icon">*</div><p>No records found</p></div></td></tr>
                   ) : oc.map(o => {
                     const isProcessing = emailSendingId === `${o.st_id}-${o.function_id}`;
                     const own = isOwnRow(o);
@@ -620,39 +695,17 @@ export default function Committee({ isAdmin = false, session }) {
                             ) : (
                               <strong style={{ color: "#f8fafc", fontSize: "13px" }}>{o.members?.name || "-"}</strong>
                             )}
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                              {/* {statusBadge(o.apply_status)} */}
-                              {/* {own && (
-                                <span className="badge" style={{ backgroundColor: "#3b82f6", color: "#ffffff", fontSize: "0.7rem", padding: "2px 6px" }}>
-                                  ⭐ Your Application
-                                </span>
-                              )} */}
-                            </div>
                           </div>
                         </td>
-                        <td style={{ padding: "12px", color: "#e2e8f0", fontSize: "13px" }}>{o.functions?.function_name || "-"}</td>
                         <td style={{ padding: "10px 12px" }}>
-                          {o.oc_position ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxWidth: "240px" }}>
-                              {o.oc_position.split(",").map((pos, idx) => (
-                                <span
-                                  key={idx}
-                                  className="badge badge-purple"
-                                  style={{
-                                    fontSize: "11px",
-                                    padding: "2px 8px",
-                                    fontWeight: "500",
-                                    whiteSpace: "nowrap",
-                                    borderRadius: "12px"
-                                  }}
-                                >
-                                  {pos.trim()}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted" style={{ fontSize: "12px" }}>-</span>
-                          )}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text)" }}>
+                              {o.oc_position || "-"}
+                            </span>
+                            <span style={{ fontSize: "11px", color: "var(--text3)" }}>
+                              {o.functions?.function_name || "-"}
+                            </span>
+                          </div>
                         </td>
                         <td style={{ padding: "12px" }}>{statusBadge(o.apply_status)}</td>
 
