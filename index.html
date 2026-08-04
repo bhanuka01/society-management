@@ -198,7 +198,7 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker Registration & Auto-Update -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -206,6 +206,22 @@
             .register('/sw.js')
             .then((reg) => {
               console.log('[PWA] Service Worker registered, scope:', reg.scope);
+              
+              // Force check for updates on every page refresh
+              reg.update();
+
+              // Auto-refresh page when a new app build/service worker is installed
+              reg.onupdatefound = () => {
+                const installingWorker = reg.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      console.log('[PWA] New version detected & installed. Refreshing app...');
+                      window.location.reload();
+                    }
+                  };
+                }
+              };
             })
             .catch((err) => {
               console.warn('[PWA] Service Worker registration failed:', err);

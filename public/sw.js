@@ -3,7 +3,7 @@
 // Cache-first for app shell, network-first for API
 // ═══════════════════════════════════════════════════
 
-const CACHE_VERSION = 'adss-v1';
+const CACHE_VERSION = 'adss-v2';
 const APP_SHELL_CACHE = `app-shell-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
@@ -71,13 +71,21 @@ self.addEventListener('fetch', (event) => {
   // Skip chrome-extension and other non-http(s) schemes
   if (!url.protocol.startsWith('http')) return;
 
-  // Network-first for API / external CDN requests
-  if (NETWORK_FIRST_PATTERNS.some((pattern) => pattern.test(url.href))) {
+  // Network-first for HTML navigation, JS/CSS bundles, and API requests.
+  // This guarantees users ALWAYS see the latest updated app version when online!
+  if (
+    request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    NETWORK_FIRST_PATTERNS.some((pattern) => pattern.test(url.href))
+  ) {
     event.respondWith(networkFirst(request));
     return;
   }
 
-  // Cache-first for app shell & static assets
+  // Cache-first for static media assets (images, icons, fonts)
   event.respondWith(cacheFirst(request));
 });
 

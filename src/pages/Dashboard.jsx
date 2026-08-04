@@ -8,6 +8,15 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [isDark, setIsDark] = useState(() => document.documentElement.getAttribute('data-theme') !== 'light');
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.getAttribute('data-theme') !== 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -208,76 +217,86 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
                     const linePath = smoothPath(points);
                     const areaPath = linePath + `L${points[points.length - 1].x},${PY + plotH}L${points[0].x},${PY + plotH}Z`;
                     const gridLines = [0, 0.25, 0.5, 0.75, 1];
+                    const lineColor    = isDark ? '#d4d4d8' : '#18181b';
+                    const areaColor    = isDark ? '#d4d4d8' : '#18181b';
+                    const gridColor    = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
+                    const labelColor   = isDark ? 'rgba(255,255,255,0.45)'  : 'rgba(0,0,0,0.45)';
+                    const subColor     = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)';
+                    const dotFill      = isDark ? '#141417'                 : '#ffffff';
+                    const dotInner     = isDark ? '#cbd5e1'                : '#3f3f46';
+                    const tooltipBg    = isDark ? 'rgba(20,20,24,0.95)'    : 'rgba(250,250,250,0.97)';
+                    const tooltipBorder= isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+                    const tooltipText  = isDark ? '#e5e5ea'               : '#18181b';
 
                     return (
-                      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
-                        <defs>
-                          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.35" />
-                            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.02" />
-                          </linearGradient>
-                          <filter id="glow">
-                            <feGaussianBlur stdDeviation="3" result="g" />
-                            <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
-                          </filter>
-                        </defs>
+                        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
+                          <defs>
+                            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={areaColor} stopOpacity={isDark ? 0.12 : 0.08} />
+                              <stop offset="100%" stopColor={areaColor} stopOpacity="0.01" />
+                            </linearGradient>
+                            <filter id="glow">
+                              <feGaussianBlur stdDeviation="2.5" result="g" />
+                              <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+                            </filter>
+                          </defs>
 
-                        {/* Grid lines & Y labels */}
-                        {gridLines.map((frac, i) => {
-                          const y = PY + plotH - frac * plotH;
-                          const val = Math.round(frac * ceil);
-                          return (
-                            <g key={i}>
-                              <line x1={PX} y1={y} x2={PX + plotW} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-                              <text x={PX - 8} y={y + 4} fill="rgba(255,255,255,0.35)" fontSize="10" textAnchor="end" fontFamily="monospace">{val}</text>
-                            </g>
-                          );
-                        })}
+                          {/* Grid lines & Y labels */}
+                          {gridLines.map((frac, i) => {
+                            const y = PY + plotH - frac * plotH;
+                            const val = Math.round(frac * ceil);
+                            return (
+                              <g key={i}>
+                                <line x1={PX} y1={y} x2={PX + plotW} y2={y} stroke={gridColor} strokeWidth="1" />
+                                <text x={PX - 8} y={y + 4} fill={labelColor} fontSize="10" textAnchor="end" fontFamily="monospace">{val}</text>
+                              </g>
+                            );
+                          })}
 
-                        {/* Area fill */}
-                        <path d={areaPath} fill="url(#areaGrad)" />
+                          {/* Area fill */}
+                          <path d={areaPath} fill="url(#areaGrad)" />
 
-                        {/* Smooth curve line */}
-                        <path d={linePath} fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
+                          {/* Smooth curve line */}
+                          <path d={linePath} fill="none" stroke={lineColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
 
-                        {/* Data points & X labels */}
-                        {points.map((p, i) => {
-                          const label = p.name.length > 10 ? p.name.slice(0, 9) + '…' : p.name;
-                          return (
-                            <g key={i}
-                              onMouseEnter={() => setHoveredPoint(i)}
-                              onMouseLeave={() => setHoveredPoint(null)}
-                              style={{ cursor: 'pointer' }}
-                            >
-                              {/* Vertical hover line */}
-                              {hoveredPoint === i && (
-                                <line x1={p.x} y1={PY} x2={p.x} y2={PY + plotH} stroke="rgba(167,139,250,0.2)" strokeWidth="1" strokeDasharray="4,3" />
-                              )}
+                          {/* Data points & X labels */}
+                          {points.map((p, i) => {
+                            const label = p.name.length > 10 ? p.name.slice(0, 9) + '…' : p.name;
+                            return (
+                              <g key={i}
+                                onMouseEnter={() => setHoveredPoint(i)}
+                                onMouseLeave={() => setHoveredPoint(null)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                {/* Vertical hover line */}
+                                {hoveredPoint === i && (
+                                  <line x1={p.x} y1={PY} x2={p.x} y2={PY + plotH} stroke={gridColor} strokeWidth="1" strokeDasharray="4,3" />
+                                )}
 
-                              {/* Outer ring */}
-                              <circle cx={p.x} cy={p.y} r={hoveredPoint === i ? 7 : 5} fill="rgba(15,15,20,0.8)" stroke="#a78bfa" strokeWidth="2" style={{ transition: 'r 0.2s' }} />
-                              {/* Inner dot */}
-                              <circle cx={p.x} cy={p.y} r={hoveredPoint === i ? 3.5 : 2.5} fill="#c4b5fd" style={{ transition: 'r 0.2s' }} />
+                                {/* Outer ring */}
+                                <circle cx={p.x} cy={p.y} r={hoveredPoint === i ? 7 : 5} fill={dotFill} stroke={lineColor} strokeWidth="1.5" style={{ transition: 'r 0.2s' }} />
+                                {/* Inner dot */}
+                                <circle cx={p.x} cy={p.y} r={hoveredPoint === i ? 3.5 : 2.5} fill={dotInner} style={{ transition: 'r 0.2s' }} />
 
-                              {/* Hit area */}
-                              <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
+                                {/* Hit area */}
+                                <circle cx={p.x} cy={p.y} r="16" fill="transparent" />
 
-                              {/* Tooltip */}
-                              {hoveredPoint === i && (
-                                <g>
-                                  <rect x={p.x - 30} y={p.y - 30} width="60" height="20" rx="6" fill="rgba(15,15,20,0.92)" stroke="#a78bfa" strokeWidth="1" />
-                                  <text x={p.x} y={p.y - 17} fill="#e0e0e0" fontSize="11" textAnchor="middle" fontWeight="600" fontFamily="monospace">{p.count}</text>
-                                </g>
-                              )}
+                                {/* Tooltip */}
+                                {hoveredPoint === i && (
+                                  <g>
+                                    <rect x={p.x - 30} y={p.y - 30} width="60" height="20" rx="6" fill={tooltipBg} stroke={tooltipBorder} strokeWidth="1" />
+                                    <text x={p.x} y={p.y - 17} fill={tooltipText} fontSize="11" textAnchor="middle" fontWeight="600" fontFamily="monospace">{p.count}</text>
+                                  </g>
+                                )}
 
-                              {/* X axis label */}
-                              <text x={p.x} y={PY + plotH + 16} fill="rgba(255,255,255,0.45)" fontSize="9" textAnchor="middle" fontFamily="sans-serif">{label}</text>
-                              <text x={p.x} y={PY + plotH + 28} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="middle" fontFamily="monospace">{p.date}</text>
-                            </g>
-                          );
-                        })}
-                      </svg>
-                    );
+                                {/* X axis label */}
+                                <text x={p.x} y={PY + plotH + 16} fill={labelColor} fontSize="9" textAnchor="middle" fontFamily="sans-serif">{label}</text>
+                                <text x={p.x} y={PY + plotH + 28} fill={subColor} fontSize="8" textAnchor="middle" fontFamily="monospace">{p.date}</text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      );
                   })()}
                 </div>
               )}

@@ -1,25 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ════════════════════════════════════════════
-   DESIGN SYSTEM — Black & White + Indigo Accent
-   Inspired by Linear × Notion × Apple
+   DESIGN SYSTEM — Apple Minimal Black & White
+   Inspired by Apple × Linear × Notion
    ════════════════════════════════════════════ */
 
 :root {
   /* ── Core Palette ── */
-  --bg: #09090b;
-  --bg2: #131316;
-  --bg3: #1a1a1f;
-  --surface: #161619;
-  --surface2: #1e1e23;
-  --border: rgba(255, 255, 255, 0.07);
-  --border2: rgba(255, 255, 255, 0.12);
+  --bg: #0c0c0e;
+  --bg2: #141417;
+  --bg3: #1c1c20;
+  --surface: #17171a;
+  --surface2: #212126;
+  --border: rgba(255, 255, 255, 0.08);
+  --border2: rgba(255, 255, 255, 0.14);
 
-  /* ── Accent (Single Color — Indigo) ── */
-  --accent: #6366f1;
-  --accent2: #818cf8;
-  --accent-dim: rgba(99, 102, 241, 0.1);
-  --accent-glow: rgba(99, 102, 241, 0.25);
+  /* ── Accent (Apple Soft Silver Off-White - Eye-friendly) ── */
+  --accent: #e4e4e7;
+  --accent2: #d4d4d8;
+  --accent-dim: rgba(228, 228, 231, 0.08);
+  --accent-glow: rgba(228, 228, 231, 0.12);
 
   /* ── Semantic ── */
   --green: #22c55e;
@@ -28,7 +28,7 @@
   --gold: #eab308;
 
   /* ── Typography ── */
-  --text: #fafafa;
+  --text: #e5e5ea;
   --text2: #a1a1aa;
   --text3: #71717a;
   --color-scheme: dark;
@@ -61,10 +61,10 @@
   --surface2: #f4f4f5;
   --border: rgba(0, 0, 0, 0.06);
   --border2: rgba(0, 0, 0, 0.1);
-  --accent: #4f46e5;
-  --accent2: #4338ca;
-  --accent-dim: rgba(79, 70, 229, 0.08);
-  --accent-glow: rgba(79, 70, 229, 0.18);
+  --accent: #09090b;
+  --accent2: #27272a;
+  --accent-dim: rgba(0, 0, 0, 0.06);
+  --accent-glow: rgba(0, 0, 0, 0.10);
   --green: #16a34a;
   --red: #dc2626;
   --amber: #d97706;
@@ -183,6 +183,26 @@ body {
 
 .sidebar.collapsed .logo-text {
   display: none;
+}
+
+.sidebar.collapsed .sidebar-header {
+  padding: 16px 8px;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.sidebar.collapsed .logo-img {
+  width: 24px;
+  height: 24px;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  display: flex !important;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .logo-title {
@@ -306,8 +326,8 @@ body {
 
 .nav-item.active {
   background: var(--accent-dim);
-  color: var(--accent2);
-  border-color: rgba(99, 102, 241, 0.15);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.12);
   font-weight: 600;
 }
 
@@ -396,7 +416,7 @@ body {
 
 .sidebar-compact-header .icon {
   font-size: 15px;
-  color: var(--accent2);
+  color: var(--text2);
   flex-shrink: 0;
 }
 
@@ -424,9 +444,9 @@ body {
 }
 
 .sidebar-compact-card.active-staff .sidebar-compact-badge {
-  background: rgba(99, 102, 241, 0.15);
-  color: var(--accent2);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .sidebar-divider {
@@ -474,7 +494,7 @@ body {
 }
 
 .sidebar-toggle-switch.active {
-  background: var(--accent, #6366f1);
+  background: var(--accent, #ffffff);
 }
 
 .sidebar-toggle-thumb {
@@ -582,8 +602,8 @@ body {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--accent);
-  color: white;
+  background: var(--text2);
+  color: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -714,14 +734,14 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 2px;
-  background: var(--accent);
-  opacity: 0.4;
+  height: 1px;
+  background: var(--border2);
+  opacity: 0.6;
   transition: opacity 0.2s ease;
 }
 
 .stat-card:hover::before {
-  opacity: 0.8;
+  opacity: 1;
 }
 
 .stat-card.green::before { background: var(--green); }
@@ -885,10 +905,10 @@ tbody tr:hover td {
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
-.badge-purple {
-  background: var(--accent-dim);
-  color: var(--accent2);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+.badge-neutral {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .badge-gray {
@@ -919,7 +939,7 @@ tbody tr:hover td {
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  color: var(--bg);
 }
 
 .btn-primary:hover {
@@ -1241,10 +1261,10 @@ select option {
 }
 
 .alert-info {
-  background: var(--accent-dim);
-  border: 1px solid rgba(99, 102, 241, 0.15);
-  border-left: 3px solid var(--accent);
-  color: var(--accent2);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-left: 3px solid var(--text2);
+  color: var(--text2);
 }
 
 /* ════════════════════════════════════════════
@@ -1396,14 +1416,14 @@ select option {
   width: 32px;
   height: 32px;
   background: var(--accent-dim);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid var(--border2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 13px;
   font-weight: 700;
-  color: var(--accent2);
+  color: var(--text2);
   flex-shrink: 0;
 }
 
@@ -1434,7 +1454,7 @@ select option {
   width: 24px;
   height: 24px;
   border: 2px solid var(--border2);
-  border-top-color: var(--accent);
+  border-top-color: var(--text2);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -1522,26 +1542,27 @@ select option {
 }
 
 .landing-page.landing-light {
-  background: #fafafa !important;
+  background: #ffffff !important;
   color: #09090b !important;
 }
 
 .landing-page.landing-light nav,
 .landing-page.landing-light footer,
-.landing-page.landing-light section {
-  background-color: #fafafa !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
+.landing-page.landing-light section,
+.landing-page.landing-light header {
+  background-color: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
 .landing-page.landing-light .hero-glow {
-  background: radial-gradient(circle at 50% 100%, rgba(99, 102, 241, 0.08) 0%, transparent 60%) !important;
+  background: radial-gradient(circle at 50% 100%, rgba(0, 0, 0, 0.04) 0%, transparent 60%) !important;
 }
 
 .landing-page.landing-light .glass-card,
 .landing-page.landing-light #cta > div > div {
-  background: rgba(255, 255, 255, 0.8) !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+  background: #fcfcfc !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04) !important;
 }
 
 .landing-page.landing-light h1,
@@ -1553,7 +1574,13 @@ select option {
   color: #09090b !important;
 }
 
+.landing-page.landing-light span.text-\[\#e4e4e7\],
+.landing-page.landing-light .text-\[\#e4e4e7\] {
+  color: #27272a !important;
+}
+
 .landing-page.landing-light p,
+.landing-page.landing-light .text-zinc-400,
 .landing-page.landing-light .text-\[\#94A3B8\],
 .landing-page.landing-light .text-text-secondary,
 .landing-page.landing-light footer a,
@@ -1561,25 +1588,62 @@ select option {
   color: #52525b !important;
 }
 
-.landing-page.landing-light .bg-white\/5,
-.landing-page.landing-light .bg-white\/10 {
-  background-color: rgba(0, 0, 0, 0.04) !important;
+.landing-page.landing-light nav button,
+.landing-page.landing-light nav a {
+  color: #27272a !important;
 }
 
-.landing-page.landing-light .border-white\/5,
+.landing-page.landing-light nav button:hover,
+.landing-page.landing-light nav a:hover {
+  color: #09090b !important;
+}
+
+/* Primary CTA Buttons in Light Mode ("Join Society", "Login Society") */
+.landing-page.landing-light button.bg-\[\#e4e4e7\],
+.landing-page.landing-light .bg-\[\#e4e4e7\] {
+  background-color: #09090b !important;
+  color: #ffffff !important;
+}
+
+.landing-page.landing-light button.bg-\[\#e4e4e7\]:hover,
+.landing-page.landing-light .bg-\[\#e4e4e7\]:hover {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+
+/* Secondary / AI Assistant buttons in Light Mode */
+.landing-page.landing-light .bg-white\/10,
+.landing-page.landing-light .bg-white\/5 {
+  background-color: #f4f4f5 !important;
+  color: #09090b !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+.landing-page.landing-light .bg-white\/10:hover,
+.landing-page.landing-light .bg-white\/5:hover {
+  background-color: #e4e4e7 !important;
+}
+
 .landing-page.landing-light .border-white\/10,
+.landing-page.landing-light .border-white\/15,
 .landing-page.landing-light .border-white\/20 {
-  border-color: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.landing-page.landing-light .text-zinc-300,
+.landing-page.landing-light .text-zinc-200 {
+  color: #18181b !important;
 }
 
 .landing-page.landing-light .landing-theme-switch {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.08);
-  color: #09090b;
+  background: #f4f4f5 !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  color: #09090b !important;
 }
 
 .landing-page.landing-light .bg-white {
   background: #09090b !important;
+  color: #ffffff !important;
 }
 
 .landing-page.landing-light .text-black {
@@ -1607,14 +1671,14 @@ select option {
 
 .csv-dropzone:hover,
 .csv-dropzone.dragover {
-  border-color: var(--accent);
+  border-color: var(--border2);
   background: var(--surface);
-  box-shadow: 0 4px 24px var(--accent-dim);
+  box-shadow: 0 4px 24px rgba(255, 255, 255, 0.04);
 }
 
 .csv-dropzone-icon {
   font-size: 32px;
-  color: var(--accent);
+  color: var(--text2);
 }
 
 .csv-dropzone-text {
@@ -1730,7 +1794,7 @@ select option {
 
 .csv-progress-fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--text2);
   transition: width 0.15s ease;
   border-radius: 2px;
 }
@@ -1779,9 +1843,9 @@ select option {
 }
 
 .strategy-btn.active {
-  background: var(--accent-dim);
-  border-color: rgba(99, 102, 241, 0.25);
-  color: var(--accent2);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
 }
 
 .strategy-btn:hover:not(.active) {
@@ -1792,7 +1856,7 @@ select option {
 
 .clickable-member:hover {
   text-decoration: underline;
-  color: var(--accent) !important;
+  color: var(--text) !important;
 }
 
 /* ════════════════════════════════════════════
@@ -1913,17 +1977,17 @@ select option {
 }
 
 .contact-number-link {
-  color: var(--accent);
+  color: var(--text2);
   text-decoration: none;
-  border-bottom: 1px dotted var(--accent);
+  border-bottom: 1px dotted var(--border2);
   cursor: pointer;
   transition: all 0.2s ease;
   font-weight: 600;
 }
 
 .contact-number-link:hover {
-  color: var(--accent2);
-  border-bottom-color: var(--accent2);
+  color: var(--text);
+  border-bottom-color: var(--text2);
 }
 
 /* ════════════════════════════════════════════
@@ -2083,7 +2147,7 @@ select option {
 
   .nav-item.active {
     background: var(--accent-dim) !important;
-    border-color: rgba(99, 102, 241, 0.2) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
   }
 
   .nav-label {

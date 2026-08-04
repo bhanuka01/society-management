@@ -72,21 +72,21 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
   };
 
   return (
-    <div className={`landing-page ${theme === "light" ? "landing-light" : ""} bg-[#09090b] text-white min-h-screen font-body-md overflow-x-hidden selection:bg-primary-container selection:text-white`}>
+    <div className={`landing-page ${theme === "light" ? "landing-light" : ""} bg-[#0c0c0e] text-[#e5e5ea] min-h-screen font-body-md overflow-x-hidden selection:bg-white/20 selection:text-white`}>
       <style>{`
         .glass-card {
-          background: rgba(24, 23, 34, 0.6);
+          background: rgba(24, 24, 28, 0.6);
           backdrop-filter: blur(20px);
           border: 1px solid rgba(255, 255, 255, 0.08);
           transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .glass-card:hover {
           transform: translateY(-6px) scale(1.01);
-          border-color: rgba(99, 102, 241, 0.25);
-          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
         }
         .hero-glow {
-          background: radial-gradient(circle at 50% 100%, rgba(99, 102, 241, 0.2) 0%, transparent 60%);
+          background: radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
         }
         @media (max-width: 767px) {
           .desktop-nav { display: none !important; }
@@ -94,10 +94,27 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         @media (min-width: 768px) {
           .mobile-nav { display: none !important; }
         }
+        @media (max-width: 640px) {
+          .hero-buttons-wrapper {
+            flex-direction: column !important;
+            width: 100% !important;
+          }
+          .hero-buttons-wrapper > button {
+            width: 100% !important;
+          }
+        }
+        @media (min-width: 641px) {
+          .hero-buttons-wrapper {
+            flex-direction: row !important;
+          }
+          .hero-buttons-wrapper > button {
+            width: auto !important;
+          }
+        }
       `}</style>
 
       {/* TopNavBar */}
-      <nav className="fixed top-0 w-full z-50 flex items-center px-6 md:px-12 py-4 bg-[#09090b]/85 backdrop-blur-xl border-b border-white/5">
+      <nav className="fixed top-0 w-full z-50 flex items-center px-6 md:px-12 py-4 bg-[#0c0c0e]/85 backdrop-blur-xl border-b border-white/10">
         
         {/* Desktop Layout */}
         <div className="desktop-nav justify-between items-center w-full flex">
@@ -108,25 +125,25 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           <div className="flex items-center gap-8">
             <button
               onClick={() => scrollToSection(upcomingEvents.length > 0 ? "upcoming-events" : "features")}
-              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
             >
               Events
             </button>
             <button
               onClick={() => scrollToSection("cta")}
-              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
             >
               Membership
             </button>
             <button
               onClick={() => scrollToSection("features")}
-              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
             >
               Insights
             </button>
             <button
               onClick={() => scrollToSection("footer")}
-              className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer"
+              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
             >
               Contact
             </button>
@@ -136,9 +153,9 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                   window.history.pushState({}, "", "/assistant");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className="font-body-md text-text-secondary hover:text-[#818cf8] transition-colors duration-300 cursor-pointer flex items-center gap-1.5"
+                className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer flex items-center gap-1.5"
               >
-                <span className="material-symbols-outlined text-lg text-[#818cf8]">auto_awesome</span>
+                <span className="material-symbols-outlined text-lg text-zinc-300">auto_awesome</span>
                 <span>AI Assistant</span>
               </button>
             )}
@@ -146,18 +163,18 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="theme-switch landing-theme-switch"
+              className="px-3.5 py-1.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/15 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
               onClick={onThemeToggle}
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
-              <span className="theme-switch-track">
-                <span className="theme-switch-thumb">{theme === "dark" ? "D" : "L"}</span>
+              <span className="material-symbols-outlined text-sm">
+                {theme === "dark" ? "light_mode" : "dark_mode"}
               </span>
-              <span>{theme === "dark" ? "Dark" : "Light"}</span>
+              <span>{theme === "dark" ? "Light" : "Dark"}</span>
             </button>
             <button
               onClick={onLoginClick}
-              className="bg-[#6366f1] text-white px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-[#4f46e5] active:scale-95 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+              className="bg-[#e4e4e7] text-[#09090b] px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-white active:scale-95 transition-all shadow-sm"
             >
               Join Society
             </button>
@@ -178,16 +195,16 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                   window.history.pushState({}, "", "/assistant");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className="bg-[#6366f1]/20 border border-[#6366f1]/40 text-[#818cf8] p-2 rounded-full active:scale-95 transition-all flex items-center justify-center"
+                className="bg-white/10 border border-white/20 text-white p-2 rounded-full active:scale-95 transition-all flex items-center justify-center"
                 title="AI Assistant"
               >
                 <span className="material-symbols-outlined text-lg">auto_awesome</span>
               </button>
-            )}{/* Join Society in the center */}
+            )}
           </div>
           <button
             onClick={onLoginClick}
-            className="bg-[#6366f1] text-white px-5 py-2 rounded-full font-bold text-sm active:scale-95 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+            className="bg-[#e4e4e7] text-[#09090b] px-5 py-2 rounded-full font-bold text-sm active:scale-95 transition-all shadow-sm"
           >
             Join Society
           </button>
@@ -215,28 +232,30 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div ref={glowRef} className="absolute inset-0 z-0 hero-glow transition-all duration-300"></div>
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff22 1px, transparent 1px)", backgroundSize: "40px 40px" }}></div>
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-8 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[#6366f1] animate-pulse"></span>
-            <span className="text-xs font-semibold uppercase tracking-widest text-[#94A3B8]">New Academic Session 2024/25</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 bg-white/5 backdrop-blur-md mb-8 animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-zinc-300 animate-pulse"></span>
+            <span className="text-xs font-semibold uppercase tracking-widest text-zinc-400">New Academic Session 2024/25</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight leading-tight">
-            Where Data Meets <br /><span className="text-[#6366f1]">Decision-Making</span>
+            Where Data Meets <br /><span className="text-[#e4e4e7]">Decision-Making</span>
           </h1>
-          <p className="text-lg md:text-xl text-[#94A3B8] max-w-2xl mx-auto mb-12 leading-relaxed">
+          <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto mb-12 leading-relaxed">
             Explore how data-driven insights guide smarter business, financial, and risk-based decisions within the University of Ruhuna's premier tech society.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto sm:max-w-none">
+          <div 
+            className="hero-buttons-wrapper flex flex-col md:flex-row items-center justify-center gap-4 w-full max-w-3xl mx-auto"
+            style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '16px' }}
+          >
             <button
               onClick={onLoginClick}
-              // onClick={() => scrollToSection("features")}
-              className="w-full sm:w-auto px-8 py-4 bg-[#6366f1] text-white rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all"
+              className="px-7 py-3.5 bg-[#e4e4e7] text-[#09090b] rounded-xl font-bold text-base flex items-center justify-center gap-2 hover:bg-white transition-all shadow-[0_4px_20px_rgba(255,255,255,0.1)] active:scale-95 cursor-pointer"
             >
               Login Society <span className="material-symbols-outlined text-lg">arrow_forward</span>
             </button>
             {regEnabled && (
               <button
                 onClick={onRegisterClick}
-                className="w-full sm:w-auto px-8 py-4 bg-transparent border border-white/20 text-white rounded-xl font-bold text-body-md hover:bg-white/5 transition-all"
+                className="px-7 py-3.5 bg-transparent border border-white/20 text-white rounded-xl font-bold text-base hover:bg-white/5 transition-all cursor-pointer"
               >
                 Join Membership
               </button>
@@ -247,9 +266,9 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                   window.history.pushState({}, "", "/assistant");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className="w-full sm:w-auto px-6 py-4 bg-[#6366f1]/15 border border-[#6366f1]/35 text-[#818cf8] rounded-xl font-bold text-body-md flex items-center justify-center gap-2 hover:bg-[#6366f1]/25 transition-all"
+                className="px-6 py-3.5 bg-white/10 border border-white/20 text-[#e4e4e7] rounded-xl font-bold text-base flex items-center justify-center gap-2 hover:bg-white/15 transition-all cursor-pointer"
               >
-                <span className="material-symbols-outlined text-lg">auto_awesome</span> Ask AI Assistant
+                <span className="material-symbols-outlined text-lg text-zinc-300">auto_awesome</span> Ask AI Assistant
               </button>
             )}
           </div>
@@ -274,12 +293,12 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
 
       {/* Upcoming Events Section */}
       {upcomingEvents.length > 0 && (
-        <section id="upcoming-events" className="animate-section py-20 bg-[#09090b] border-y border-white/5 relative">
+        <section id="upcoming-events" className="animate-section py-20 bg-[#0c0c0e] border-y border-white/10 relative">
           <div className="container mx-auto px-6 max-w-6xl">
             <div className="text-center mb-16">
-              <span className="text-[#6366f1] uppercase tracking-widest text-xs font-bold bg-[#6366f1]/10 px-3 py-1 rounded-full">Stay Connected</span>
+              <span className="text-zinc-300 uppercase tracking-widest text-xs font-bold bg-white/10 border border-white/15 px-3 py-1 rounded-full">Stay Connected</span>
               <h2 className="text-3xl md:text-5xl font-bold mt-3 mb-4">Upcoming Events</h2>
-              <p className="text-[#94A3B8] text-base md:text-lg max-w-xl mx-auto">Register for our upcoming workshops, guest lectures, and hackathons.</p>
+              <p className="text-zinc-400 text-base md:text-lg max-w-xl mx-auto">Register for our upcoming workshops, guest lectures, and hackathons.</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -312,12 +331,12 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
 
                       <div className="p-6">
                         {/* Date badge */}
-                        <div className="flex items-center gap-2 text-xs text-[#818cf8] font-semibold mb-3">
+                        <div className="flex items-center gap-2 text-xs text-zinc-400 font-semibold mb-3">
                           <span className="material-symbols-outlined text-sm">calendar_month</span>
                           {formattedDate}
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#6366f1] transition-colors">{ev.name}</h3>
-                        <p className="text-sm text-[#94A3B8] line-clamp-2 leading-relaxed mb-4">
+                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#e4e4e7] transition-colors">{ev.name}</h3>
+                        <p className="text-sm text-zinc-400 line-clamp-2 leading-relaxed mb-4">
                           {ev.description || "Join us for this actuarial and data science event. Click register to see full details and form."}
                         </p>
                       </div>
@@ -330,7 +349,7 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                           window.history.pushState({ path: eventUrl }, "", eventUrl);
                           window.dispatchEvent(new Event("popstate"));
                         }}
-                        className="w-full py-3 bg-[#6366f1]/20 text-white border border-[#6366f1]/30 rounded-xl font-bold text-sm hover:bg-[#6366f1] hover:border-transparent active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+                        className="w-full py-3 bg-white/10 text-white border border-white/20 rounded-xl font-bold text-sm hover:bg-white/20 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
                       >
                         Register & View Details <span className="material-symbols-outlined text-xs">arrow_forward</span>
                       </button>
@@ -344,23 +363,23 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
       )}
 
       {/* Features Bento Grid */}
-      <section id="features" className="animate-section py-24 bg-[#09090b] transition-all duration-1000">
+      <section id="features" className="animate-section py-24 bg-[#0c0c0e] transition-all duration-1000">
         <div className="container mx-auto px-6 max-w-6xl">
           <div className="text-center mb-20">
             <h2 className="text-3xl md:text-5xl font-bold mb-4">Society Management Intelligence</h2>
-            <p className="text-[#94A3B8] text-base md:text-lg max-w-xl mx-auto">Advanced tools for organizing events, managing members, and tracking progress.</p>
+            <p className="text-zinc-400 text-base md:text-lg max-w-xl mx-auto">Advanced tools for organizing events, managing members, and tracking progress.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             {/* Large Card */}
             <div className="md:col-span-8 glass-card rounded-3xl p-10 flex flex-col justify-between group">
               <div>
-                <span className="material-symbols-outlined text-4xl text-[#818cf8] mb-6">event_available</span>
+                <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">event_available</span>
                 <h3 className="text-2xl md:text-3xl font-bold mb-4">Event Excellence</h3>
-                <p className="text-[#94A3B8] text-base">Seamless management and real-time attendance tracking for all society workshops and seminars.</p>
+                <p className="text-zinc-400 text-base">Seamless management and real-time attendance tracking for all society workshops and seminars.</p>
               </div>
               <div className="mt-12 flex gap-4">
-                <div className="h-12 w-full bg-white/5 rounded-lg border border-white/5 group-hover:border-[#818cf8]/30 transition-all"></div>
-                <div className="h-12 w-12 bg-[#818cf8]/20 rounded-lg flex items-center justify-center text-[#818cf8] flex-shrink-0">
+                <div className="h-12 w-full bg-white/5 rounded-lg border border-white/5 group-hover:border-white/20 transition-all"></div>
+                <div className="h-12 w-12 bg-white/10 rounded-lg flex items-center justify-center text-zinc-200 flex-shrink-0">
                   <span className="material-symbols-outlined">analytics</span>
                 </div>
               </div>
@@ -368,9 +387,9 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             {/* Tall Card */}
             <div className="md:col-span-4 glass-card rounded-3xl p-10 flex flex-col group justify-between">
               <div>
-                <span className="material-symbols-outlined text-4xl text-[#a78bfa] mb-6">groups</span>
+                <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">groups</span>
                 <h3 className="text-2xl md:text-3xl font-bold mb-4">Member Intelligence</h3>
-                <p className="text-[#94A3B8] text-base mb-8">Deep profiles and performance tracking for our community of future actuaries.</p>
+                <p className="text-zinc-400 text-base mb-8">Deep profiles and performance tracking for our community of future actuaries.</p>
               </div>
               <div className="flex flex-col gap-3">
                 <div className="h-4 w-full bg-white/10 rounded-full"></div>
@@ -380,14 +399,14 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             </div>
             {/* Bottom Cards */}
             <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-[#6366f1] mb-6">query_stats</span>
+              <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">query_stats</span>
               <h3 className="text-2xl font-bold mb-4">Attendance Insights</h3>
-              <p className="text-[#94A3B8] text-base">Data-driven analysis of member engagement and participation across all activities.</p>
+              <p className="text-zinc-400 text-base">Data-driven analysis of member engagement and participation across all activities.</p>
             </div>
             <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-[#818cf8] mb-6">checklist_rtl</span>
+              <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">checklist_rtl</span>
               <h3 className="text-2xl font-bold mb-4">Task Orchestration</h3>
-              <p className="text-[#94A3B8] text-base">Efficient coordination of society goals, board tasks, and academic projects.</p>
+              <p className="text-zinc-400 text-base">Efficient coordination of society goals, board tasks, and academic projects.</p>
             </div>
           </div>
         </div>
@@ -398,11 +417,11 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
         <div className="container mx-auto px-6 max-w-5xl">
           <div className="relative bg-[#18181b] rounded-[48px] p-12 md:p-24 overflow-hidden text-center border border-white/5">
             {/* Background Decoration */}
-            <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-[#818cf8]/5 blur-[120px] rounded-full pointer-events-none"></div>
-            <div className="absolute -bottom-1/2 -left-1/4 w-[600px] h-[600px] bg-[#a78bfa]/5 blur-[120px] rounded-full pointer-events-none"></div>
+            <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-white/5 blur-[120px] rounded-full pointer-events-none"></div>
+            <div className="absolute -bottom-1/2 -left-1/4 w-[600px] h-[600px] bg-white/5 blur-[120px] rounded-full pointer-events-none"></div>
             <div className="relative z-10 max-w-3xl mx-auto">
               <h2 className="text-4xl md:text-6xl font-bold mb-8">Join the Future of Data Science</h2>
-              <p className="text-lg text-[#94A3B8] mb-12 leading-relaxed">Become a part of the most influential society at the Faculty of Science, University of Ruhuna. Connect with peers, learn from experts, and shape your career.</p>
+              <p className="text-lg text-zinc-400 mb-12 leading-relaxed">Become a part of the most influential society at the Faculty of Science, University of Ruhuna. Connect with peers, learn from experts, and shape your career.</p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
                 {regEnabled ? (
                   <button

@@ -179,23 +179,24 @@ export default function ChatWidget({ role = "guest", session = {} }) {
           width: 52px;
           height: 52px;
           border-radius: 50%;
-          background: var(--accent);
-          color: #fff;
-          border: none;
+          background: #18181b;
+          color: #ffffff;
+          border: 1px solid rgba(255, 255, 255, 0.14);
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 20px var(--accent-glow), var(--shadow-lg);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
           transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
           outline-offset: 3px;
         }
         .cw-toggle:hover {
           transform: scale(1.08);
-          box-shadow: 0 6px 28px var(--accent-glow), var(--shadow-xl);
-          background: var(--accent2);
+          background: #27272a;
+          box-shadow: 0 6px 28px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.10);
+          border-color: rgba(255, 255, 255, 0.22);
         }
-        .cw-toggle:focus-visible { outline: 2px solid var(--accent2); }
+        .cw-toggle:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 3px; }
         .cw-toggle:active { transform: scale(0.96); }
 
         .cw-panel {
