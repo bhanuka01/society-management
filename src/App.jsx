@@ -19,6 +19,8 @@ import PublicNotice from "./pages/PublicNotice";
 import ScanAttendance from "./pages/ScanAttendance";
 import Letters from "./pages/Letters";
 import AssistantPage from "./pages/AssistantPage";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import ChatWidget from "./components/ChatWidget";
 import "./App.css";
 
@@ -36,6 +38,8 @@ const NAV_ITEMS = [
   { id: "access", label: "Access", icon: "admin_panel_settings" },
   { id: "assistant", label: "AI Assistant", icon: "auto_awesome" },
   { id: "about", label: "Society Details", icon: "info" },
+  { id: "privacy", label: "Privacy Policy", icon: "policy" },
+  { id: "terms", label: "Terms of Service", icon: "gavel" },
 
   // { id: "setup", label: "DB Setup", icon: "database" },
 ];
@@ -121,6 +125,8 @@ export default function App() {
   const isNoticeRoute = currentPath.startsWith("/notice") || currentHash.startsWith("#/notice") || currentHash.startsWith("#notice");
   const isScanAttendanceRoute = currentPath.startsWith("/scan-attendance") || currentHash.startsWith("#/scan-attendance") || currentHash.startsWith("#scan-attendance");
   const isAssistantRoute = currentPath.startsWith("/assistant") || currentHash.startsWith("#/assistant") || currentHash.startsWith("#assistant");
+  const isPrivacyRoute = currentPath.startsWith("/privacy") || currentHash.startsWith("#/privacy") || currentHash.startsWith("#privacy");
+  const isTermsRoute = currentPath.startsWith("/terms") || currentHash.startsWith("#/terms") || currentHash.startsWith("#terms");
   const isLoginRoute = currentPath === "/login" || currentHash === "#/login" || currentHash === "#login";
 
   const handleFileChange = (e) => {
@@ -270,7 +276,7 @@ export default function App() {
     };
   }, []);
 
-  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage };
+  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage, privacy: PrivacyPolicy, terms: TermsOfService };
   const PageComponent = pages[page];
   const isRealStaff = canEdit(session.role);
   const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
@@ -278,7 +284,7 @@ export default function App() {
   const canAccessAi = isEditor || aiEnabled;
 
   const visibleNavItems = effectiveRole === "guest"
-    ? NAV_ITEMS.filter(item => item.id === "about" || (item.id === "assistant" && canAccessAi))
+    ? NAV_ITEMS.filter(item => item.id === "about" || item.id === "privacy" || item.id === "terms" || (item.id === "assistant" && canAccessAi))
     : NAV_ITEMS.filter(item => {
       if (item.id === "access") return effectiveRole === "admin";
       if (item.id === "letters") return isEditor;
@@ -535,6 +541,28 @@ export default function App() {
   if (isScanAttendanceRoute) {
     return (
       <ScanAttendance
+        onBackToLanding={() => {
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+      />
+    );
+  }
+
+  if (isPrivacyRoute) {
+    return (
+      <PrivacyPolicy
+        onBackToLanding={() => {
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+      />
+    );
+  }
+
+  if (isTermsRoute) {
+    return (
+      <TermsOfService
         onBackToLanding={() => {
           window.history.pushState({}, "", "/");
           window.dispatchEvent(new Event("popstate"));

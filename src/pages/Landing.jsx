@@ -481,8 +481,24 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
             </div>
             <div className="flex flex-col gap-4">
               <h4 className="text-white font-bold mb-2">Resources</h4>
-              <a className="text-[#94A3B8] hover:text-white transition-colors" href="#">Privacy Policy</a>
-              <a className="text-[#94A3B8] hover:text-white transition-colors" href="#">Terms of Service</a>
+              <button
+                onClick={() => {
+                  window.history.pushState({}, "", "/privacy");
+                  window.dispatchEvent(new Event("popstate"));
+                }}
+                className="text-[#94A3B8] hover:text-white transition-colors text-left cursor-pointer"
+              >
+                Privacy Policy
+              </button>
+              <button
+                onClick={() => {
+                  window.history.pushState({}, "", "/terms");
+                  window.dispatchEvent(new Event("popstate"));
+                }}
+                className="text-[#94A3B8] hover:text-white transition-colors text-left cursor-pointer"
+              >
+                Terms of Service
+              </button>
               <a className="text-[#94A3B8] hover:text-white transition-colors" href="https://www.ruh.ac.lk/" target="_blank" rel="noreferrer">University of Ruhuna</a>
               <a className="text-[#94A3B8] hover:text-white transition-colors" href="https://www.sci.ruh.ac.lk/" target="_blank" rel="noreferrer">Faculty of Science</a>
             </div>
