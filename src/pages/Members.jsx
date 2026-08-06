@@ -6,6 +6,13 @@ import PhoneContact from "../components/PhoneContact";
 
 const EMPTY_FORM = { st_id: "", name: "", level: "", st_position: "", member_function: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "", role: "member" };
 
+const getInitials = (name) => {
+  if (!name) return "??";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
 function parseCSV(text) {
   const lines = [];
   let row = [""];
@@ -167,7 +174,7 @@ export default function Members({ isAdmin = false }) {
     if (viewFilter === "pending") {
       const { data, count, error } = await supabase
         .from("profiles")
-        .select("id, email, full_name, role, st_id, status, created_at, members(mobile_number, level, member_function)")
+        .select("id, email, full_name, role, st_id, status, created_at, members(mobile_number, level, member_function, profile_image_url)")
         .in("status", ["pending", "rejected"])
         .order("created_at", { ascending: false });
 
@@ -184,6 +191,7 @@ export default function Members({ isAdmin = false }) {
           level: p.members?.level || 1,
           mobile_number: p.members?.mobile_number || "",
           member_function: p.members?.member_function || "",
+          profile_image_url: p.members?.profile_image_url || "",
           profile_id: p.id,
           status: p.status
         }));
@@ -824,49 +832,99 @@ export default function Members({ isAdmin = false }) {
         <div className="loader"><div className="spinner" /></div>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table style={{ fontSize: "14px" }}>
             <thead>
-              <tr>
-                {isAdmin && <th>ST ID</th>}
-                <th>Name & Email</th>
-                {viewFilter === "pending" ? <th>Requested Role</th> : <th>Level</th>}
-                {viewFilter === "pending" ? <th>Phone</th> : <th>Position & Function</th>}
-                {viewFilter === "pending" && <th>Year</th>}
-                <th>Actions</th>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                <th style={{ width: "60px", padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Profile</th>
+                <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Student ID</th>
+                <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Name</th>
+                {viewFilter === "pending" ? (
+                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Requested Role</th>
+                ) : (
+                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Level</th>
+                )}
+                {viewFilter === "pending" ? (
+                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Phone</th>
+                ) : (
+                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Position</th>
+                )}
+                {viewFilter === "pending" && (
+                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Year</th>
+                )}
+                <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {members.length === 0 ? (
-                <tr><td colSpan={viewFilter === "pending" ? (isAdmin ? 6 : 5) : (isAdmin ? 5 : 4)}><div className="empty-state"><div className="icon">*</div><p>No members found</p></div></td></tr>
+                <tr>
+                  <td colSpan={viewFilter === "pending" ? 7 : 6}>
+                    <div className="empty-state"><div className="icon">*</div><p>No members found</p></div>
+                  </td>
+                </tr>
               ) : members.map(m => (
-                <tr key={m.st_id}>
-                  {isAdmin && <td className="mono">{m.st_id}</td>}
-                  <td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <tr key={m.st_id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  {/* 1. Profile Picture */}
+                  <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
+                    <div style={{
+                      width: "38px",
+                      height: "38px",
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      background: "#27272a",
+                      border: "1px solid #3f3f46",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0
+                    }}>
+                      {m.profile_image_url ? (
+                        <img src={m.profile_image_url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <span style={{ fontSize: "12px", fontWeight: "700", color: "#e4e1ed", letterSpacing: "0.05em" }}>
+                          {getInitials(m.name)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* 2. Student ID */}
+                  <td className="mono" style={{ padding: "12px 16px", verticalAlign: "middle", fontSize: "14px", fontWeight: "500", color: "#d4d4d8" }}>
+                    {m.st_id}
+                  </td>
+
+                  {/* 3. Name & Email */}
+                  <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
                       {viewFilter === "pending" ? (
-                        <span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text)" }}>
+                        <span style={{ fontWeight: "700", fontSize: "15px", color: "var(--text)" }}>
                           {m.name}
                         </span>
                       ) : (
                         <span
                           className="clickable-member"
                           onClick={() => openViewProfile(m.st_id)}
-                          style={{ cursor: "pointer", color: "var(--accent2)", fontWeight: 600, fontSize: "12px" }}
+                          style={{ cursor: "pointer", color: "#818cf8", fontWeight: "700", fontSize: "15px" }}
                         >
                           {m.name}
                         </span>
                       )}
-                      <span style={{ fontSize: "11px", color: "var(--text3)", wordBreak: "break-all" }}>
-                        {m.email || "-"}
-                      </span>
+                      {m.email && (
+                        <span style={{ fontSize: "12px", color: "var(--text3)", wordBreak: "break-all" }}>
+                          {m.email}
+                        </span>
+                      )}
                     </div>
                   </td>
+
+                  {/* 4. Level / Role */}
                   {viewFilter === "pending" ? (
                     <>
-                      <td>
+                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                          <span className="badge badge-purple">{m.role}</span>
+                          <span className="badge badge-purple" style={{ fontSize: "12px", padding: "4px 10px" }}>{m.role}</span>
                           <span className="badge" style={{
+                            fontSize: "12px",
+                            padding: "4px 10px",
                             backgroundColor: m.status === "rejected" ? "rgba(220, 38, 38, 0.15)" : "rgba(245, 158, 11, 0.15)",
                             color: m.status === "rejected" ? "var(--red)" : "var(--amber)",
                             border: m.status === "rejected" ? "1px solid rgba(220, 38, 38, 0.2)" : "1px solid rgba(245, 158, 11, 0.2)"
@@ -875,42 +933,58 @@ export default function Members({ isAdmin = false }) {
                           </span>
                         </div>
                       </td>
-                      <td><PhoneContact phone={m.mobile_number} /></td>
-                      <td><span className="badge badge-purple">Year {m.level}</span></td>
-                      <td>
-                        <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
-                          <button className="btn btn-ghost btn-sm" style={{ color: "var(--green)" }} onClick={() => handleApprove(m)}>Approve</button>
+                      <td style={{ padding: "12px 16px", verticalAlign: "middle", fontSize: "14px" }}>
+                        <PhoneContact phone={m.mobile_number} />
+                      </td>
+                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
+                        <span className="badge badge-purple" style={{ fontSize: "12px", padding: "4px 10px" }}>Year {m.level}</span>
+                      </td>
+                      <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "right" }}>
+                        <div className="flex gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          <button className="btn btn-ghost btn-sm" style={{ color: "var(--green)", fontSize: "13px" }} onClick={() => handleApprove(m)}>Approve</button>
                           {m.status === "pending" && (
-                            <button className="btn btn-ghost btn-sm" style={{ color: "var(--amber)" }} onClick={() => handleReject(m)}>Reject</button>
+                            <button className="btn btn-ghost btn-sm" style={{ color: "var(--amber)", fontSize: "13px" }} onClick={() => handleReject(m)}>Reject</button>
                           )}
-                          <button className="btn btn-ghost btn-sm" onClick={() => openEditPending(m)}>Edit</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDeletePending(m)}>Delete</button>
+                          <button className="btn btn-ghost btn-sm" style={{ fontSize: "13px" }} onClick={() => openEditPending(m)}>Edit</button>
+                          <button className="btn btn-danger btn-sm" style={{ fontSize: "13px" }} onClick={() => handleDeletePending(m)}>Delete</button>
                         </div>
                       </td>
                     </>
                   ) : (
                     <>
-                      <td>{m.level ? <span className="badge badge-purple">Year {m.level}</span> : <span className="text-muted">-</span>}</td>
-                      <td>
+                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
+                        {m.level ? (
+                          <span className="badge badge-purple" style={{ fontSize: "12px", padding: "4px 10px" }}>
+                            Level {m.level}
+                          </span>
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: "13px" }}>-</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text)" }}>
-                            {m.st_position || m.member_function || "-"}
+                          <span style={{ fontWeight: "600", fontSize: "14px", color: "var(--text)" }}>
+                            {m.st_position || m.member_function || "General Member"}
                           </span>
                           {m.st_position && m.member_function && (
-                            <span style={{ fontSize: "11px", color: "var(--text3)" }}>
+                            <span style={{ fontSize: "12px", color: "var(--text3)" }}>
                               {m.member_function}
                             </span>
                           )}
                         </div>
                       </td>
-                      {isAdmin && (
-                        <td>
-                          <div className="flex gap-2">
-                            <button className="btn btn-ghost btn-sm" onClick={() => openEdit(m)}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(m.st_id)}>Delete</button>
-                          </div>
-                        </td>
-                      )}
+                      <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "right" }}>
+                        <div className="flex gap-2" style={{ justifyContent: "flex-end" }}>
+                          {isAdmin ? (
+                            <>
+                              <button className="btn btn-ghost btn-sm" style={{ fontSize: "13px" }} onClick={() => openEdit(m)}>Edit</button>
+                              <button className="btn btn-danger btn-sm" style={{ fontSize: "13px" }} onClick={() => handleDelete(m.st_id)}>Delete</button>
+                            </>
+                          ) : (
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: "13px" }} onClick={() => openViewProfile(m.st_id)}>View</button>
+                          )}
+                        </div>
+                      </td>
                     </>
                   )}
                 </tr>
