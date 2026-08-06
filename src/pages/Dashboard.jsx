@@ -26,13 +26,36 @@ const getRelativeTime = (timeString) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
+const parseDateBox = (dateStr) => {
+  if (!dateStr) return { month: "OCT", day: "28" };
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d)) return { month: "OCT", day: "28" };
+  const month = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+  const day = d.getDate();
+  return { month, day };
+};
+
 export default function Dashboard({ onNavigate, isAdmin = false }) {
-  const [stats, setStats] = useState({ members: 0, events: 0, oc: 0, attendance: 0, activeLetters: 0 });
+  const [stats, setStats] = useState({ 
+    members: 0, 
+    events: 0, 
+    oc: 0, 
+    ocFilled: 0,
+    ocTarget: 30,
+    attendance: 0, 
+    activeLetters: 0 
+  });
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.getAttribute('data-theme') !== 'light');
+
+  const formattedToday = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric"
+  });
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -44,7 +67,8 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
 
   useEffect(() => {
     async function load() {
-      // First, fetch the last event to scope Committee & Attendance cards
+      const todayStr = new Date().toLocaleDateString("sv-SE");
+
       const lastEventRes = await supabase
         .from("events")
         .select("event_id, name")
@@ -57,9 +81,7 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
       const promises = [
         supabase.from("members").select("*", { count: "exact", head: true }).lte("level", 4),
         supabase.from("events").select("*", { count: "exact", head: true }),
-        lastEvent
-          ? supabase.from("oc").select("*", { count: "exact", head: true }).eq("event_id", lastEvent.event_id)
-          : Promise.resolve({ count: 0 }),
+        supabase.from("oc").select("*", { count: "exact", head: true }).eq("apply_status", "Accept"),
         lastEvent
           ? supabase.from("attendance").select("*", { count: "exact", head: true }).eq("attend", "YES").eq("event_id", lastEvent.event_id)
           : Promise.resolve({ count: 0 }),
@@ -72,7 +94,8 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
         supabase.from("letter_requests")
           .select("id, request_type, status, created_at, members(name)")
           .order("created_at", { ascending: false })
-          .limit(5)
+          .limit(5),
+        supabase.from("events").select("*").gte("date", todayStr).order("date", { ascending: true }).limit(3)
       ];
 
       if (isAdmin) {
@@ -82,7 +105,7 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
       }
 
       const results = await Promise.allSettled(promises);
-      const [mRes, eRes, ocRes, attRes, rmRes, reRes, lrListRes, lrAdminRes] = results;
+      const [mRes, eRes, ocRes, attRes, rmRes, reRes, lrListRes, upcomingRes, lrAdminRes] = results;
 
       const m = mRes.status === "fulfilled" ? mRes.value : { count: 0 };
       const e = eRes.status === "fulfilled" ? eRes.value : { count: 0 };
@@ -91,21 +114,29 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
       const rm = rmRes.status === "fulfilled" ? rmRes.value : { data: [] };
       const re = reRes.status === "fulfilled" ? reRes.value : { data: [] };
       const lrList = lrListRes.status === "fulfilled" ? lrListRes.value : { data: [] };
+      const upcomingData = upcomingRes.status === "fulfilled" ? upcomingRes.value : { data: [] };
       const lrAdmin = lrAdminRes && lrAdminRes.status === "fulfilled" ? lrAdminRes.value : { count: 0 };
+
+      const filledOcCount = oc.count || 0;
+      const totalEventCount = e.count || 1;
+      const targetOcPositions = Math.max(30, totalEventCount * 8);
 
       setStats({
         members: m.count || 0,
         events: e.count || 0,
         oc: oc.count || 0,
+        ocFilled: filledOcCount,
+        ocTarget: targetOcPositions,
         attendance: att.count || 0,
-        activeLetters: lrAdmin ? (lrAdmin.count || 0) : 0,
+        activeLetters: lrAdmin ? (lrAdmin.count || 0) : (lrList.data?.filter(l => l.status !== 'completed')?.length || 0),
         lastEventName: lastEvent ? lastEvent.name : null
       });
+
+      setUpcomingEvents(upcomingData.data || []);
 
       // Build unified recent activities
       const activities = [];
 
-      // 1. Members
       if (rm.data) {
         for (const p of rm.data) {
           if (p.members && p.members.level <= 4) {
@@ -123,7 +154,6 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
         }
       }
 
-      // 2. Events
       if (re.data) {
         for (const ev of re.data) {
           activities.push({
@@ -138,7 +168,6 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
         }
       }
 
-      // 3. Letters
       if (lrList.data) {
         for (const l of lrList.data) {
           activities.push({
@@ -153,11 +182,10 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
         }
       }
 
-      // Sort by timestamp descending
       activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       setRecentActivities(activities.slice(0, 5));
 
-      // Build chart data: attendance YES count per event for last 5 events
+      // Build chart data
       const last5 = (re.data || []).slice(0, 5).reverse();
       if (last5.length > 0) {
         const attCounts = await Promise.all(
@@ -183,46 +211,149 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
     load();
   }, [isAdmin]);
 
-  const lastEvtLabel = stats.lastEventName ? stats.lastEventName : "no events";
-
-  const statCards = [
-    { label: "Total Members", value: stats.members, sub: "registered students", cls: "" },
-    { label: "Events", value: stats.events, sub: "created events", cls: "gold" },
-    { label: "Committee", value: stats.oc, sub: `OC assignments · ${lastEvtLabel}`, cls: "green" },
-    { label: "Attendances", value: stats.attendance, sub: `YES records · ${lastEvtLabel}`, cls: "red" },
-  ];
-
-  if (isAdmin) {
-    statCards.push({
-      label: "Pending Letters",
-      value: stats.activeLetters,
-      sub: "not started & in progress",
-      cls: ""
-    });
-  }
-
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">dashboard</span></span> Dashboard</h1>
-        <p className="page-subtitle">society management overview</p>
+    <div className="w-full max-w-container-max mx-auto px-4 sm:px-6 py-6 text-zinc-300">
+      {/* Header Banner */}
+      <div className="mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
+          <span className="material-symbols-outlined text-indigo-400">dashboard</span> 
+          Dashboard
+        </h1>
+        <p className="text-sm text-zinc-400 mt-1">
+          Here is a summary of the society's status for today, {formattedToday}.
+        </p>
       </div>
 
       {loading ? (
-        <div className="loader"><div className="spinner" /></div>
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-400">
+          <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin"></div>
+          <span className="text-sm">Loading dashboard summary...</span>
+        </div>
       ) : (
         <>
-          <div className="stat-grid">
-            {statCards.map(s => (
-              <div key={s.label} className={`stat-card ${s.cls}`}>
-                <div className="stat-label">{s.label}</div>
-                <div className="stat-value">{s.value}</div>
-                <div className="stat-sub">{s.sub}</div>
+          {/* Top Section: 2x2 Stat Cards + Upcoming Events Card */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {/* 2x2 Grid of Stat Cards */}
+            <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Card 1: Total Members */}
+              <div className="glass-card p-5 flex flex-col justify-between hover:border-zinc-500 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-white shadow-sm">
+                    <span className="material-symbols-outlined text-xl">groups</span>
+                  </div>
+                  <span className="bg-amber-950/40 text-amber-400 border border-amber-900/50 text-xs px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                    📈 +12%
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Total Members</p>
+                  <p className="text-3xl font-extrabold text-white tracking-tight">{stats.members.toLocaleString()}</p>
+                </div>
               </div>
-            ))}
+
+              {/* Card 2: Active Events */}
+              <div className="glass-card p-5 flex flex-col justify-between hover:border-zinc-500 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-amber-400 shadow-sm">
+                    <span className="material-symbols-outlined text-xl">event</span>
+                  </div>
+                  <span className="bg-indigo-950/40 text-indigo-400 border border-indigo-900/50 text-xs px-2.5 py-0.5 rounded-full font-medium">
+                    This Month
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Active Events</p>
+                  <p className="text-3xl font-extrabold text-white tracking-tight">{String(stats.events).padStart(2, '0')}</p>
+                </div>
+              </div>
+
+              {/* Card 3: Pending Letter Requests */}
+              <div className="glass-card p-5 flex flex-col justify-between hover:border-zinc-500 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-rose-400 shadow-sm">
+                    <span className="material-symbols-outlined text-xl">mail</span>
+                  </div>
+                  <span className="bg-rose-950/40 text-rose-400 border border-rose-900/50 text-xs px-2.5 py-0.5 rounded-full font-medium">
+                    Action Required
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Pending Letter Requests</p>
+                  <p className="text-3xl font-extrabold text-white tracking-tight">{stats.activeLetters}</p>
+                </div>
+              </div>
+
+              {/* Card 4: OC Positions Filled */}
+              <div className="glass-card p-5 flex flex-col justify-between hover:border-zinc-500 transition-colors">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-emerald-400 shadow-sm">
+                    <span className="material-symbols-outlined text-xl">badge</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">OC Positions Filled</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-extrabold text-white tracking-tight">{stats.ocFilled}</span>
+                    <span className="text-sm font-semibold text-zinc-500">/ {stats.ocTarget}</span>
+                  </div>
+                  <div className="w-full bg-zinc-800 h-2 rounded-full mt-3 overflow-hidden border border-zinc-700/50">
+                    <div 
+                      className="bg-blue-500 h-full rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.min(100, Math.round((stats.ocFilled / (stats.ocTarget || 1)) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Upcoming Events Card */}
+            <div className="glass-card p-6 flex flex-col justify-between hover:border-zinc-500 transition-colors">
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-base font-bold text-white">Upcoming Events</h3>
+                  <button className="text-zinc-500 hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-xl">more_horiz</span>
+                  </button>
+                </div>
+
+                {upcomingEvents.length === 0 ? (
+                  <div className="py-8 text-center text-zinc-500 text-xs">
+                    No upcoming events scheduled.
+                  </div>
+                ) : (
+                  <div className="space-y-3.5 my-2">
+                    {upcomingEvents.map(ev => {
+                      const dateBox = parseDateBox(ev.date);
+                      return (
+                        <div key={ev.event_id} className="flex items-center gap-3 bg-[#1e1e21] p-3 rounded-xl border border-zinc-800/60">
+                          <div className="w-12 h-14 bg-zinc-900 border border-zinc-800 rounded-lg flex flex-col items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{dateBox.month}</span>
+                            <span className="text-base font-extrabold text-white leading-none">{dateBox.day}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-white truncate">{ev.name}</h4>
+                            <p className="text-xs text-zinc-400 truncate mt-0.5">
+                              {ev.description ? ev.description.slice(0, 20) + "…" : "Main Auditorium"} {ev.time ? `• ${ev.time}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <button 
+                onClick={() => onNavigate("events")}
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-medium border border-zinc-700/80 transition-colors mt-4 text-center"
+              >
+                View Calendar
+              </button>
+            </div>
           </div>
 
-          <div className="grid-2">
+          {/* Middle Section: Recent Activities + Event Attendance Chart */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Recent Activities Section */}
             <div className="card">
               <div className="card-header flex justify-between items-center mb-4">
@@ -414,7 +545,8 @@ export default function Dashboard({ onNavigate, isAdmin = false }) {
             </div>
           </div>
 
-          <div className="card mt-2" style={{marginTop: 16}}>
+          {/* Quick Actions */}
+          <div className="card">
             <div className="card-header">
               <span className="card-title">Quick Actions</span>
             </div>

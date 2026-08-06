@@ -302,14 +302,23 @@ export default function Notices({ isAdmin = false, session }) {
                 {n.content.replace(/[#*`_\[\]]/g, "")}
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "4px" }}>
                 <button
-                  className="btn btn-primary btn-sm"
+                  className="btn btn-ghost btn-sm"
                   onClick={() => setActiveNotice(n)}
-                  style={{ padding: "6px 14px", fontSize: "12px" }}
+                  style={{ padding: "6px 12px", fontSize: "12px" }}
+                >
+                  Quick View
+                </button>
+                <a
+                  href={`/notice?id=${n.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-primary btn-sm"
+                  style={{ padding: "6px 14px", fontSize: "12px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
                 >
                   Read Full Notice →
-                </button>
+                </a>
               </div>
             </div>
           ))}
@@ -347,14 +356,25 @@ export default function Notices({ isAdmin = false, session }) {
               style={{ padding: "8px 0 20px 0", color: "var(--text)", lineHeight: "1.7" }}
             />
 
-            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
-              <button
-                className="btn btn-ghost"
-                onClick={() => handleCopyLink(activeNotice.id)}
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
-              >
-                🔗 {copiedId === activeNotice.id ? "Link Copied!" : "Copy Shareable Link"}
-              </button>
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px", borderTop: "1px solid var(--border)", paddingTop: "16px" }}>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => handleCopyLink(activeNotice.id)}
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  🔗 {copiedId === activeNotice.id ? "Link Copied!" : "Copy Link"}
+                </button>
+                <a
+                  href={`/notice?id=${activeNotice.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-ghost"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none" }}
+                >
+                  ↗ Open Preview Page
+                </a>
+              </div>
               <button className="btn btn-primary" onClick={() => setActiveNotice(null)}>Close</button>
             </div>
           </div>
