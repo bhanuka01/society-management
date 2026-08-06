@@ -38,8 +38,6 @@ const NAV_ITEMS = [
   { id: "access", label: "Access", icon: "admin_panel_settings" },
   { id: "assistant", label: "AI Assistant", icon: "auto_awesome" },
   { id: "about", label: "Society Details", icon: "info" },
-  { id: "privacy", label: "Privacy Policy", icon: "policy" },
-  { id: "terms", label: "Terms of Service", icon: "gavel" },
 
   // { id: "setup", label: "DB Setup", icon: "database" },
 ];
