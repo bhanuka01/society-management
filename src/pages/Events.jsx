@@ -50,6 +50,7 @@ export default function Events({ isAdmin = false, session }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // "all", "upcoming", "ongoing", "past"
   const [modal, setModal] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm] = useState(EMPTY);
@@ -68,6 +69,10 @@ export default function Events({ isAdmin = false, session }) {
   const [eventOcMembers, setEventOcMembers] = useState([]);
   const [existingApp, setExistingApp] = useState(null);
   const [customPosInput, setCustomPosInput] = useState("");
+  const [ocCountsMap, setOcCountsMap] = useState({});
+  const [attendanceCountMap, setAttendanceCountMap] = useState({});
+
+  const today = new Date().toLocaleDateString("sv-SE");
 
   const load = async (pageToLoad = page, searchText = search) => {
     setLoading(true);
@@ -93,20 +98,68 @@ export default function Events({ isAdmin = false, session }) {
     setTotal(eventRes.count || 0);
     setMembers(memberRes.data || []);
 
-    if (session?.stId && eventsData.length > 0) {
+    if (eventsData.length > 0) {
       const eventIds = eventsData.map(e => e.event_id);
-      const { data: attData } = await supabase
-        .from("attendance")
-        .select("event_id, attend")
-        .eq("st_id", session.stId)
-        .in("event_id", eventIds);
+      
+      const promises = [];
+      
+      // User attendance
+      if (session?.stId) {
+        promises.push(
+          supabase
+            .from("attendance")
+            .select("event_id, attend")
+            .eq("st_id", session.stId)
+            .in("event_id", eventIds)
+        );
+      } else {
+        promises.push(Promise.resolve({ data: [] }));
+      }
+
+      // Accepted OC Counts
+      promises.push(
+        supabase
+          .from("oc")
+          .select("event_id")
+          .eq("apply_status", "Accept")
+          .in("event_id", eventIds)
+      );
+
+      // Attendance Counts
+      promises.push(
+        supabase
+          .from("attendance")
+          .select("event_id")
+          .eq("attend", "YES")
+          .in("event_id", eventIds)
+      );
+
+      const [attRes, ocRes, attCountsRes] = await Promise.all(promises);
+
+      // Map user attendance
       const attMap = {};
-      attData?.forEach(a => {
+      attRes.data?.forEach(a => {
         attMap[a.event_id] = a.attend;
       });
       setMyAttendanceMap(attMap);
+
+      // Map OC Counts
+      const ocMap = {};
+      ocRes.data?.forEach(o => {
+        ocMap[o.event_id] = (ocMap[o.event_id] || 0) + 1;
+      });
+      setOcCountsMap(ocMap);
+
+      // Map Total Attendance Counts
+      const attCountMap = {};
+      attCountsRes.data?.forEach(a => {
+        attCountMap[a.event_id] = (attCountMap[a.event_id] || 0) + 1;
+      });
+      setAttendanceCountMap(attCountMap);
     } else {
       setMyAttendanceMap({});
+      setOcCountsMap({});
+      setAttendanceCountMap({});
     }
     setLoading(false);
   };
@@ -114,6 +167,7 @@ export default function Events({ isAdmin = false, session }) {
   useEffect(() => { load(page, search); }, [page, search]);
 
   const openAdd = () => { setForm(EMPTY); setEditTarget(null); setEventOcMembers([]); setModal(true); setMsg(null); setCustomPosInput(""); };
+  
   const openEdit = async (e) => {
     setForm({ 
       event_id: e.event_id, 
@@ -154,6 +208,7 @@ export default function Events({ isAdmin = false, session }) {
       console.error("Error loading event OC members:", err);
     }
   };
+
   const closeModal = () => { 
     setModal(false); 
     setMsg(null); 
@@ -163,6 +218,7 @@ export default function Events({ isAdmin = false, session }) {
       setFlyerPreview(null);
     }
   };
+
   const handleFlyerChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -184,7 +240,6 @@ export default function Events({ isAdmin = false, session }) {
 
     if (session?.stId) {
       try {
-        // Fetch user's member_function from members table
         const { data: member, error: memberErr } = await supabase
           .from("members")
           .select("member_function")
@@ -195,7 +250,6 @@ export default function Events({ isAdmin = false, session }) {
 
         const memberFunc = member?.member_function || "General";
 
-        // Fetch functions to find a match or insert if not exists
         let allFuncs = functions;
         if (allFuncs.length === 0) {
           const { data, error: funcErr } = await supabase.from("functions").select("*").order("function_name");
@@ -209,7 +263,6 @@ export default function Events({ isAdmin = false, session }) {
         );
 
         if (!matchedFunc && memberFunc.trim()) {
-          // Create function dynamically if not found
           const { data: newFunc, error: insertErr } = await supabase
             .from("functions")
             .insert([{ function_name: memberFunc.trim() }])
@@ -223,7 +276,6 @@ export default function Events({ isAdmin = false, session }) {
           }
         }
 
-        // Check if member already applied for this event
         const { data: existingData } = await supabase
           .from("oc")
           .select("*, functions(function_name)")
@@ -252,6 +304,7 @@ export default function Events({ isAdmin = false, session }) {
       }
     }
   };
+
   const closeApplyModal = () => { setApplyModal(false); setMsg(null); setExistingApp(null); };
 
   const getMemberName = (stId) => members.find(m => m.st_id === stId)?.name || stId;
@@ -462,11 +515,10 @@ export default function Events({ isAdmin = false, session }) {
     }
   };
 
-  const today = new Date().toLocaleDateString("sv-SE");
-  const getDateBadge = (date) => {
-    if (date > today) return <span className="badge badge-green">Upcoming</span>;
-    if (date === today) return <span className="badge badge-amber">Today</span>;
-    return <span className="badge badge-gray">Past</span>;
+  const getStatusInfo = (date) => {
+    if (date > today) return { type: "upcoming", label: "Upcoming", badgeBg: "bg-blue-950/30 text-blue-400 border-blue-900/50" };
+    if (date === today) return { type: "ongoing", label: "Ongoing", badgeBg: "bg-orange-950/30 text-orange-400 border-orange-900/50", pulse: true };
+    return { type: "past", label: "Past", badgeBg: "bg-zinc-900 text-zinc-400 border-zinc-800" };
   };
 
   const isAccepting = (e) => {
@@ -474,137 +526,308 @@ export default function Events({ isAdmin = false, session }) {
     return today >= e.apply_start_date && today <= e.apply_end_date;
   };
 
+  // Filter events according to status tab
+  const filteredEvents = events.filter(e => {
+    const status = getStatusInfo(e.date).type;
+    if (statusFilter === "upcoming") return status === "upcoming";
+    if (statusFilter === "ongoing") return status === "ongoing";
+    if (statusFilter === "past") return status === "past";
+    return true;
+  });
+
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">event</span></span> Events</h1>
-        <p className="page-subtitle">{total} events registered</p>
-      </div>
-
-      <div className="toolbar">
-        <div className="search-input-wrap">
-          <span className="search-icon">?</span>
-          <input placeholder="Search events or OC..." value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} />
+    <div className="w-full max-w-container-max mx-auto px-4 sm:px-6 py-6 text-zinc-300">
+      {/* Header */}
+      <header className="mb-8 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-zinc-700/50 shadow-sm flex-shrink-0">
+          <span className="material-symbols-outlined text-white text-2xl">event</span>
         </div>
-        {isAdmin && <button className="btn btn-primary" onClick={openAdd}>+ Create Event</button>}
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-white leading-none mb-1">Events</h1>
+          <p className="text-sm text-zinc-400">Manage society events, organizing committees, and public visibility.</p>
+        </div>
+        {isAdmin && (
+          <button 
+            onClick={openAdd}
+            className="flex bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-[13px] font-medium transition-colors border border-zinc-700 items-center gap-2 shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            <span className="hidden sm:inline">Create Event</span>
+          </button>
+        )}
+      </header>
+
+      {/* Filters & Search Toolbar */}
+      <div className="flex flex-row justify-between items-center mb-8 gap-4 bg-[#121212] p-3 rounded-xl border border-zinc-800 w-full flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+          <button 
+            onClick={() => setStatusFilter("all")}
+            className={`px-4 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${statusFilter === "all" ? "bg-[#27272a] text-white" : "hover:bg-white/5 text-zinc-400 hover:text-white"}`}
+          >
+            All Events
+          </button>
+          <button 
+            onClick={() => setStatusFilter("upcoming")}
+            className={`px-4 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${statusFilter === "upcoming" ? "bg-[#27272a] text-white" : "hover:bg-white/5 text-zinc-400 hover:text-white"}`}
+          >
+            Upcoming
+          </button>
+          <button 
+            onClick={() => setStatusFilter("ongoing")}
+            className={`px-4 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${statusFilter === "ongoing" ? "bg-[#27272a] text-white" : "hover:bg-white/5 text-zinc-400 hover:text-white"}`}
+          >
+            Ongoing
+          </button>
+          <button 
+            onClick={() => setStatusFilter("past")}
+            className={`px-4 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap transition-colors ${statusFilter === "past" ? "bg-[#27272a] text-white" : "hover:bg-white/5 text-zinc-400 hover:text-white"}`}
+          >
+            Past
+          </button>
+        </div>
+        <div className="relative w-full sm:w-64 flex-shrink-0 ml-auto">
+          <input 
+            type="text"
+            value={search} 
+            onChange={e => { setPage(0); setSearch(e.target.value); }} 
+            placeholder="Search events..." 
+            className="w-full bg-[#1e1e21] border border-zinc-800 rounded-lg pl-3 pr-8 py-1.5 text-[13px] text-white focus:outline-none focus:border-zinc-500 placeholder-zinc-500 transition-colors"
+          />
+          <span className="material-symbols-outlined absolute right-2.5 top-2 text-zinc-500 text-[18px]">search</span>
+        </div>
       </div>
 
+      {/* Main Content Area */}
       {loading ? (
-        <div className="loader"><div className="spinner" /></div>
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-zinc-400">
+          <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin"></div>
+          <span className="text-sm">Loading events...</span>
+        </div>
+      ) : filteredEvents.length === 0 ? (
+        <div className="glass-card p-12 text-center flex flex-col items-center justify-center border border-zinc-800">
+          <div className="w-12 h-12 rounded-full bg-zinc-800/80 flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined text-zinc-400 text-2xl">event_busy</span>
+          </div>
+          <h3 className="text-white font-medium text-base mb-1">No events found</h3>
+          <p className="text-zinc-500 text-sm max-w-sm">
+            {search ? `No events match "${search}". Try clearing your search filter.` : "No events registered in this section yet."}
+          </p>
+        </div>
       ) : (
-        <div className="table-wrap">
-          <table className="table-fit table-cards">
-            <thead>
-              <tr>
-                <th>Event ID</th>
-                <th>Name</th>
-                <th>Date</th>
-                <th>OC</th>
-                <th>Status</th>
-                {session?.role && session.role !== "guest" && <th>Self-Attendance</th>}
-                <th>Apply</th>
-                {isAdmin && <th>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {events.length === 0 ? (
-                <tr>
-                  <td colSpan={isAdmin ? 8 : (session?.role && session.role !== "guest" ? 7 : 6)}>
-                    <div className="empty-state"><div className="icon">*</div><p>No events found</p></div>
-                  </td>
-                </tr>
-              ) : events.map(e => (
-                <tr key={e.event_id}>
-                  <td className={`mono col-secondary ${!isAdmin ? "hide-member-mobile" : ""}`}>{e.event_id}</td>
-                  <td className="col-name">
-                    <strong>{e.name}</strong>
-                    {e.is_public !== false ? (
-                      <span className={`badge badge-green ${!isAdmin ? "hide-member-mobile" : ""}`} style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🌐 Public</span>
-                    ) : (
-                      <span className={`badge badge-gray ${!isAdmin ? "hide-member-mobile" : ""}`} style={{ marginLeft: "8px", fontSize: "10px", padding: "2px 6px", verticalAlign: "middle" }}>🔒 Private</span>
-                    )}
-                  </td>
-                  <td className="mono">{e.date}</td>
-                  <td>{e.oc_st_id ? <span className="badge badge-purple">{getMemberName(e.oc_st_id)}</span> : <span className="text-muted">-</span>}</td>
-                  <td>{getDateBadge(e.date)}</td>
-                  {session?.role && session.role !== "guest" && (
-                    <td>
-                      {isAdmin ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredEvents.map(e => {
+            const statusInfo = getStatusInfo(e.date);
+            const isPast = statusInfo.type === "past";
+
+            return (
+              <div 
+                key={e.event_id} 
+                className={`glass-card p-6 flex flex-col hover:border-zinc-500 transition-all duration-200 group ${isPast ? "opacity-75 hover:opacity-100" : ""}`}
+              >
+                {/* Card Top Banner */}
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wider border ${statusInfo.badgeBg}`}>
+                        {statusInfo.pulse && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mr-1.5 animate-pulse"></span>}
+                        {statusInfo.label}
+                      </span>
+                      {e.is_public !== false ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/30 text-emerald-400 text-[10px] font-medium border border-emerald-900/50">
+                          🌐 Public
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 text-[10px] font-medium border border-zinc-700">
+                          🔒 Private
+                        </span>
+                      )}
+                      {isAdmin && (
                         <button
-                          className={`btn btn-sm ${e.self_attendance_enabled ? "btn-success" : "btn-ghost"}`}
                           onClick={() => toggleSelfAttendance(e.event_id, e.self_attendance_enabled)}
-                          style={{ minWidth: "90px" }}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium border transition-colors ${e.self_attendance_enabled ? "bg-emerald-950/30 text-emerald-400 border-emerald-900/50" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white"}`}
+                          title="Toggle member self-attendance"
                         >
-                          {e.self_attendance_enabled ? "🟢 Enabled" : "⚪ Disabled"}
+                          Self-Att: {e.self_attendance_enabled ? "ON" : "OFF"}
+                        </button>
+                      )}
+                    </div>
+                    <h3 className="font-semibold text-lg text-white mb-1 leading-snug">{e.name}</h3>
+                    <p className="text-[13px] text-zinc-400 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">calendar_today</span>
+                      {e.date} {e.time ? `• ${e.time}` : ""}
+                    </p>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => openEdit(e)} 
+                        className="text-zinc-500 hover:text-white p-1 rounded-md hover:bg-white/5 transition-colors"
+                        title="Edit Event"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(e.event_id)} 
+                        className="text-zinc-500 hover:text-red-400 p-1 rounded-md hover:bg-red-950/30 transition-colors"
+                        title="Delete Event"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Description & Flyer Preview */}
+                {e.description && (
+                  <p className="text-[13px] text-zinc-400 mb-4 line-clamp-2 leading-relaxed">
+                    {e.description}
+                  </p>
+                )}
+
+                {/* OC Lead & Committee Details Box */}
+                <div className="flex items-center gap-3 mb-6 bg-[#1e1e21] p-4 rounded-xl border border-zinc-800/50">
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-zinc-800 border border-zinc-700/50 flex items-center justify-center flex-shrink-0">
+                    {e.flyer_url ? (
+                      <img src={e.flyer_url} alt="Flyer" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="material-symbols-outlined text-zinc-400 text-lg">person</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">OC Lead</p>
+                    <p className="text-[13px] text-zinc-200 font-medium truncate">
+                      {e.oc_st_id ? getMemberName(e.oc_st_id) : "Not Assigned"}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">
+                      {isPast ? "Attendance" : "Committee"}
+                    </p>
+                    <p className="text-[13px] text-zinc-200 font-medium">
+                      {isPast 
+                        ? (attendanceCountMap[e.event_id] !== undefined ? `${attendanceCountMap[e.event_id]} Attendees` : "Completed")
+                        : (ocCountsMap[e.event_id] ? `${ocCountsMap[e.event_id]} Members` : "Pending Setup")
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons Footer */}
+                <div className="mt-auto pt-4 border-t border-zinc-800 flex flex-wrap gap-2">
+                  {/* Button 1: Application / Committee */}
+                  {isAccepting(e) && session?.stId ? (
+                    <button 
+                      onClick={() => openApply(e)}
+                      className="flex-1 min-w-[120px] px-3 py-2 border border-blue-900/50 text-blue-400 bg-blue-950/20 hover:bg-blue-950/40 rounded-lg text-[12px] font-medium transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">group_add</span>
+                      {existingApp ? "My Application" : "Apply for OC"}
+                    </button>
+                  ) : isAdmin ? (
+                    <button 
+                      onClick={() => openEdit(e)}
+                      className="flex-1 min-w-[120px] px-3 py-2 border border-zinc-700 rounded-lg text-[12px] font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">group_add</span>
+                      {ocCountsMap[e.event_id] ? "Manage OC" : "Form OC"}
+                    </button>
+                  ) : null}
+
+                  {/* Button 2: Attendance */}
+                  {isAdmin ? (
+                    <button 
+                      onClick={() => seedAttendance(e.event_id)}
+                      className="flex-1 min-w-[120px] px-3 py-2 border border-zinc-700 rounded-lg text-[12px] font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+                      Seed Attendance
+                    </button>
+                  ) : session?.role && session.role !== "guest" && e.date === today ? (
+                    e.self_attendance_enabled ? (
+                      myAttendanceMap[e.event_id] === "YES" ? (
+                        <span className="flex-1 min-w-[120px] px-3 py-2 bg-emerald-950/30 border border-emerald-900/50 text-emerald-400 rounded-lg text-[12px] font-medium flex items-center justify-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                          Present
+                        </span>
+                      ) : isTimeWithinRange(e.time) ? (
+                        <button
+                          onClick={() => handleSelfMarkAttendance(e.event_id)}
+                          disabled={markingMap[e.event_id]}
+                          className="flex-1 min-w-[120px] px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[12px] font-medium transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">how_to_reg</span>
+                          {markingMap[e.event_id] ? "Marking..." : "Mark Present"}
                         </button>
                       ) : (
-                        e.date === today ? (
-                          e.self_attendance_enabled ? (
-                            myAttendanceMap[e.event_id] === "YES" ? (
-                              <span className="badge badge-green">✓ Present</span>
-                            ) : isTimeWithinRange(e.time) ? (
-                              <button
-                                className="btn btn-primary btn-sm"
-                                onClick={() => handleSelfMarkAttendance(e.event_id)}
-                                disabled={markingMap[e.event_id]}
-                              >
-                                {markingMap[e.event_id] ? "..." : "Mark Present"}
-                              </button>
-                            ) : (
-                              <div style={{ display: "inline-flex", flexDirection: "column", gap: "2px", alignItems: "center", verticalAlign: "middle" }}>
-                                <button className="btn btn-ghost btn-sm" disabled style={{ cursor: "not-allowed", padding: "2px 6px", fontSize: "11px" }}>Mark Present</button>
-                                <span style={{ fontSize: "9px", color: "var(--red)", fontWeight: "600" }}>Outside Time</span>
-                              </div>
-                            )
-                          ) : (
-                            <span className="text-muted">Disabled</span>
-                          )
-                        ) : (
-                          <span className="text-muted">-</span>
-                        )
-                      )}
-                    </td>
-                  )}
-                  <td>
-                    {isAccepting(e) && session?.stId ? (
-                      <button className="btn btn-primary btn-sm" onClick={() => openApply(e)}>Apply for OC</button>
-                    ) : <span className="text-muted text-sm">{e.apply_start_date ? "Closed" : "-"}</span>}
-                  </td>
-                  {isAdmin && (
-                    <td className="col-action col-action-full">
-                      <div className="gap-2" style={{ display: "flex", flexWrap: "wrap" }}>
-                        <a href={`/event?id=${e.event_id}`} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Preview</a>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(e)}>Edit</button>
-                        <button className="btn btn-success btn-sm" title="Seed attendance for all members" onClick={() => seedAttendance(e.event_id)}>Seed Att.</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(e.event_id)}>Delete</button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
+                        <button disabled className="flex-1 min-w-[120px] px-3 py-2 border border-zinc-800 text-zinc-600 rounded-lg text-[12px] font-medium flex items-center justify-center gap-1.5 cursor-not-allowed">
+                          Outside Time
+                        </button>
+                      )
+                    ) : null
+                  ) : null}
+
+                  {/* Button 3: Public Page */}
+                  <a 
+                    href={`/event?id=${e.event_id}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="flex-1 min-w-[120px] px-3 py-2 bg-white/10 text-white rounded-lg text-[12px] font-medium hover:bg-white/20 transition-colors flex items-center justify-center gap-1.5 border border-zinc-700"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                    {e.is_public !== false ? "Public Page" : "Preview"}
+                  </a>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
+      {/* Pagination Controls */}
+      <div className="mt-8">
+        <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
+      </div>
+
+      {/* Create / Edit Event Modal */}
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 className="modal-title">{editTarget ? "Edit Event" : "Create Event"}</h2>
-              <button className="modal-close" onClick={closeModal}>x</button>
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+          onClick={e => e.target === e.currentTarget && closeModal()}
+        >
+          <div className="bg-[#121212] border border-zinc-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-4 border-b border-zinc-800">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-zinc-400">{editTarget ? "edit_calendar" : "add_event"}</span>
+                {editTarget ? "Edit Event" : "Create Event"}
+              </h2>
+              <button 
+                onClick={closeModal}
+                className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+              >
+                ✕
+              </button>
             </div>
 
-            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
-
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Event ID *</label>
-                <input placeholder="e.g. 20261" value={form.event_id} onChange={e => setForm({ ...form, event_id: e.target.value })} disabled={!!editTarget} />
+            {msg && (
+              <div className={`p-3 rounded-lg text-sm border ${msg.type === "error" ? "bg-red-950/30 text-red-400 border-red-900/50" : "bg-emerald-950/30 text-emerald-400 border-emerald-900/50"}`}>
+                {msg.text}
               </div>
-              <div className="form-group">
-                <label>Date *</label>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Event ID *</label>
+                <input 
+                  placeholder="e.g. 20261" 
+                  value={form.event_id} 
+                  onChange={e => setForm({ ...form, event_id: e.target.value })} 
+                  disabled={!!editTarget}
+                  className="w-full bg-[#1e1e21] border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Date *</label>
                 <DatePicker
                   value={form.date}
                   onChange={v => setForm({ ...form, date: v })}
@@ -612,115 +835,120 @@ export default function Events({ isAdmin = false, session }) {
                 />
               </div>
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Event Name *</label>
-                <input placeholder="Name of the event" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-              </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Event Name *</label>
+              <input 
+                placeholder="Name of the event" 
+                value={form.name} 
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                className="w-full bg-[#1e1e21] border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
+              />
             </div>
-            <div className="form-row" style={{ marginBottom: "15px" }}>
-              <div className="form-group" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "10px", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-center gap-3 bg-[#1e1e21] p-3 rounded-xl border border-zinc-800 cursor-pointer">
                 <input 
                   type="checkbox" 
-                  id="event-is-public"
                   checked={form.is_public !== false} 
                   onChange={e => setForm({ ...form, is_public: e.target.checked })} 
-                  style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#0062ff", margin: 0 }}
+                  className="w-4 h-4 rounded accent-blue-600"
                 />
-                <label htmlFor="event-is-public" style={{ margin: 0, cursor: "pointer", fontWeight: "600", fontSize: "13px", color: "var(--text)" }}>
-                  Show Event on Public Main Page & Public Event Page
-                </label>
-              </div>
-            </div>
-            <div className="form-row" style={{ marginBottom: "15px" }}>
-              <div className="form-group" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "10px", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
+                <span className="text-xs font-medium text-zinc-300">
+                  Show Event on Public Page
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 bg-[#1e1e21] p-3 rounded-xl border border-zinc-800 cursor-pointer">
                 <input 
                   type="checkbox" 
-                  id="event-self-attendance"
                   checked={form.self_attendance_enabled === true} 
                   onChange={e => setForm({ ...form, self_attendance_enabled: e.target.checked })} 
-                  style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#0062ff", margin: 0 }}
+                  className="w-4 h-4 rounded accent-blue-600"
                 />
-                <label htmlFor="event-self-attendance" style={{ margin: 0, cursor: "pointer", fontWeight: "600", fontSize: "13px", color: "var(--text)" }}>
-                  Allow Members to Mark Own Attendance (Self-Attendance)
-                </label>
-              </div>
+                <span className="text-xs font-medium text-zinc-300">
+                  Enable Member Self-Attendance
+                </span>
+              </label>
             </div>
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Event Time (e.g. 10:00 AM - 12:30 PM)</label>
-                <input placeholder="e.g. 10:00 AM - 1:00 PM" value={form.time || ""} onChange={e => setForm({ ...form, time: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>Tally.so Embed Link or Form ID</label>
-                <input placeholder="e.g. mBQKkN or full URL" value={form.tally_link || ""} onChange={e => setForm({ ...form, tally_link: e.target.value })} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Event Description</label>
-                <textarea 
-                  placeholder="Describe the event, topics, guest speakers..." 
-                  value={form.description || ""} 
-                  onChange={e => setForm({ ...form, description: e.target.value })}
-                  style={{ width: "100%", height: "80px", background: "var(--bg3)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: "10px" }}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Event Time</label>
+                <input 
+                  placeholder="e.g. 10:00 AM - 1:00 PM" 
+                  value={form.time || ""} 
+                  onChange={e => setForm({ ...form, time: e.target.value })}
+                  className="w-full bg-[#1e1e21] border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Tally.so Link / ID</label>
+                <input 
+                  placeholder="e.g. mBQKkN or full URL" 
+                  value={form.tally_link || ""} 
+                  onChange={e => setForm({ ...form, tally_link: e.target.value })}
+                  className="w-full bg-[#1e1e21] border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
+                />
+              </div>
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Event Flyer Image</label>
-                <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
-                  {flyerPreview || form.flyer_url ? (
-                    <img
-                      src={flyerPreview || form.flyer_url}
-                      alt="Flyer Preview"
-                      style={{ width: "60px", height: "80px", objectFit: "cover", borderRadius: "4px", border: "1px solid var(--border)", flexShrink: 0 }}
-                    />
-                  ) : (
-                    <div style={{ width: "60px", height: "80px", borderRadius: "4px", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "var(--text3)", flexShrink: 0 }}>
-                      🖼️
-                    </div>
-                  )}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexGrow: 1 }}>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      id="event-flyer-upload"
-                      onChange={handleFlyerChange}
-                      style={{ display: "none" }}
-                    />
-                    <label
-                      htmlFor="event-flyer-upload"
-                      className="btn btn-ghost btn-sm"
-                      style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
-                    >
-                      Choose Flyer
-                    </label>
-                    <span className="text-muted" style={{ fontSize: "11px" }}>
-                      {flyerFile ? `${flyerFile.name.substring(0, 20)}${flyerFile.name.length > 20 ? "..." : ""}` : "No flyer uploaded"}
-                    </span>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Event Description</label>
+              <textarea 
+                placeholder="Describe the event, topics, guest speakers..." 
+                value={form.description || ""} 
+                onChange={e => setForm({ ...form, description: e.target.value })}
+                className="w-full h-24 bg-[#1e1e21] border border-zinc-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-zinc-500 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Event Flyer Image</label>
+              <div className="flex items-center gap-4 bg-[#1e1e21] p-3 rounded-xl border border-zinc-800">
+                {flyerPreview || form.flyer_url ? (
+                  <img
+                    src={flyerPreview || form.flyer_url}
+                    alt="Flyer Preview"
+                    className="w-16 h-20 object-cover rounded-lg border border-zinc-700 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-20 rounded-lg bg-zinc-900 border border-dashed border-zinc-700 flex items-center justify-center text-zinc-500 text-xl flex-shrink-0">
+                    🖼️
                   </div>
+                )}
+                <div className="flex flex-col gap-1 flex-grow">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="event-flyer-upload"
+                    onChange={handleFlyerChange}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="event-flyer-upload"
+                    className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium self-start transition-colors border border-zinc-700"
+                  >
+                    Choose Flyer
+                  </label>
+                  <span className="text-zinc-500 text-xs truncate max-w-[200px]">
+                    {flyerFile ? flyerFile.name : "No flyer uploaded"}
+                  </span>
                 </div>
               </div>
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Or External Flyer Image URL</label>
-                <input placeholder="https://example.com/flyer.jpg" value={form.flyer_url || ""} onChange={e => setForm({ ...form, flyer_url: e.target.value })} />
-              </div>
-            </div>
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Apply Start Date (for OC Applications)</label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Apply Start Date (OC)</label>
                 <DatePicker
                   value={form.apply_start_date}
                   onChange={v => setForm({ ...form, apply_start_date: v })}
                   placeholder="Select start date"
                 />
               </div>
-              <div className="form-group">
-                <label>Apply End Date (for OC Applications)</label>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Apply End Date (OC)</label>
                 <DatePicker
                   value={form.apply_end_date}
                   onChange={v => setForm({ ...form, apply_end_date: v })}
@@ -728,73 +956,53 @@ export default function Events({ isAdmin = false, session }) {
                 />
               </div>
             </div>
-            <div className="form-row" style={{ marginBottom: "15px" }}>
-              <div className="form-group" style={{ background: "var(--bg3)", padding: "14px", borderRadius: "var(--r)", border: "1px solid var(--border)", width: "100%" }}>
-                <label style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", display: "block" }}>
-                  Available OC Preferred Positions for Applicants
-                </label>
-                <span className="text-muted" style={{ fontSize: "11px", display: "block", marginBottom: "10px" }}>
-                  Select which positions applicants can choose for this event:
-                </span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
-                  {STANDARD_OC_POSITIONS.map(pos => {
-                    const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
-                    const isSelected = currentArr.includes(pos);
-                    return (
-                      <button
-                        key={pos}
-                        type="button"
-                        className={`btn btn-sm ${isSelected ? "btn-primary" : "btn-ghost"}`}
-                        style={{ borderRadius: "20px", fontSize: "12px", padding: "4px 12px" }}
-                        onClick={() => {
-                          const nextArr = isSelected
-                            ? currentArr.filter(p => p !== pos)
-                            : [...currentArr, pos];
-                          setForm({ ...form, available_oc_positions: nextArr });
-                        }}
-                      >
-                        {isSelected ? "✓ " : "+ "}{pos}
-                      </button>
-                    );
-                  })}
-                  {Array.isArray(form.available_oc_positions) && form.available_oc_positions.filter(p => !STANDARD_OC_POSITIONS.includes(p)).map(customPos => (
+
+            <div className="bg-[#1e1e21] p-4 rounded-xl border border-zinc-800 space-y-3">
+              <label className="block text-xs font-semibold text-zinc-300">
+                Available OC Positions for Applicants
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {STANDARD_OC_POSITIONS.map(pos => {
+                  const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
+                  const isSelected = currentArr.includes(pos);
+                  return (
                     <button
-                      key={customPos}
+                      key={pos}
                       type="button"
-                      className="btn btn-sm btn-primary"
-                      style={{ borderRadius: "20px", fontSize: "12px", padding: "4px 12px" }}
                       onClick={() => {
-                        const nextArr = form.available_oc_positions.filter(p => p !== customPos);
+                        const nextArr = isSelected
+                          ? currentArr.filter(p => p !== pos)
+                          : [...currentArr, pos];
                         setForm({ ...form, available_oc_positions: nextArr });
                       }}
+                      className={`px-3 py-1 rounded-full text-xs transition-colors ${isSelected ? "bg-blue-600 text-white" : "bg-zinc-800 text-zinc-400 hover:text-white"}`}
                     >
-                      ✓ {customPos} ✕
+                      {isSelected ? "✓ " : "+ "}{pos}
                     </button>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <input
-                    placeholder="Add custom position (e.g. Design Lead)..."
-                    value={customPosInput}
-                    onChange={e => setCustomPosInput(e.target.value)}
-                    style={{ fontSize: "12px", padding: "6px 10px", flexGrow: 1 }}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        if (customPosInput.trim()) {
-                          const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
-                          if (!currentArr.includes(customPosInput.trim())) {
-                            setForm({ ...form, available_oc_positions: [...currentArr, customPosInput.trim()] });
-                          }
-                          setCustomPosInput("");
-                        }
-                      }
-                    }}
-                  />
+                  );
+                })}
+                {Array.isArray(form.available_oc_positions) && form.available_oc_positions.filter(p => !STANDARD_OC_POSITIONS.includes(p)).map(customPos => (
                   <button
+                    key={customPos}
                     type="button"
-                    className="btn btn-ghost btn-sm"
                     onClick={() => {
+                      const nextArr = form.available_oc_positions.filter(p => p !== customPos);
+                      setForm({ ...form, available_oc_positions: nextArr });
+                    }}
+                    className="px-3 py-1 rounded-full text-xs bg-blue-600 text-white"
+                  >
+                    ✓ {customPos} ✕
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  placeholder="Add custom position (e.g. Design Lead)..."
+                  value={customPosInput}
+                  onChange={e => setCustomPosInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
                       if (customPosInput.trim()) {
                         const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
                         if (!currentArr.includes(customPosInput.trim())) {
@@ -802,42 +1010,63 @@ export default function Events({ isAdmin = false, session }) {
                         }
                         setCustomPosInput("");
                       }
-                    }}
-                  >
-                    + Add
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Assigned OC Lead</label>
-                <select value={form.oc_st_id} onChange={e => setForm({ ...form, oc_st_id: e.target.value })}>
-                  <option value="">No OC assigned</option>
-                  {(() => {
-                    const options = [...eventOcMembers];
-                    if (form.oc_st_id && !options.some(o => o.st_id === form.oc_st_id)) {
-                      options.push({
-                        st_id: form.oc_st_id,
-                        name: getMemberName(form.oc_st_id)
-                      });
                     }
-                    return options.map(m => (
-                      <option key={m.st_id} value={m.st_id}>{m.st_id} - {m.name}</option>
-                    ));
-                  })()}
-                </select>
-                <span className="text-muted" style={{ fontSize: "11px", marginTop: "4px", display: "block" }}>
-                  {editTarget 
-                    ? "Only accepted committee members for this event are shown. Manage them in the Committee tab."
-                    : "Create the event first, then add and accept committee members to assign an OC Lead."}
-                </span>
+                  }}
+                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customPosInput.trim()) {
+                      const currentArr = Array.isArray(form.available_oc_positions) ? form.available_oc_positions : STANDARD_OC_POSITIONS;
+                      if (!currentArr.includes(customPosInput.trim())) {
+                        setForm({ ...form, available_oc_positions: [...currentArr, customPosInput.trim()] });
+                      }
+                      setCustomPosInput("");
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs rounded-lg transition-colors"
+                >
+                  + Add
+                </button>
               </div>
             </div>
 
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Assigned OC Lead</label>
+              <select 
+                value={form.oc_st_id} 
+                onChange={e => setForm({ ...form, oc_st_id: e.target.value })}
+                className="w-full bg-[#1e1e21] border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="">No OC assigned</option>
+                {(() => {
+                  const options = [...eventOcMembers];
+                  if (form.oc_st_id && !options.some(o => o.st_id === form.oc_st_id)) {
+                    options.push({
+                      st_id: form.oc_st_id,
+                      name: getMemberName(form.oc_st_id)
+                    });
+                  }
+                  return options.map(m => (
+                    <option key={m.st_id} value={m.st_id}>{m.st_id} - {m.name}</option>
+                  ));
+                })()}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
+              <button 
+                onClick={closeModal}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSave} 
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
                 {saving ? "Saving..." : editTarget ? "Update Event" : "Create Event"}
               </button>
             </div>
@@ -845,112 +1074,109 @@ export default function Events({ isAdmin = false, session }) {
         </div>
       )}
 
+      {/* Apply for OC Modal */}
       {applyModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeApplyModal()}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 className="modal-title">Apply for OC - {applyTarget?.name}</h2>
-              <button className="modal-close" onClick={closeApplyModal}>x</button>
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+          onClick={e => e.target === e.currentTarget && closeApplyModal()}
+        >
+          <div className="bg-[#121212] border border-zinc-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center pb-4 border-b border-zinc-800">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-zinc-400">group_add</span>
+                Apply for OC - {applyTarget?.name}
+              </h2>
+              <button 
+                onClick={closeApplyModal}
+                className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+              >
+                ✕
+              </button>
             </div>
 
-            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+            {msg && (
+              <div className={`p-3 rounded-lg text-sm border ${msg.type === "error" ? "bg-red-950/30 text-red-400 border-red-900/50" : "bg-emerald-950/30 text-emerald-400 border-emerald-900/50"}`}>
+                {msg.text}
+              </div>
+            )}
 
             {existingApp && (
-              <div style={{
-                padding: "12px 14px",
-                background: existingApp.apply_status === "Accept" ? "rgba(34, 197, 94, 0.15)" : existingApp.apply_status === "Reject" ? "rgba(239, 68, 68, 0.15)" : "rgba(245, 158, 11, 0.15)",
-                border: `1px solid ${existingApp.apply_status === "Accept" ? "#22c55e" : existingApp.apply_status === "Reject" ? "#ef4444" : "#f59e0b"}`,
-                borderRadius: "var(--r)",
-                marginBottom: 15
-              }}>
-                <div style={{ fontWeight: "600", fontSize: "13px", color: existingApp.apply_status === "Accept" ? "#4ade80" : existingApp.apply_status === "Reject" ? "#f87171" : "#fbbf24", marginBottom: "4px" }}>
-                  {existingApp.apply_status === "Accept" ? "✓ Application Accepted" : existingApp.apply_status === "Reject" ? "✕ Application Rejected" : "⏳ Application Submitted (Pending)"}
+              <div className={`p-3 rounded-xl border text-xs ${existingApp.apply_status === "Accept" ? "bg-emerald-950/30 border-emerald-900/50 text-emerald-400" : existingApp.apply_status === "Reject" ? "bg-red-950/30 border-red-900/50 text-red-400" : "bg-amber-950/30 border-amber-900/50 text-amber-400"}`}>
+                <div className="font-semibold mb-0.5">
+                  {existingApp.apply_status === "Accept" ? "✓ Application Accepted" : existingApp.apply_status === "Reject" ? "✕ Application Rejected" : "⏳ Application Pending"}
                 </div>
-                <div style={{ fontSize: "12px", color: "var(--text)" }}>
+                <div className="text-zinc-300">
                   {existingApp.apply_status === "Pending" 
-                    ? "You have already applied for this event. Members can only apply once per event, but you can update your preferred positions below."
-                    : `Your application has been processed (Status: ${existingApp.apply_status}).`}
+                    ? "You can update your preferred positions below."
+                    : `Status: ${existingApp.apply_status}`}
                 </div>
               </div>
             )}
 
-            {applyForm.member_function_name ? (
-              <div className="form-group" style={{ marginBottom: 15 }}>
-                <label>Your Function (Auto-detected)</label>
-                <div style={{ padding: "10px 14px", background: "var(--bg3)", borderRadius: "var(--r)", border: "1px solid var(--border)", fontSize: "14px", fontWeight: "600", color: "var(--text)" }}>
+            {applyForm.member_function_name && (
+              <div className="bg-[#1e1e21] p-3 rounded-xl border border-zinc-800">
+                <label className="block text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">Your Function</label>
+                <div className="text-sm font-semibold text-white">
                   💼 {applyForm.member_function_name}
                 </div>
               </div>
-            ) : (
-              <div style={{ marginBottom: 15, fontSize: "13px", color: "var(--text-muted)", padding: "10px 14px", background: "var(--bg3)", borderRadius: "var(--r)", border: "1px dashed var(--border)" }}>
-                ⏳ Resolving your member function...
-              </div>
             )}
 
-            <div className="form-group" style={{ marginBottom: 15 }}>
-              <label style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", display: "block" }}>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">
                 Preferred Positions (Select 1 or more) *
               </label>
-              <span className="text-muted" style={{ fontSize: "11px", display: "block", marginBottom: "8px" }}>
-                Select one or multiple preferred positions offered for this event:
-              </span>
+              <div className="space-y-2 mt-2">
+                {(() => {
+                  const available = parsePositionsList(applyTarget?.available_oc_positions);
+                  const selected = applyForm.selected_positions || [];
+                  const isLocked = existingApp && existingApp.apply_status !== "Pending";
 
-              {(() => {
-                const available = parsePositionsList(applyTarget?.available_oc_positions);
-                const selected = applyForm.selected_positions || [];
-                const isLocked = existingApp && existingApp.apply_status !== "Pending";
-
-                return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {available.map(pos => {
-                      const checked = selected.includes(pos);
-                      return (
-                        <label
-                          key={pos}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "10px",
-                            padding: "8px 12px",
-                            background: checked ? "rgba(0, 98, 255, 0.12)" : "var(--bg3)",
-                            border: `1px solid ${checked ? "#0062ff" : "var(--border)"}`,
-                            borderRadius: "var(--r)",
-                            cursor: isLocked ? "not-allowed" : "pointer",
-                            transition: "all 0.15s ease",
-                            opacity: isLocked && !checked ? 0.6 : 1
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={isLocked}
-                            onChange={() => {
-                              if (isLocked) return;
-                              const nextSelected = checked
-                                ? selected.filter(p => p !== pos)
-                                : [...selected, pos];
-                              setApplyForm({ ...applyForm, selected_positions: nextSelected });
-                            }}
-                            style={{ width: "16px", height: "16px", accentColor: "#0062ff", cursor: isLocked ? "not-allowed" : "pointer" }}
-                          />
-                          <span style={{ fontSize: "13px", fontWeight: checked ? "600" : "400", color: "var(--text)" }}>
-                            {pos}
-                          </span>
-                        </label>
-                      );
-                    })}
-                    <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--text-muted)" }}>
-                      Selected ({selected.length}): <strong style={{ color: "var(--text)" }}>{selected.length > 0 ? selected.join(", ") : "None"}</strong>
-                    </div>
-                  </div>
-                );
-              })()}
+                  return (
+                    <>
+                      {available.map(pos => {
+                        const checked = selected.includes(pos);
+                        return (
+                          <label
+                            key={pos}
+                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checked ? "bg-blue-950/30 border-blue-600 text-white" : "bg-[#1e1e21] border-zinc-800 text-zinc-300 hover:border-zinc-700"}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={isLocked}
+                              onChange={() => {
+                                if (isLocked) return;
+                                const nextSelected = checked
+                                  ? selected.filter(p => p !== pos)
+                                  : [...selected, pos];
+                                setApplyForm({ ...applyForm, selected_positions: nextSelected });
+                              }}
+                              className="w-4 h-4 rounded accent-blue-600"
+                            />
+                            <span className="text-xs font-medium">{pos}</span>
+                          </label>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+              </div>
             </div>
 
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeApplyModal}>Cancel</button>
+            <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
+              <button 
+                onClick={closeApplyModal}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
               {(!existingApp || existingApp.apply_status === "Pending") && (
-                <button className="btn btn-primary" onClick={handleApplySave} disabled={saving || !applyForm.function_id}>
+                <button 
+                  onClick={handleApplySave} 
+                  disabled={saving || !applyForm.function_id}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                >
                   {saving ? "Submitting..." : existingApp ? "Update Application" : "Submit Application"}
                 </button>
               )}

@@ -2624,3 +2624,9 @@ select option {
   }
 }
 
+.glass-card {
+  background: #121212;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+}
+
