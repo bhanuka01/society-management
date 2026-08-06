@@ -2,28 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabaseClient";
 
 const STATUS_CONFIG = {
-  pending:     { label: "Pending",     color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  icon: "⏳" },
-  "in-progress": { label: "In Progress", color: "#3b82f6", bg: "rgba(59,130,246,0.15)", icon: "🔄" },
-  done:        { label: "Done",        color: "#22c55e", bg: "rgba(34,197,94,0.15)",   icon: "✅" },
+  pending:     { label: "Pending",     color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.3)",  icon: "⏳" },
+  "in-progress": { label: "In Progress", color: "#3b82f6", bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", icon: "🔄" },
+  done:        { label: "Done",        color: "#22c55e", bg: "rgba(34,197,94,0.15)",   border: "rgba(34,197,94,0.3)",   icon: "✅" },
 };
 
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   return (
-    <span style={{
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "4px",
-      fontSize: "10px",
-      fontWeight: 600,
-      padding: "2px 8px",
-      borderRadius: "99px",
-      color: cfg.color,
-      background: cfg.bg,
-      border: `1px solid ${cfg.color}44`,
-      letterSpacing: "0.3px",
-      whiteSpace: "nowrap"
-    }}>
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap"
+      style={{ color: cfg.color, backgroundColor: cfg.bg, borderColor: cfg.border }}>
       {cfg.icon} {cfg.label}
     </span>
   );
@@ -31,21 +19,16 @@ function StatusBadge({ status }) {
 
 function StatusButtons({ status, onChangeStatus }) {
   return (
-    <div style={{ display: "flex", gap: "4px", marginTop: "4px" }}>
+    <div className="flex gap-1.5 mt-1.5 flex-wrap">
       {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
         <button
           key={key}
           onClick={(e) => { e.stopPropagation(); onChangeStatus(key); }}
+          className={`text-[10px] font-medium px-2.5 py-0.5 rounded-full border transition-all ${status === key ? "bg-opacity-100 text-white" : "bg-transparent"}`}
           style={{
-            fontSize: "10px",
-            fontWeight: 600,
-            padding: "3px 10px",
-            borderRadius: "99px",
-            border: `1px solid ${cfg.color}`,
-            background: status === key ? cfg.color : "transparent",
-            color: status === key ? "#fff" : cfg.color,
-            cursor: "pointer",
-            transition: "all 0.18s",
+            borderColor: cfg.color,
+            backgroundColor: status === key ? cfg.color : "transparent",
+            color: status === key ? "#ffffff" : cfg.color,
           }}
         >
           {cfg.icon} {cfg.label}
@@ -55,7 +38,62 @@ function StatusButtons({ status, onChangeStatus }) {
   );
 }
 
-/* ─────────────────── Message Popup Modal ─────────────────── */
+const getInitials = (name) => {
+  if (!name) return "??";
+  const cleanName = name.replace(/^🛡️\s*/, '').replace(/\s*\([^)]*\)$/, '').trim();
+  const parts = cleanName.split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const formatSidebarTime = (timestamp) => {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  if (isYesterday) {
+    return "Yesterday";
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+  return date.toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
+};
+
+const formatDateDivider = (timestamp) => {
+  if (!timestamp) return "Today";
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return "Today";
+
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return "Today";
+  if (isYesterday) return "Yesterday";
+
+  return date.toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined
+  });
+};
+
+/* ─────────────────── Message Popup Detail Modal ─────────────────── */
 function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus }) {
   const [replyText, setReplyText] = useState("");
   const isReceiver = msg.receiver_st_id === session.stId;
@@ -69,65 +107,40 @@ function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus 
   };
 
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center"
-      }}
+    <div 
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: "16px",
-          padding: "24px",
-          width: "min(480px, 92vw)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.4)",
-          display: "flex", flexDirection: "column", gap: "14px"
-        }}
+      <div 
+        className="bg-[#121216] border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div className="flex justify-between items-start">
           <div>
-            <div style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>
+            <div className="font-bold text-base text-white">
               {isMine ? "You" : msg.sender?.name || msg.sender_st_id}
             </div>
-            <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "2px" }}>
-              {new Date(msg.created_at).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" })}
-              {" · "}
+            <div className="text-xs text-zinc-400 mt-0.5">
+              {new Date(msg.created_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+              {" • "}
               {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text3)", fontSize: "20px", lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white p-1 rounded-lg">✕</button>
         </div>
 
-        {/* Message bubble */}
-        <div style={{
-          padding: "12px 16px",
-          borderRadius: "12px",
-          background: isMine ? "var(--primary)" : "var(--bg)",
-          color: isMine ? "#fff" : "var(--text)",
-          border: isMine ? "none" : "1px solid var(--border)",
-          lineHeight: "1.5",
-          wordBreak: "break-word"
-        }}>
+        <div className={`p-4 rounded-xl text-sm leading-relaxed border ${isMine ? "bg-indigo-600 text-white border-indigo-500" : "bg-[#1c1c24] text-zinc-200 border-zinc-800"}`}>
           {msg.content}
         </div>
 
-        {/* Status row */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div className="flex flex-col gap-1">
           <StatusBadge status={msg.status || "pending"} />
-          {/* Only receiver can change status */}
           {isReceiver && (
             <StatusButtons status={msg.status || "pending"} onChangeStatus={(s) => { onChangeStatus(msg.id, s); onClose(); }} />
           )}
         </div>
 
-        {/* Reply input – always show so conversation flows both ways */}
-        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+        <div className="flex gap-2 pt-2">
           <input
             autoFocus
             type="text"
@@ -135,17 +148,12 @@ function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus 
             onChange={e => setReplyText(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
             placeholder="Type a reply..."
-            style={{
-              flex: 1, padding: "9px 14px", borderRadius: "20px",
-              border: "1px solid var(--border)", background: "var(--bg)",
-              color: "var(--text)", fontSize: "13px"
-            }}
+            className="flex-1 bg-[#1a1a22] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
           />
           <button
             onClick={handleSend}
             disabled={!replyText.trim()}
-            className="btn btn-primary"
-            style={{ borderRadius: "20px", padding: "0 18px", fontSize: "13px" }}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50"
           >
             Send
           </button>
@@ -155,7 +163,7 @@ function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus 
   );
 }
 
-/* ─────────────────── Main Component ─────────────────── */
+/* ─────────────────── Main Messages Page Component ─────────────────── */
 export default function Messages({ isAdmin, session }) {
   const [channels, setChannels] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -172,7 +180,7 @@ export default function Messages({ isAdmin, session }) {
   const [pendingCounts, setPendingCounts] = useState({});
   const [hasMoreMsgs, setHasMoreMsgs] = useState(false);
   const [loadingMoreMsgs, setLoadingMoreMsgs] = useState(false);
-  // oldest created_at we have loaded — used as cursor for "load more"
+
   const oldestMsgRef = useRef(null);
   const messagesEndRef = useRef(null);
   const msgListRef = useRef(null);
@@ -181,16 +189,13 @@ export default function Messages({ isAdmin, session }) {
 
   pageRef.current = page;
 
-  /* ── Debounce search ── */
   useEffect(() => {
     const h = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(h);
   }, [searchQuery]);
 
-  /* ── Fetch pending counts for sidebar ── */
   const fetchPendingCounts = async () => {
     if (!session.stId) return;
-    // messages where I am the receiver and status is pending
     const { data } = await supabase
       .from("messages")
       .select("sender_st_id, receiver_st_id, status")
@@ -206,27 +211,33 @@ export default function Messages({ isAdmin, session }) {
     setPendingCounts(counts);
   };
 
-  /* ── Fetch channels/sidebar ── */
   const fetchChannels = async (pageNum, isLoadMore = false) => {
     if (!session.stId) return;
     setLoadingChannels(true);
 
     const { data: recentMessages } = await supabase
       .from("messages")
-      .select("sender_st_id, receiver_st_id, created_at")
+      .select("sender_st_id, receiver_st_id, created_at, content")
       .or(`sender_st_id.eq.${session.stId},receiver_st_id.eq.${session.stId}`)
       .order("created_at", { ascending: false });
 
     const lastMessageTimeMap = {};
+    const lastMessageContentMap = {};
     let broadcastTime = 0;
+    let broadcastSnippet = "";
+
     if (recentMessages) {
       for (const msg of recentMessages) {
         if (msg.receiver_st_id === null) {
-          if (!broadcastTime) broadcastTime = new Date(msg.created_at).getTime();
+          if (!broadcastTime) {
+            broadcastTime = new Date(msg.created_at).getTime();
+            broadcastSnippet = msg.content;
+          }
         } else {
           const partnerId = msg.sender_st_id === session.stId ? msg.receiver_st_id : msg.sender_st_id;
           if (partnerId && !lastMessageTimeMap[partnerId]) {
             lastMessageTimeMap[partnerId] = new Date(msg.created_at).getTime();
+            lastMessageContentMap[partnerId] = msg.content;
           }
         }
       }
@@ -235,28 +246,53 @@ export default function Messages({ isAdmin, session }) {
     let loadedChannels = [];
 
     if (!debouncedSearch || "📢 announcements (all)".includes(debouncedSearch.toLowerCase())) {
-      loadedChannels.push({ id: "broadcast", name: "📢 Announcements (All)", isBroadcast: true });
+      loadedChannels.push({ 
+        id: "broadcast", 
+        name: "📢 Announcements (All)", 
+        isBroadcast: true,
+        lastTime: broadcastTime,
+        lastSnippet: broadcastSnippet
+      });
     }
 
     let list = [];
     if (isAdmin) {
-      let query = supabase.from("members").select("st_id, name");
+      let query = supabase.from("members").select("st_id, name, profile_image_url");
       if (debouncedSearch) query = query.ilike("name", `%${debouncedSearch}%`);
       const { data: members, error } = await query;
       if (!error && members) {
-        list = members.map(m => ({ id: m.st_id, name: `${m.name} (${m.st_id})`, isBroadcast: false }));
+        list = members.map(m => ({ 
+          id: m.st_id, 
+          name: `${m.name}`, 
+          st_id: m.st_id,
+          avatar: m.profile_image_url,
+          isBroadcast: false,
+          lastTime: lastMessageTimeMap[m.st_id] || 0,
+          lastSnippet: lastMessageContentMap[m.st_id] || ""
+        }));
       }
     } else {
-      let query = supabase.from("profiles").select("st_id, full_name, role").in("role", ["admin", "editor"]).not("st_id", "is", null);
+      let query = supabase.from("profiles").select("st_id, full_name, role, members(profile_image_url)").in("role", ["admin", "editor"]).not("st_id", "is", null);
       if (debouncedSearch) query = query.ilike("full_name", `%${debouncedSearch}%`);
       const { data: staffProfiles, error } = await query;
       if (!error && staffProfiles) {
         const uniqueStaff = [];
         const seenIds = new Set();
         for (const s of staffProfiles) {
-          if (!seenIds.has(s.st_id)) { seenIds.add(s.st_id); uniqueStaff.push(s); }
+          if (!seenIds.has(s.st_id)) { 
+            seenIds.add(s.st_id); 
+            uniqueStaff.push(s); 
+          }
         }
-        list = uniqueStaff.map(s => ({ id: s.st_id, name: `🛡️ ${s.full_name} (${s.role})`, isBroadcast: false }));
+        list = uniqueStaff.map(s => ({ 
+          id: s.st_id, 
+          name: `🛡️ ${s.full_name}`, 
+          roleTag: s.role,
+          avatar: s.members?.profile_image_url,
+          isBroadcast: false,
+          lastTime: lastMessageTimeMap[s.st_id] || 0,
+          lastSnippet: lastMessageContentMap[s.st_id] || ""
+        }));
       }
     }
 
@@ -268,7 +304,7 @@ export default function Messages({ isAdmin, session }) {
       return a.name.localeCompare(b.name);
     });
 
-    const PAGE_SIZE = 5;
+    const PAGE_SIZE = 6;
     const end = (pageNum + 1) * PAGE_SIZE;
     setAllChannels(loadedChannels);
     setChannels(loadedChannels.slice(0, end));
@@ -293,15 +329,14 @@ export default function Messages({ isAdmin, session }) {
   const handleLoadMore = () => {
     const nextPage = page + 1;
     setPage(nextPage);
-    const PAGE_SIZE = 5;
+    const PAGE_SIZE = 6;
     const end = (nextPage + 1) * PAGE_SIZE;
     setChannels(allChannels.slice(0, end));
     setHasMore(end < allChannels.length);
   };
 
-  const MSG_PAGE = 10;
+  const MSG_PAGE = 15;
 
-  /* ── Build base query for a conversation ── */
   const buildMsgQuery = () => {
     let q = supabase
       .from("messages")
@@ -318,7 +353,6 @@ export default function Messages({ isAdmin, session }) {
     return q;
   };
 
-  /* ── Load older messages ("Load 10 more") ── */
   const handleLoadMoreMsgs = async () => {
     if (!oldestMsgRef.current || loadingMoreMsgs) return;
     setLoadingMoreMsgs(true);
@@ -329,17 +363,15 @@ export default function Messages({ isAdmin, session }) {
       .limit(MSG_PAGE);
 
     if (!error && data && data.length > 0) {
-      const older = [...data].reverse(); // put back in ascending order
+      const older = [...data].reverse();
       oldestMsgRef.current = older[0].created_at;
       setHasMoreMsgs(data.length === MSG_PAGE);
 
-      // Preserve scroll position when prepending older messages
       const listEl = msgListRef.current;
       const prevScrollHeight = listEl ? listEl.scrollHeight : 0;
 
       setMessages(prev => [...older, ...prev]);
 
-      // After render, restore scroll so the user stays at the same spot
       requestAnimationFrame(() => {
         if (listEl) {
           listEl.scrollTop = listEl.scrollHeight - prevScrollHeight;
@@ -351,13 +383,11 @@ export default function Messages({ isAdmin, session }) {
     setLoadingMoreMsgs(false);
   };
 
-  /* ── Load messages & realtime ── */
   useEffect(() => {
     if (!selectedChannel || !session.stId) return;
     let isMounted = true;
 
     const loadMessages = async () => {
-      // Fetch the LAST MSG_PAGE messages (most recent)
       const { data, error } = await buildMsgQuery()
         .order("created_at", { ascending: false })
         .limit(MSG_PAGE);
@@ -419,7 +449,6 @@ export default function Messages({ isAdmin, session }) {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
-  /* ── Send message ── */
   const handleSendMessage = async (e, overrideText) => {
     if (e) e.preventDefault();
     const text = overrideText ?? newMessage;
@@ -446,36 +475,36 @@ export default function Messages({ isAdmin, session }) {
     }
   };
 
-  /* ── Change message status ── */
   const handleChangeStatus = async (msgId, newStatus) => {
-    console.log("[status] updating msg", msgId, "→", newStatus);
     const { data, error } = await supabase
       .from("messages")
       .update({ status: newStatus })
       .eq("id", msgId)
-      .select();          // force PostgREST to return the updated row
-
-    console.log("[status] result:", data, error);
+      .select();
 
     if (error) {
-      alert("Status update failed:\n" + error.message + "\n\nCheck browser console for details.");
-      console.error("[status] full error:", error);
+      alert("Status update failed: " + error.message);
     } else {
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: newStatus } : m));
       fetchPendingCounts();
     }
   };
 
+  const activeChannelObj = channels.find(c => c.id === selectedChannel);
+
   if (!session.stId) {
     return (
-      <div className="empty-state">
-        <p>You must be linked to a Student ID to use messaging.</p>
+      <div className="w-full max-w-container-max mx-auto px-6 py-20 text-center">
+        <div className="glass-card p-10 max-w-md mx-auto">
+          <span className="material-symbols-outlined text-4xl text-zinc-500 mb-2">lock</span>
+          <p className="text-zinc-300 font-medium">You must be linked to a Student ID to use messaging.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="w-full max-w-container-max mx-auto px-2 sm:px-4 py-4 text-zinc-300">
       {/* ── Popup Modal ── */}
       {popupMsg && (
         <MessagePopup
@@ -483,89 +512,81 @@ export default function Messages({ isAdmin, session }) {
           session={session}
           isAdmin={isAdmin}
           onClose={() => setPopupMsg(null)}
-          onReply={(text) => {
-            // reply goes to the conversation partner
-            handleSendMessage(null, text);
-          }}
+          onReply={(text) => handleSendMessage(null, text)}
           onChangeStatus={(id, s) => { handleChangeStatus(id, s); setPopupMsg(null); }}
         />
       )}
 
-      <div
-        className={`messages-layout mobile-view-${mobileView}`}
-        style={{ display: "flex", height: "calc(100vh - 120px)", gap: "20px" }}
-      >
-        {/* ─── Sidebar ─── */}
-        <div className="messages-sidebar" style={{
-          width: "300px",
-          borderRight: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-          background: "var(--surface)",
-          borderRadius: "var(--r)",
-          overflow: "hidden"
-        }}>
-          <div style={{ padding: "16px", borderBottom: "1px solid var(--border)", fontWeight: "bold" }}>
-            Conversations
-          </div>
-          <div style={{ padding: "12px", borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
-            <div className="search-input-wrap">
-              <span className="search-icon">🔍</span>
+      {/* Main Split Pane Messaging Container */}
+      <div className={`flex rounded-2xl border border-zinc-800 bg-[#121216] overflow-hidden h-[calc(100vh-140px)] min-h-[500px] shadow-2xl ${mobileView === "chat" ? "mobile-view-chat" : "mobile-view-list"}`}>
+        
+        {/* ─── Left Sidebar: Thread List ─── */}
+        <aside className={`w-full md:w-80 lg:w-84 bg-[#121216] border-r border-zinc-800 flex flex-col shrink-0 ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+          {/* Sidebar Header */}
+          <div className="p-4 border-b border-zinc-800 shrink-0">
+            <h2 className="text-lg font-bold text-white mb-3">Messages</h2>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-2.5 text-zinc-500 text-[18px]">search</span>
               <input
                 type="text"
-                placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px 8px 32px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--border)",
-                  background: "var(--bg3)",
-                  color: "var(--text)"
-                }}
+                placeholder="Search chats"
+                className="w-full bg-[#1a1a22] border border-zinc-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
           </div>
 
-          <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column" }}>
+          {/* Thread List */}
+          <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/40">
             {channels.map(ch => {
               const pending = ch.isBroadcast ? 0 : (pendingCounts[ch.id] || 0);
+              const isSelected = selectedChannel === ch.id;
+
               return (
                 <div
                   key={ch.id}
                   onClick={() => { setSelectedChannel(ch.id); setMobileView("chat"); }}
-                  style={{
-                    padding: "12px 16px",
-                    cursor: "pointer",
-                    borderBottom: "1px solid var(--border)",
-                    background: selectedChannel === ch.id ? "var(--bg)" : "transparent",
-                    borderLeft: selectedChannel === ch.id ? "3px solid var(--primary)" : "3px solid transparent",
-                    transition: "all 0.2s",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between"
-                  }}
+                  className={`flex items-start gap-3 p-3.5 cursor-pointer border-l-2 transition-all ${
+                    isSelected 
+                      ? "bg-[#1c1c24] border-indigo-500" 
+                      : "border-transparent hover:bg-[#181820]"
+                  }`}
                 >
-                  <div style={{ fontWeight: selectedChannel === ch.id ? 600 : 400, color: selectedChannel === ch.id ? "var(--text)" : "var(--text2)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {ch.name}
+                  {/* Avatar */}
+                  <div className="relative w-10 h-10 rounded-full shrink-0 bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-xs font-bold text-zinc-200">
+                    {ch.isBroadcast ? (
+                      <span className="material-symbols-outlined text-amber-400 text-lg">campaign</span>
+                    ) : ch.avatar ? (
+                      <img src={ch.avatar} alt="" className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      getInitials(ch.name)
+                    )}
+                    {!ch.isBroadcast && (
+                      <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#121216] rounded-full"></div>
+                    )}
                   </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline mb-0.5">
+                      <h3 className={`text-xs font-semibold truncate ${isSelected ? "text-white" : "text-zinc-200"}`}>
+                        {ch.name}
+                      </h3>
+                      {ch.lastTime > 0 && (
+                        <span className={`text-[10px] whitespace-nowrap ml-1 ${isSelected ? "text-indigo-400 font-medium" : "text-zinc-500"}`}>
+                          {formatSidebarTime(ch.lastTime)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-400 truncate">
+                      {ch.lastSnippet || (ch.isBroadcast ? "Public Announcements" : "Click to view conversation")}
+                    </p>
+                  </div>
+
+                  {/* Pending Badge */}
                   {pending > 0 && (
-                    <span style={{
-                      marginLeft: "8px",
-                      minWidth: "20px",
-                      height: "20px",
-                      borderRadius: "99px",
-                      background: "#f59e0b",
-                      color: "#fff",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "0 5px",
-                      flexShrink: 0
-                    }}>
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 shadow-sm">
                       {pending}
                     </span>
                   )}
@@ -574,144 +595,155 @@ export default function Messages({ isAdmin, session }) {
             })}
 
             {loadingChannels ? (
-              <div style={{ padding: "20px", textAlign: "center" }}>
-                <div className="spinner" style={{ margin: "0 auto" }} />
+              <div className="p-8 text-center">
+                <div className="w-6 h-6 border-2 border-zinc-600 border-t-white rounded-full animate-spin mx-auto"></div>
               </div>
-            ) : (
-              hasMore && (
-                <div style={{ padding: "12px", textAlign: "center" }}>
-                  <button
-                    onClick={handleLoadMore}
-                    className="btn btn-primary"
-                    style={{ width: "100%", justifyContent: "center", borderRadius: "16px", fontSize: "12px" }}
-                  >
-                    Load More
-                  </button>
-                </div>
-              )
+            ) : hasMore && (
+              <div className="p-3 text-center">
+                <button
+                  onClick={handleLoadMore}
+                  className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium rounded-xl transition-colors"
+                >
+                  Load More
+                </button>
+              </div>
             )}
 
             {!loadingChannels && channels.length === 0 && (
-              <div style={{ padding: "20px", textAlign: "center", color: "var(--text3)", fontSize: "13px" }}>
+              <div className="p-8 text-center text-zinc-500 text-xs">
                 No conversations found.
               </div>
             )}
           </div>
-        </div>
+        </aside>
 
-        {/* ─── Chat Area ─── */}
-        <div className="messages-chat" style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          background: "var(--surface)",
-          borderRadius: "var(--r)",
-          border: "1px solid var(--border)",
-          overflow: "hidden"
-        }}>
-          {/* Header */}
-          <div style={{ padding: "16px", borderBottom: "1px solid var(--border)", fontWeight: "bold", background: "var(--bg)", display: "flex", alignItems: "center", gap: "10px" }}>
-            <button
-              className="btn btn-ghost btn-sm messages-back-btn"
-              onClick={() => setMobileView("list")}
-              style={{ padding: "4px 8px", display: "none", alignItems: "center", gap: "4px", cursor: "pointer" }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>arrow_back</span>
-              Back
-            </button>
-            <span>{channels.find(c => c.id === selectedChannel)?.name || "Select a conversation"}</span>
+        {/* ─── Right Main Chat Area ─── */}
+        <section className={`flex-1 flex flex-col bg-[#0c0c10] min-w-0 ${mobileView === "list" ? "hidden md:flex" : "flex"}`}>
+          {/* Chat Header */}
+          <div className="h-16 px-6 border-b border-zinc-800 flex items-center justify-between shrink-0 bg-[#121216]/95 backdrop-blur z-10">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setMobileView("list")}
+                className="md:hidden p-1 text-zinc-400 hover:text-white rounded-lg"
+              >
+                <span className="material-symbols-outlined">arrow_back</span>
+              </button>
+              
+              <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-xs font-bold text-zinc-200 overflow-hidden">
+                {activeChannelObj?.isBroadcast ? (
+                  <span className="material-symbols-outlined text-amber-400 text-xl">campaign</span>
+                ) : activeChannelObj?.avatar ? (
+                  <img src={activeChannelObj.avatar} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  getInitials(activeChannelObj?.name || "?")
+                )}
+              </div>
+
+              <div>
+                <h2 className="text-sm font-bold text-white leading-tight">
+                  {activeChannelObj?.name || "Select a conversation"}
+                </h2>
+                <p className="text-[11px] text-emerald-400 font-medium font-mono flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                  {activeChannelObj?.isBroadcast ? "Public Announcements" : (activeChannelObj?.st_id || activeChannelObj?.id || "")}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 text-zinc-400">
+              <button className="p-2 hover:bg-white/5 hover:text-white rounded-full transition-colors">
+                <span className="material-symbols-outlined text-xl">call</span>
+              </button>
+              <button className="p-2 hover:bg-white/5 hover:text-white rounded-full transition-colors">
+                <span className="material-symbols-outlined text-xl">videocam</span>
+              </button>
+              <button className="p-2 hover:bg-white/5 hover:text-white rounded-full transition-colors">
+                <span className="material-symbols-outlined text-xl">more_vert</span>
+              </button>
+            </div>
           </div>
 
-          {/* Messages */}
-          <div ref={msgListRef} style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
-            {/* ── Load older messages button ── */}
+          {/* Message History Container */}
+          <div ref={msgListRef} className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
+            {/* Load Older Messages Button */}
             {hasMoreMsgs && (
-              <div style={{ textAlign: "center", paddingBottom: "8px" }}>
+              <div className="text-center pb-2">
                 <button
                   onClick={handleLoadMoreMsgs}
                   disabled={loadingMoreMsgs}
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    padding: "5px 18px",
-                    borderRadius: "99px",
-                    border: "1px solid var(--border)",
-                    background: "var(--bg)",
-                    color: "var(--text2)",
-                    cursor: loadingMoreMsgs ? "not-allowed" : "pointer",
-                    opacity: loadingMoreMsgs ? 0.6 : 1,
-                    transition: "all 0.15s",
-                  }}
+                  className="text-xs font-semibold px-4 py-1.5 rounded-full border border-zinc-800 bg-[#16161c] text-zinc-400 hover:text-white transition-all disabled:opacity-50"
                 >
-                  {loadingMoreMsgs ? "Loading…" : "⬆ Load 10 more"}
+                  {loadingMoreMsgs ? "Loading…" : "⬆ Load older messages"}
                 </button>
               </div>
             )}
+
             {messages.length === 0 ? (
-              <div className="empty-state" style={{ margin: "auto" }}>
-                <p className="text-muted">No messages yet. Say hello!</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-zinc-500">
+                <span className="material-symbols-outlined text-4xl mb-2 text-zinc-600">chat_bubble_outline</span>
+                <p className="text-sm">No messages yet. Start the conversation!</p>
               </div>
             ) : (
-              messages.map(msg => {
+              messages.map((msg, index) => {
                 const isMine = msg.sender_st_id === session.stId;
-                // Receiver is the one who can change status
                 const isReceiver = msg.receiver_st_id === session.stId;
 
+                const currentDateStr = new Date(msg.created_at).toDateString();
+                const prevDateStr = index > 0 ? new Date(messages[index - 1].created_at).toDateString() : null;
+                const showDateDivider = currentDateStr !== prevDateStr;
+
                 return (
-                  <div
-                    key={msg.id}
-                    style={{
-                      alignSelf: isMine ? "flex-end" : "flex-start",
-                      maxWidth: "70%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: isMine ? "flex-end" : "flex-start",
-                    }}
-                  >
-                    {/* Sender / timestamp */}
-                    <div style={{ fontSize: "11px", color: "var(--text3)", marginBottom: "4px" }}>
-                      {isMine ? "You" : msg.sender?.name || msg.sender_st_id}
-                      {" • "}
-                      {new Date(msg.created_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-                      {" • "}
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </div>
+                  <div key={msg.id} className="flex flex-col gap-3">
+                    {showDateDivider && (
+                      <div className="text-center my-2">
+                        <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800/80 px-3 py-1 rounded-full border border-zinc-700/50 uppercase tracking-wider">
+                          {formatDateDivider(msg.created_at)}
+                        </span>
+                      </div>
+                    )}
 
-                    {/* Bubble — click to open popup */}
-                    <div
-                      onClick={() => setPopupMsg(msg)}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: "16px",
-                        borderBottomRightRadius: isMine ? "4px" : "16px",
-                        borderBottomLeftRadius: !isMine ? "4px" : "16px",
-                        background: isMine ? "var(--primary)" : "var(--bg)",
-                        color: isMine ? "white" : "var(--text)",
-                        border: isMine ? "none" : "1px solid var(--border)",
-                        lineHeight: "1.4",
-                        wordBreak: "break-word",
-                        cursor: "pointer",
-                        transition: "opacity 0.15s",
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
-                      onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                    >
-                      {msg.content}
-                    </div>
+                    <div className={`flex items-end gap-2.5 max-w-[85%] sm:max-w-[75%] ${isMine ? "self-end flex-row-reverse" : "self-start"}`}>
+                      {!isMine && (
+                        <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-[10px] font-bold text-zinc-300 flex-shrink-0 mb-4">
+                          {getInitials(msg.sender?.name || msg.sender_st_id)}
+                        </div>
+                      )}
 
-                    {/* Status — below the bubble */}
-                    {selectedChannel !== "broadcast" && (
-                      <div style={{ marginTop: "4px", display: "flex", flexDirection: "column", alignItems: isMine ? "flex-end" : "flex-start", gap: "4px" }}>
-                        <StatusBadge status={msg.status || "pending"} />
-                        {/* Only the receiver can change status inline */}
-                        {isReceiver && (
+                      <div className={`flex flex-col gap-1 ${isMine ? "items-end" : "items-start"}`}>
+                        {/* Message Bubble */}
+                        <div
+                          onClick={() => setPopupMsg(msg)}
+                          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed cursor-pointer transition-all border ${
+                            isMine 
+                              ? "bg-indigo-600 text-white border-indigo-500 rounded-br-xs shadow-md" 
+                              : "bg-[#1c1c24] text-zinc-200 border-zinc-800 rounded-bl-xs hover:border-zinc-700"
+                          }`}
+                        >
+                          <p>{msg.content}</p>
+                        </div>
+
+                        {/* Timestamp & Status */}
+                        <div className={`flex items-center gap-1.5 text-[10px] text-zinc-500 px-1 ${isMine ? "flex-row-reverse" : ""}`}>
+                          <span>
+                            {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          {isMine && (
+                            <span className="material-symbols-outlined text-[14px] text-indigo-400">done_all</span>
+                          )}
+                          {selectedChannel !== "broadcast" && (
+                            <StatusBadge status={msg.status || "pending"} />
+                          )}
+                        </div>
+
+                        {/* Inline Status Toggle for Receiver */}
+                        {isReceiver && selectedChannel !== "broadcast" && (
                           <StatusButtons
                             status={msg.status || "pending"}
                             onChangeStatus={(s) => handleChangeStatus(msg.id, s)}
                           />
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })
@@ -719,35 +751,39 @@ export default function Messages({ isAdmin, session }) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          {(!isAdmin && selectedChannel === "broadcast") ? (
-            <div style={{ padding: "16px", borderTop: "1px solid var(--border)", background: "var(--bg)", textAlign: "center", color: "var(--text3)", fontSize: "13px" }}>
-              Only staff can post announcements.
-            </div>
-          ) : (
-            <form
-              onSubmit={handleSendMessage}
-              style={{ padding: "16px", borderTop: "1px solid var(--border)", display: "flex", gap: "10px", background: "var(--bg)" }}
-            >
-              <input
-                type="text"
-                value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-                style={{ flex: 1, padding: "10px 14px", borderRadius: "20px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}
-              />
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ borderRadius: "20px", padding: "0 24px" }}
-                disabled={!newMessage.trim()}
-              >
-                Send
-              </button>
-            </form>
-          )}
-        </div>
+          {/* Bottom Message Input Bar */}
+          <div className="p-4 bg-[#121216] border-t border-zinc-800 shrink-0">
+            {(!isAdmin && selectedChannel === "broadcast") ? (
+              <div className="text-center p-3 text-xs text-zinc-500 bg-[#16161c] rounded-xl border border-zinc-800">
+                Only staff members can post broadcast announcements.
+              </div>
+            ) : (
+              <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-[#1a1a22] border border-zinc-800 rounded-xl p-2 focus-within:border-indigo-500 transition-colors">
+                <button type="button" className="p-2 text-zinc-400 hover:text-indigo-400 transition-colors flex-shrink-0">
+                  <span className="material-symbols-outlined text-xl">attach_file</span>
+                </button>
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="w-full bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none px-2"
+                />
+                <button type="button" className="p-2 text-zinc-400 hover:text-indigo-400 transition-colors flex-shrink-0">
+                  <span className="material-symbols-outlined text-xl">mood</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim()}
+                  className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-40 flex-shrink-0 flex items-center justify-center"
+                >
+                  <span className="material-symbols-outlined text-lg">send</span>
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
       </div>
-    </>
+    </div>
   );
 }
