@@ -2,6 +2,37 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
 import PhoneContact from "../components/PhoneContact";
+import { 
+  User, 
+  UserCheck, 
+  Edit3, 
+  FileText, 
+  Mail, 
+  Phone, 
+  Link, 
+  Calendar, 
+  CheckCircle2, 
+  XCircle, 
+  Award, 
+  Briefcase, 
+  Clock, 
+  ExternalLink, 
+  ChevronLeft, 
+  ChevronRight, 
+  X, 
+  AlertCircle, 
+  Upload,
+  Sparkles,
+  Layers,
+  Video,
+  Check
+} from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Progress } from "../components/ui/progress";
 
 export default function MyInfo({ session }) {
   const [profile, setProfile] = useState(null);
@@ -37,6 +68,10 @@ export default function MyInfo({ session }) {
   });
   const [thisYearEvents, setThisYearEvents] = useState([]);
   const [submittingRequest, setSubmittingRequest] = useState(false);
+
+  const [staffMap, setStaffMap] = useState({});
+  const [attPage, setAttPage] = useState(0);
+  const [ocPage, setOcPage] = useState(0);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -100,10 +135,7 @@ export default function MyInfo({ session }) {
         let finalImageUrl = editForm.profile_image_url.trim() || null;
 
         if (profileImageFile) {
-          // Optimize the image to exactly 500x600 px
           const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
-
-          // Upload to bucket
           const cleanStId = session.stId.replace(/\//g, "-");
           const fileName = `${cleanStId}_${Date.now()}.jpg`;
 
@@ -118,7 +150,6 @@ export default function MyInfo({ session }) {
             throw new Error("Failed to upload profile image: " + uploadError.message);
           }
 
-          // Get public URL
           const { data: urlData } = supabase.storage
             .from("profile_images")
             .getPublicUrl(fileName);
@@ -226,10 +257,6 @@ export default function MyInfo({ session }) {
     }
   };
 
-  const [staffMap, setStaffMap] = useState({});
-  const [attPage, setAttPage] = useState(0);
-  const [ocPage, setOcPage] = useState(0);
-
   const getInterviewerName = (email) => {
     if (!email) return null;
     const key = email.toLowerCase();
@@ -237,11 +264,11 @@ export default function MyInfo({ session }) {
   };
 
   const renderOcStatusBadge = (status) => {
-    if (status === "Accept") return <span className="badge badge-green" style={{ fontWeight: "600", fontSize: "11px" }}>Accepted</span>;
-    if (status === "Reject") return <span className="badge badge-red" style={{ fontWeight: "600", fontSize: "11px" }}>Rejected</span>;
-    if (status === "Invited") return <span className="badge" style={{ backgroundColor: "#2563eb", color: "#ffffff", fontWeight: "600", fontSize: "11px", padding: "3px 8px" }}>Invited</span>;
-    if (status === "Interview Scheduled") return <span className="badge" style={{ backgroundColor: "#9333ea", color: "#ffffff", fontWeight: "600", fontSize: "11px", padding: "3px 8px" }}>Interview Scheduled</span>;
-    return <span className="badge badge-amber" style={{ fontWeight: "600", fontSize: "11px" }}>Pending</span>;
+    if (status === "Accept") return <Badge variant="success" className="text-[11px]">Accepted</Badge>;
+    if (status === "Reject") return <Badge variant="destructive" className="text-[11px]">Rejected</Badge>;
+    if (status === "Invited") return <Badge variant="default" className="text-[11px] bg-blue-600/20 text-blue-300 border-blue-500/30">Invited</Badge>;
+    if (status === "Interview Scheduled") return <Badge variant="default" className="text-[11px] bg-purple-600/20 text-purple-300 border-purple-500/30">Interview Scheduled</Badge>;
+    return <Badge variant="warning" className="text-[11px]">Pending</Badge>;
   };
 
   useEffect(() => {
@@ -346,31 +373,41 @@ export default function MyInfo({ session }) {
 
   if (!session.stId) {
     return (
-      <div className="card" style={{ marginTop: 24 }}>
-        <div className="empty-state">
-          <div className="icon">👤</div>
-          <p>This account is not linked to any student member record.</p>
-        </div>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-12">
+        <Card className="p-12 text-center flex flex-col items-center justify-center gap-3 bg-[#17171a]/90 border-zinc-800">
+          <User className="w-10 h-10 text-zinc-600 stroke-[1.5]" />
+          <p className="text-base font-semibold text-zinc-300">Account Not Linked</p>
+          <p className="text-xs text-zinc-500 max-w-sm">
+            This account is not linked to any student member record in the database.
+          </p>
+        </Card>
       </div>
     );
   }
 
   if (loading) {
-    return <div className="loader"><div className="spinner" /></div>;
-  }
-
-  if (!profile) {
     return (
-      <div className="card" style={{ marginTop: 24 }}>
-        <div className="empty-state">
-          <div className="icon">❓</div>
-          <p>Student record ({session.stId}) could not be found in the database.</p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-zinc-400">
+        <div className="w-9 h-9 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+        <span className="text-sm font-medium text-zinc-400">Loading profile details...</span>
       </div>
     );
   }
 
-  // Calculate statistics
+  if (!profile) {
+    return (
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-12">
+        <Card className="p-12 text-center flex flex-col items-center justify-center gap-3 bg-[#17171a]/90 border-zinc-800">
+          <AlertCircle className="w-10 h-10 text-rose-500 stroke-[1.5]" />
+          <p className="text-base font-semibold text-zinc-300">Member Not Found</p>
+          <p className="text-xs text-zinc-500 max-w-sm">
+            Student record ({session.stId}) could not be found in the database.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   const attendanceList = profile?.attendance || [];
   const ocList = profile?.oc || [];
 
@@ -379,7 +416,6 @@ export default function MyInfo({ session }) {
   const absentEvents = totalEvents - attendedEvents;
   const attendanceRate = totalEvents ? Math.round((attendedEvents / totalEvents) * 100) : 0;
 
-  // Calculate 5-item pagination for Attendance & OC lists
   const pageSize = 5;
   const totalAttPages = Math.ceil(attendanceList.length / pageSize) || 1;
   const paginatedAttendance = attendanceList.slice(attPage * pageSize, (attPage + 1) * pageSize);
@@ -388,148 +424,202 @@ export default function MyInfo({ session }) {
   const paginatedOc = ocList.slice(ocPage * pageSize, (ocPage + 1) * pageSize);
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">person</span></span> My Information</h1>
-        <p className="page-subtitle">View your profile details, attendance records, and committee assignments</p>
-      </div>
-
-      <div className="card mb-3" style={{ marginBottom: 24 }}>
-        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span className="card-title">Personal Profile</span>
-          <div className="gap-2" style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
-            <button className="btn btn-ghost btn-sm" onClick={openEditModal}>
-              ✏️ Edit Profile
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={openRequestModal} style={{ color: "var(--accent)" }}>
-              📄 Request Letter
-            </button>
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8 text-zinc-200">
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-800/80">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <UserCheck className="w-5 h-5" />
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              My Information
+            </h1>
           </div>
+          <p className="text-sm text-zinc-400">
+            View your profile details, attendance records, and committee assignments
+          </p>
         </div>
 
-        <div className="profile-card-body">
-          {/* Top section: Avatar and Primary Details */}
-          <div className="profile-header-main">
-            <div className="profile-avatar-container">
-              {profile.profile_image_url ? (
-                <img
-                  src={profile.profile_image_url}
-                  alt={profile.name}
-                  className="profile-avatar-img"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profile.name);
-                  }}
-                />
-              ) : (
-                <div className="profile-avatar-placeholder">👤</div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openEditModal}
+            className="flex items-center gap-2 text-xs border-zinc-700/80 text-zinc-300 hover:text-white"
+          >
+            <Edit3 className="w-3.5 h-3.5" /> Edit Profile
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={openRequestModal}
+            className="flex items-center gap-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-950/40"
+          >
+            <FileText className="w-3.5 h-3.5" /> Request Letter
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Profile Card */}
+      <Card className="p-6 md:p-8 bg-[#17171a]/90 border border-zinc-800/90 shadow-xl mb-8">
+        <div className="flex flex-row items-center gap-6 pb-6 border-b border-zinc-800/80">
+          <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden border-2 border-indigo-500/30 bg-zinc-900 flex-shrink-0 shadow-xl">
+            {profile.profile_image_url ? (
+              <img
+                src={profile.profile_image_url}
+                alt={profile.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profile.name);
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-zinc-500 text-3xl font-bold">
+                {profile.name ? profile.name.slice(0, 2).toUpperCase() : "??"}
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 flex flex-col justify-center text-left">
+            <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight mb-2">
+              {profile.name}
+            </h2>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <Badge variant="default" className="bg-indigo-600/20 text-indigo-300 border-indigo-500/30 font-mono text-xs px-2.5 py-0.5">
+                {profile.st_id}
+              </Badge>
+              {profile.level && (
+                <Badge variant="secondary" className="text-xs px-2.5 py-0.5">
+                  Year {profile.level}
+                </Badge>
               )}
             </div>
+            <p className="text-sm sm:text-base font-semibold text-zinc-400">
+              {profile.st_position || "Regular Member"}
+            </p>
+          </div>
+        </div>
 
-            <div className="profile-title-container">
-              <h2 className="profile-name-heading">{profile.name}</h2>
-              <div className="profile-badges-row">
-                <span className="badge badge-purple">{profile.st_id}</span>
-                {profile.level && (
-                  <span className="badge badge-gray">Year {profile.level}</span>
-                )}
-              </div>
-              <div className="profile-position-sub">{profile.st_position || "Regular Member"}</div>
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6">
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/60">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
+              Member Function
+            </span>
+            <span className="text-sm font-medium text-white">
+              {profile.member_function || "Not assigned"}
+            </span>
+          </div>
+
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/60">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <Mail className="w-3.5 h-3.5 text-indigo-400" /> Email Address
+            </span>
+            {profile.email ? (
+              <a href={`mailto:${profile.email}`} className="text-sm font-medium text-indigo-400 hover:underline break-all">
+                {profile.email}
+              </a>
+            ) : (
+              <span className="text-sm text-zinc-500 italic">Not provided</span>
+            )}
+          </div>
+
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/60">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <Phone className="w-3.5 h-3.5 text-emerald-400" /> Mobile / WhatsApp
+            </span>
+            <div className="text-sm font-medium text-white">
+              <PhoneContact phone={profile.mobile_number} />
             </div>
           </div>
 
-          {/* Details Grid */}
-          <div className="profile-details-grid">
-            <div className="profile-detail-item">
-              <span className="profile-detail-label">Member Function</span>
-              <span className="profile-detail-value">{profile.member_function || "Not assigned"}</span>
-            </div>
-            <div className="profile-detail-item">
-              <span className="profile-detail-label">📧 Email Address</span>
-              <span className="profile-detail-value" style={{ overflowWrap: "break-word", wordBreak: "break-all" }}>
-                {profile.email ? (
-                  <a href={`mailto:${profile.email}`}>{profile.email}</a>
-                ) : (
-                  <span className="text-muted">Not provided</span>
-                )}
-              </span>
-            </div>
-            <div className="profile-detail-item">
-              <span className="profile-detail-label">📞 Mobile Number</span>
-              <span className="profile-detail-value">
-                <PhoneContact phone={profile.mobile_number} />
-              </span>
-            </div>
-            <div className="profile-detail-item">
-              <span className="profile-detail-label">🔗 LinkedIn Profile</span>
-              <span className="profile-detail-value">
-                {profile.linkedin_url ? (
-                  <a href={profile.linkedin_url.trim().toLowerCase().startsWith("http") ? profile.linkedin_url.trim() : "https://" + profile.linkedin_url.trim()} target="_blank" rel="noopener noreferrer" className="linkedin-link">
-                    View LinkedIn ↗
-                  </a>
-                ) : (
-                  <span className="text-muted">Not provided</span>
-                )}
-              </span>
-            </div>
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/60">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <Link className="w-3.5 h-3.5 text-blue-400" /> LinkedIn Profile
+            </span>
+            {profile.linkedin_url ? (
+              <a 
+                href={profile.linkedin_url.trim().toLowerCase().startsWith("http") ? profile.linkedin_url.trim() : "https://" + profile.linkedin_url.trim()} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-sm font-medium text-blue-400 hover:underline inline-flex items-center gap-1"
+              >
+                View LinkedIn <ExternalLink className="w-3 h-3" />
+              </a>
+            ) : (
+              <span className="text-sm text-zinc-500 italic">Not provided</span>
+            )}
           </div>
         </div>
+      </Card>
+
+      {/* Stats Grid: 3 Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        <Card className="p-5 bg-gradient-to-br from-[#17171a] to-[#1e1e24] border-emerald-500/30 shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Present</span>
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          </div>
+          <p className="text-3xl font-black text-white mb-1">{attendedEvents}</p>
+          <p className="text-xs text-zinc-500">events attended successfully</p>
+        </Card>
+
+        <Card className="p-5 bg-gradient-to-br from-[#17171a] to-[#1e1e24] border-rose-500/30 shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Absent</span>
+            <XCircle className="w-5 h-5 text-rose-400" />
+          </div>
+          <p className="text-3xl font-black text-white mb-1">{absentEvents}</p>
+          <p className="text-xs text-zinc-500">events missed</p>
+        </Card>
+
+        <Card className="p-5 bg-gradient-to-br from-[#17171a] to-[#1e1e24] border-amber-500/30 shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Attendance Rate</span>
+            <Award className="w-5 h-5 text-amber-400" />
+          </div>
+          <p className="text-3xl font-black text-white mb-2">{attendanceRate}%</p>
+          <Progress value={attendanceRate} max={100} />
+        </Card>
       </div>
 
-      {/* Stats Cards */}
-      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginBottom: 24 }}>
-        <div className="stat-card green">
-          <div className="stat-label">Present</div>
-          <div className="stat-value">{attendedEvents}</div>
-          <div className="stat-sub">events attended</div>
-        </div>
-        <div className="stat-card red">
-          <div className="stat-label">Absent</div>
-          <div className="stat-value">{absentEvents}</div>
-          <div className="stat-sub">events missed</div>
-        </div>
-        <div className="stat-card gold">
-          <div className="stat-label">Attendance Rate</div>
-          <div className="stat-value">{attendanceRate}%</div>
-          <div className="stat-sub">of {totalEvents} registered events</div>
-        </div>
-      </div>
-
-      {/* Split lists: Attendance & OC */}
-      <div className="grid-2">
-        {/* Left Column: Attendance Details */}
-        <div className="card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+      {/* Split Lists: Attendance History & OC Assignments */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Event Attendance History */}
+        <Card className="p-6 bg-[#17171a]/90 border border-zinc-800 shadow-xl flex flex-col justify-between">
           <div>
-            <div className="card-header" style={{ marginBottom: 14 }}>
-              <span className="card-title">📅 Event Attendance History</span>
+            <div className="flex items-center gap-2 pb-4 mb-4 border-b border-zinc-800/60">
+              <Calendar className="w-4 h-4 text-indigo-400" />
+              <CardTitle className="text-base font-bold text-white">Event Attendance History</CardTitle>
             </div>
+
             {attendanceList.length === 0 ? (
-              <div className="empty-state" style={{ padding: "30px 10px" }}>
-                <div className="icon">📅</div>
+              <div className="py-12 text-center text-zinc-500 text-xs flex flex-col items-center gap-2">
+                <Calendar className="w-8 h-8 text-zinc-600 stroke-[1.5]" />
                 <p>No event attendance records on file</p>
               </div>
             ) : (
-              <div className="table-wrap">
-                <table className="table-fit">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse" style={{ fontSize: "13px" }}>
                   <thead>
-                    <tr>
-                      <th>Event</th>
-                      <th>Status</th>
+                    <tr className="border-b border-zinc-800/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+                      <th className="pb-3 px-2">Event</th>
+                      <th className="pb-3 px-2 text-right">Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-zinc-800/40">
                     {paginatedAttendance.map((att, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          <strong>{att.events?.name || "Unknown Event"}</strong>
-                          <div style={{ fontSize: "11px", color: "var(--text3)", fontFamily: "var(--mono)", marginTop: 2 }}>
-                            {att.events?.date}
-                          </div>
+                      <tr key={idx} className="hover:bg-zinc-800/30 transition-colors">
+                        <td className="py-3 px-2">
+                          <strong className="text-white block">{att.events?.name || "Unknown Event"}</strong>
+                          <span className="text-[11px] text-zinc-500 font-mono mt-0.5 block">{att.events?.date}</span>
                         </td>
-                        <td>
-                          <span className={`badge ${att.attend === "YES" ? "badge-green" : "badge-red"}`}>
+                        <td className="py-3 px-2 text-right">
+                          <Badge variant={att.attend === "YES" ? "success" : "destructive"} className="text-[11px]">
                             {att.attend}
-                          </span>
+                          </Badge>
                         </td>
                       </tr>
                     ))}
@@ -539,127 +629,106 @@ export default function MyInfo({ session }) {
             )}
           </div>
 
-          {/* Attendance Pagination */}
           {totalAttPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "14px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
+            <div className="flex items-center justify-between pt-4 mt-4 border-t border-zinc-800/60 text-xs">
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setAttPage(p => Math.max(0, p - 1))}
                 disabled={attPage === 0}
-                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                className="h-7 text-xs text-zinc-400"
               >
-                ◀ Prev
-              </button>
-              <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>
+                <ChevronLeft className="w-3.5 h-3.5" /> Prev
+              </Button>
+              <span className="text-zinc-500">
                 Page {attPage + 1} of {totalAttPages}
               </span>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setAttPage(p => Math.min(totalAttPages - 1, p + 1))}
                 disabled={attPage >= totalAttPages - 1}
-                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                className="h-7 text-xs text-zinc-400"
               >
-                Next ▶
-              </button>
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
             </div>
           )}
-        </div>
+        </Card>
 
-        {/* Right Column: OC assignments */}
-        <div className="card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        {/* Committee (OC) Assignments */}
+        <Card className="p-6 bg-[#17171a]/90 border border-zinc-800 shadow-xl flex flex-col justify-between">
           <div>
-            <div className="card-header" style={{ marginBottom: 14 }}>
-              <span className="card-title">🛠 Committee (OC) Assignments</span>
+            <div className="flex items-center gap-2 pb-4 mb-4 border-b border-zinc-800/60">
+              <Briefcase className="w-4 h-4 text-emerald-400" />
+              <CardTitle className="text-base font-bold text-white">Committee (OC) Assignments</CardTitle>
             </div>
+
             {ocList.length === 0 ? (
-              <div className="empty-state" style={{ padding: "30px 10px" }}>
-                <div className="icon">🛠</div>
+              <div className="py-12 text-center text-zinc-500 text-xs flex flex-col items-center gap-2">
+                <Briefcase className="w-8 h-8 text-zinc-600 stroke-[1.5]" />
                 <p>No committee assignments on file</p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div className="flex flex-col gap-3">
                 {paginatedOc.map((o, idx) => {
                   const interviewerName = getInterviewerName(o.interviewer_email);
                   return (
                     <div
                       key={idx}
-                      style={{
-                        background: "var(--bg3)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "8px",
-                        padding: "14px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "10px"
-                      }}
+                      className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/50 flex flex-col gap-3"
                     >
-                      {/* Header: Event & Status Badge */}
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                        <strong style={{ fontSize: "13px", color: "var(--text)" }}>{o.events?.name || "Unknown Event"}</strong>
-                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--accent2)", fontWeight: "500", marginTop: "2px" }}>
+                      <div className="flex flex-col gap-1">
+                        <strong className="text-sm font-bold text-white">{o.events?.name || "Unknown Event"}</strong>
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-400 font-medium">
                           <span>{o.functions?.function_name || "General Sub-team"}</span>
-                          <span style={{ color: "var(--text3)" }}>•</span>
+                          <span className="text-zinc-600">•</span>
                           {o.oc_position ? (
-                            o.oc_position.split(",").map((pos, idx) => (
-                              <span key={idx} className="badge badge-purple" style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "12px" }}>
+                            o.oc_position.split(",").map((pos, pIdx) => (
+                              <Badge key={pIdx} variant="secondary" className="text-[10px] px-2 py-0.5 bg-indigo-600/10 text-indigo-300 border-indigo-500/20">
                                 {pos.trim()}
-                              </span>
+                              </Badge>
                             ))
                           ) : (
-                            <span className="badge badge-gray" style={{ fontSize: "10.5px", padding: "2px 7px", borderRadius: "12px" }}>Committee Member</span>
+                            <Badge variant="secondary" className="text-[10px] px-2 py-0.5">Committee Member</Badge>
                           )}
                         </div>
-                        <div style={{ marginTop: "2px" }}>{renderOcStatusBadge(o.apply_status)}</div>
+                        <div className="mt-1">{renderOcStatusBadge(o.apply_status)}</div>
                       </div>
 
-                      {/* Details Grid (Only shown when interview is pending/invited/scheduled; hidden after Accept or Reject) */}
                       {o.apply_status !== "Accept" && o.apply_status !== "Reject" && (
-                        <div style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-                          gap: "10px",
-                          paddingTop: "10px",
-                          borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-                          fontSize: "0.84rem"
-                        }}>
-                          {/* Assigned Interviewer */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span style={{ fontSize: "0.74rem", color: "var(--text3)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-zinc-800/60 text-xs">
+                          <div>
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-0.5">
                               Assigned Interviewer
                             </span>
-                            <span style={{ color: interviewerName ? "#93c5fd" : "var(--text3)", fontWeight: interviewerName ? "500" : "normal" }}>
+                            <span className={interviewerName ? "text-indigo-300 font-medium" : "text-zinc-500"}>
                               {interviewerName ? `👤 ${interviewerName}` : "Unassigned"}
                             </span>
                           </div>
 
-                          {/* Interview Slot */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span style={{ fontSize: "0.74rem", color: "var(--text3)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          <div>
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-0.5">
                               Interview Slot
                             </span>
                             {o.interview_date ? (
                               <div>
-                                <span style={{ color: "#34d399", fontWeight: "600" }}>
+                                <span className="text-emerald-400 font-semibold block">
                                   📅 {new Date(o.interview_date).toLocaleString()}
                                 </span>
                                 {o.interview_link && (
-                                  <div style={{ marginTop: "4px" }}>
-                                    <a
-                                      href={o.interview_link}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="btn btn-ghost btn-sm"
-                                      style={{ padding: "3px 8px", fontSize: "0.78rem", color: "#60a5fa", border: "1px solid rgba(96, 165, 250, 0.3)", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                                    >
-                                      🔗 Join Meeting
-                                    </a>
-                                  </div>
+                                  <a
+                                    href={o.interview_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline mt-1"
+                                  >
+                                    <Video className="w-3 h-3" /> Join Meeting
+                                  </a>
                                 )}
                               </div>
                             ) : (
-                              <span style={{ color: "var(--text3)" }}>Not booked yet</span>
+                              <span className="text-zinc-500">Not booked yet</span>
                             )}
                           </div>
                         </div>
@@ -671,226 +740,96 @@ export default function MyInfo({ session }) {
             )}
           </div>
 
-          {/* Committee Assignments Pagination */}
           {totalOcPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "14px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
+            <div className="flex items-center justify-between pt-4 mt-4 border-t border-zinc-800/60 text-xs">
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setOcPage(p => Math.max(0, p - 1))}
                 disabled={ocPage === 0}
-                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                className="h-7 text-xs text-zinc-400"
               >
-                ◀ Prev
-              </button>
-              <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>
+                <ChevronLeft className="w-3.5 h-3.5" /> Prev
+              </Button>
+              <span className="text-zinc-500">
                 Page {ocPage + 1} of {totalOcPages}
               </span>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setOcPage(p => Math.min(totalOcPages - 1, p + 1))}
                 disabled={ocPage >= totalOcPages - 1}
-                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                className="h-7 text-xs text-zinc-400"
               >
-                Next ▶
-              </button>
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
             </div>
           )}
-        </div>
+        </Card>
       </div>
 
-      {editModal && (
-        <div className="modal-overlay" style={{ zIndex: 110 }} onClick={e => e.target === e.currentTarget && closeEditModal()}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 className="modal-title">Edit Profile Details</h2>
-              <button className="modal-close" onClick={closeEditModal}>x</button>
-            </div>
-
-            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
-
-            {!settings.member_edit_name &&
-             !settings.member_edit_photo &&
-             !settings.member_edit_whatsapp &&
-             !settings.member_edit_linkedin &&
-             !settings.member_edit_position &&
-             !settings.member_edit_function ? (
-              <div className="alert alert-error" style={{ marginBottom: 20 }}>
-                Profile field editing is currently disabled by the society administrator.
-              </div>
-            ) : (
-              <>
-                {settings.member_edit_name && (
-                  <div className="form-group" style={{ marginBottom: 15 }}>
-                    <label>Full Name</label>
-                    <input
-                      placeholder="Enter full name"
-                      value={editForm.name}
-                      onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                )}
-
-                {settings.member_edit_photo && (
-                  <div className="form-group" style={{ marginBottom: 15 }}>
-                    <label>Profile Image</label>
-                    <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)", marginTop: "6px" }}>
-                      {previewUrl ? (
-                        <img
-                          src={previewUrl}
-                          alt="Profile Preview"
-                          style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
-                        />
-                      ) : editForm.profile_image_url ? (
-                        <img
-                          src={editForm.profile_image_url}
-                          alt="Current Profile"
-                          style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
-                        />
-                      ) : (
-                        <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", color: "var(--text3)", flexShrink: 0 }}>
-                          👤
-                        </div>
-                      )}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          id="profile-image-edit-upload"
-                          onChange={handleFileChange}
-                          style={{ display: "none" }}
-                        />
-                        <label
-                          htmlFor="profile-image-edit-upload"
-                          className="btn btn-ghost btn-sm"
-                          style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
-                        >
-                          Upload New Photo
-                        </label>
-                        <span className="text-muted" style={{ fontSize: "11px" }}>
-                          {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "Using current photo (Auto-resized to 500x600 px)"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {settings.member_edit_whatsapp && (
-                  <div className="form-group" style={{ marginBottom: 15 }}>
-                    <label>WhatsApp / Mobile Number</label>
-                    <input
-                      placeholder="e.g. +94771234567"
-                      value={editForm.mobile_number}
-                      onChange={e => setEditForm({ ...editForm, mobile_number: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {settings.member_edit_linkedin && (
-                  <div className="form-group" style={{ marginBottom: 15 }}>
-                    <label>LinkedIn Profile URL</label>
-                    <input
-                      placeholder="e.g. https://linkedin.com/in/username"
-                      value={editForm.linkedin_url}
-                      onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {settings.member_edit_position && (
-                  <div className="form-group" style={{ marginBottom: 15 }}>
-                    <label>Position</label>
-                    <input
-                      placeholder="e.g. Committee Member"
-                      value={editForm.st_position}
-                      onChange={e => setEditForm({ ...editForm, st_position: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {settings.member_edit_function && (
-                  <div className="form-group" style={{ marginBottom: 20 }}>
-                    <label>Function Name</label>
-                    <select
-                      value={editForm.member_function}
-                      onChange={e => setEditForm({ ...editForm, member_function: e.target.value })}
-                    >
-                      <option value="">Select Function</option>
-                      <option value="Finance">Finance</option>
-                      <option value="Marketing">Marketing</option>
-                      <option value="Operation & Academic Management">Operation & Academic Management</option>
-                      <option value="Personal Development">Personal Development</option>
-                      <option value="Public Relations">Public Relations</option>
-                      <option value="Research & Analyst">Research & Analyst</option>
-                    </select>
-                  </div>
-                )}
-              </>
-            )}
-
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeEditModal} disabled={saving}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleSaveProfile}
-                disabled={saving || (!settings.member_edit_name && !settings.member_edit_photo && !settings.member_edit_whatsapp && !settings.member_edit_linkedin && !settings.member_edit_position && !settings.member_edit_function)}
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
       {/* Appreciation Letter Requests History */}
-      <div className="card" style={{ marginTop: "24px" }}>
-        <div className="card-header">
-          <span className="card-title">📄 Appreciation Letter Requests History</span>
+      <Card className="p-6 bg-[#17171a]/90 border border-zinc-800 shadow-xl">
+        <div className="flex items-center gap-2 pb-4 mb-4 border-b border-zinc-800/60">
+          <Award className="w-4 h-4 text-amber-400" />
+          <CardTitle className="text-base font-bold text-white">Appreciation Letter Requests History</CardTitle>
         </div>
+
         {requests.length === 0 ? (
-          <div className="empty-state" style={{ padding: "30px 10px" }}>
-            <div className="icon">📄</div>
+          <div className="py-12 text-center text-zinc-500 text-xs flex flex-col items-center gap-2">
+            <FileText className="w-8 h-8 text-zinc-600 stroke-[1.5]" />
             <p>No letter requests submitted yet.</p>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse" style={{ fontSize: "13px" }}>
               <thead>
-                <tr>
-                  <th>Name on Letter</th>
-                  <th>Events Included</th>
-                  <th>Additional Info</th>
-                  <th>Request Date</th>
-                  <th>Status</th>
+                <tr className="border-b border-zinc-800/80 text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+                  <th className="pb-3 px-2">Name on Letter</th>
+                  <th className="pb-3 px-2">Events Included</th>
+                  <th className="pb-3 px-2">Additional Info</th>
+                  <th className="pb-3 px-2">Request Date</th>
+                  <th className="pb-3 px-2 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-800/40">
                 {requests.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.name_on_letter || <span className="text-muted">—</span>}</td>
-                    <td>
+                  <tr key={r.id} className="hover:bg-zinc-800/30 transition-colors">
+                    <td className="py-3 px-2 font-medium text-white">
+                      {r.name_on_letter || <span className="text-zinc-500">—</span>}
+                    </td>
+                    <td className="py-3 px-2">
                       {r.selected_events && Array.isArray(r.selected_events) && r.selected_events.length > 0 ? (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                        <div className="flex flex-wrap gap-1">
                           {r.selected_events.map((e, idx) => (
-                            <span key={idx} className="badge badge-purple" style={{ fontSize: "10px", padding: "2px 6px" }}>{e}</span>
+                            <Badge key={idx} variant="secondary" className="text-[10px] px-2 py-0.5">
+                              {e}
+                            </Badge>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-muted">—</span>
+                        <span className="text-zinc-500">—</span>
                       )}
                     </td>
-                    <td>{r.additional_details || <span className="text-muted">—</span>}</td>
-                    <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
-                    <td>
-                      <span className={`badge ${r.status === "done" ? "badge-green" : r.status === "inprogress" ? "badge-purple" : "badge-amber"}`} style={{ textTransform: "uppercase", fontSize: "10px" }}>
+                    <td className="py-3 px-2 text-zinc-400 max-w-xs truncate">
+                      {r.additional_details || <span className="text-zinc-500">—</span>}
+                    </td>
+                    <td className="py-3 px-2 text-zinc-400 text-xs font-mono">
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 px-2 text-right">
+                      <Badge 
+                        variant={
+                          r.status === "done" || r.status === "completed" 
+                            ? "success" 
+                            : r.status === "inprogress" 
+                            ? "warning" 
+                            : "secondary"
+                        } 
+                        className="text-[10px] uppercase"
+                      >
                         {r.status === "not start" ? "not started" : r.status === "inprogress" ? "in progress" : r.status}
-                      </span>
+                      </Badge>
                     </td>
                   </tr>
                 ))}
@@ -898,90 +837,269 @@ export default function MyInfo({ session }) {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Request Appreciation Letter Modal */}
-      {requestModal && (
-        <div className="modal-overlay" style={{ zIndex: 110 }} onClick={e => e.target === e.currentTarget && closeRequestModal()}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 className="modal-title">Request Appreciation Letter</h2>
-              <button className="modal-close" onClick={closeRequestModal}>x</button>
-            </div>
+      {/* EDIT PROFILE MODAL */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={closeEditModal}>
+          <Card 
+            className="w-full max-w-lg max-h-[90vh] flex flex-col bg-[#17171a] border-zinc-700/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-zinc-800">
+              <CardTitle className="text-lg font-bold text-white">Edit Profile Details</CardTitle>
+              <Button variant="ghost" size="icon" onClick={closeEditModal} className="h-8 w-8 text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
 
-            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
-
-            <p style={{ color: "var(--text2)", fontSize: "12px", marginBottom: "15px" }}>
-              Submit a request for an official appreciation letter documenting your contributions for this year.
-            </p>
-
-            {settings.letter_show_name && (
-              <div className="form-group" style={{ marginBottom: 15 }}>
-                <label>Name on Letter</label>
-                <input
-                  placeholder="Enter the name as it should appear on the certificate/letter"
-                  value={requestForm.name_on_letter}
-                  onChange={e => setRequestForm({ ...requestForm, name_on_letter: e.target.value })}
-                  required
-                />
+            {msg && (
+              <div className={`mx-6 mt-4 p-3 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
+                msg.type === "error" ? "bg-rose-950/40 border-rose-900/60 text-rose-300" : "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
+              }`}>
+                {msg.type === "error" ? <AlertCircle className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                <span>{msg.text}</span>
               </div>
             )}
 
-            {settings.letter_show_events && (
-              <div className="form-group" style={{ marginBottom: 15 }}>
-                <label>Select This Year's Events (Which you participated/organized)</label>
-                {thisYearEvents.length === 0 ? (
-                  <p className="text-muted" style={{ fontSize: "12px" }}>No events found for this year.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "150px", overflowY: "auto", border: "1px solid var(--border)", padding: "10px", borderRadius: "var(--r)", background: "var(--bg3)", marginTop: "6px" }}>
-                    {thisYearEvents.map(e => (
-                      <label key={e.event_id} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px" }}>
-                        <input
-                          type="checkbox"
-                          checked={requestForm.selected_events.includes(e.name)}
-                          onChange={(evt) => {
-                            const name = e.name;
-                            if (evt.target.checked) {
-                              setRequestForm(prev => ({ ...prev, selected_events: [...prev.selected_events, name] }));
-                            } else {
-                              setRequestForm(prev => ({ ...prev, selected_events: prev.selected_events.filter(n => n !== name) }));
-                            }
-                          }}
-                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
-                        />
-                        <span>{e.name}</span> <span className="text-muted" style={{ fontSize: "11px" }}>({e.date})</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
+              {!settings.member_edit_name &&
+               !settings.member_edit_photo &&
+               !settings.member_edit_whatsapp &&
+               !settings.member_edit_linkedin &&
+               !settings.member_edit_position &&
+               !settings.member_edit_function ? (
+                <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-900/50 text-xs font-semibold text-rose-300 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>Profile field editing is currently disabled by the society administrator.</span>
+                </div>
+              ) : (
+                <>
+                  {settings.member_edit_name && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Full Name</label>
+                      <Input
+                        placeholder="Enter full name"
+                        value={editForm.name}
+                        onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                  )}
 
-            {settings.letter_show_details && (
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label>Additional Request Details</label>
-                <textarea
-                  placeholder="Describe your specific contributions, departments, roles, or special requests..."
-                  rows={4}
-                  value={requestForm.additional_details}
-                  onChange={e => setRequestForm({ ...requestForm, additional_details: e.target.value })}
-                />
-              </div>
-            )}
+                  {settings.member_edit_photo && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Profile Image</label>
+                      <div className="flex items-center gap-4 p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/50">
+                        {previewUrl ? (
+                          <img
+                            src={previewUrl}
+                            alt="Preview"
+                            className="w-14 h-14 rounded-full object-cover border-2 border-indigo-500 flex-shrink-0"
+                          />
+                        ) : editForm.profile_image_url ? (
+                          <img
+                            src={editForm.profile_image_url}
+                            alt="Current Profile"
+                            className="w-14 h-14 rounded-full object-cover border-2 border-indigo-500 flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-500 font-bold text-lg flex-shrink-0">
+                            👤
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1.5">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id="profile-image-edit-upload"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor="profile-image-edit-upload"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer w-fit"
+                          >
+                            <Upload className="w-3.5 h-3.5" /> Upload New Photo
+                          </label>
+                          <span className="text-[11px] text-zinc-500">
+                            {profileImageFile ? profileImageFile.name : "Auto-resized to 500x600 px"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeRequestModal} disabled={submittingRequest}>
+                  {settings.member_edit_whatsapp && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">WhatsApp / Mobile Number</label>
+                      <Input
+                        placeholder="e.g. +94771234567"
+                        value={editForm.mobile_number}
+                        onChange={e => setEditForm({ ...editForm, mobile_number: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  {settings.member_edit_linkedin && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">LinkedIn Profile URL</label>
+                      <Input
+                        placeholder="e.g. https://linkedin.com/in/username"
+                        value={editForm.linkedin_url}
+                        onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  {settings.member_edit_position && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Position</label>
+                      <Input
+                        placeholder="e.g. Committee Member"
+                        value={editForm.st_position}
+                        onChange={e => setEditForm({ ...editForm, st_position: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  {settings.member_edit_function && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Function Name</label>
+                      <select
+                        value={editForm.member_function}
+                        onChange={e => setEditForm({ ...editForm, member_function: e.target.value })}
+                        className="w-full h-10 rounded-lg border border-zinc-800 bg-[#141417] px-3 py-2 text-sm text-zinc-100 focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="">Select Function</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Operation & Academic Management">Operation & Academic Management</option>
+                        <option value="Personal Development">Personal Development</option>
+                        <option value="Public Relations">Public Relations</option>
+                        <option value="Research & Analyst">Research & Analyst</option>
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+
+            <CardFooter className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800 bg-zinc-900/40">
+              <Button variant="ghost" size="sm" onClick={closeEditModal} disabled={saving}>
                 Cancel
-              </button>
-              <button className="btn btn-primary" onClick={handleSubmitRequest} disabled={submittingRequest}>
-                {submittingRequest ? "Submitting..." : "Submit Request"}
-              </button>
-            </div>
-
-          </div>
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={handleSaveProfile} 
+                disabled={saving || (!settings.member_edit_name && !settings.member_edit_photo && !settings.member_edit_whatsapp && !settings.member_edit_linkedin && !settings.member_edit_position && !settings.member_edit_function)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       )}
 
+      {/* REQUEST APPRECIATION LETTER MODAL */}
+      {requestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={closeRequestModal}>
+          <Card 
+            className="w-full max-w-lg max-h-[90vh] flex flex-col bg-[#17171a] border-zinc-700/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-zinc-800">
+              <CardTitle className="text-lg font-bold text-white">Request Appreciation Letter</CardTitle>
+              <Button variant="ghost" size="icon" onClick={closeRequestModal} className="h-8 w-8 text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
+
+            {msg && (
+              <div className={`mx-6 mt-4 p-3 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
+                msg.type === "error" ? "bg-rose-950/40 border-rose-900/60 text-rose-300" : "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
+              }`}>
+                {msg.type === "error" ? <AlertCircle className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                <span>{msg.text}</span>
+              </div>
+            )}
+
+            <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Submit a request for an official appreciation letter documenting your contributions for this year.
+              </p>
+
+              {settings.letter_show_name && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Name on Letter</label>
+                  <Input
+                    placeholder="Enter the name as it should appear on the letter"
+                    value={requestForm.name_on_letter}
+                    onChange={e => setRequestForm({ ...requestForm, name_on_letter: e.target.value })}
+                    required
+                  />
+                </div>
+              )}
+
+              {settings.letter_show_events && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                    Select This Year's Events (Participated / Organized)
+                  </label>
+                  {thisYearEvents.length === 0 ? (
+                    <p className="text-xs text-zinc-500 italic">No events found for this year.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2 max-h-40 overflow-y-auto border border-zinc-800 p-3 rounded-xl bg-zinc-900/50">
+                      {thisYearEvents.map(e => (
+                        <label key={e.event_id} className="flex items-center gap-2 text-xs font-medium text-zinc-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={requestForm.selected_events.includes(e.name)}
+                            onChange={(evt) => {
+                              const name = e.name;
+                              if (evt.target.checked) {
+                                setRequestForm(prev => ({ ...prev, selected_events: [...prev.selected_events, name] }));
+                              } else {
+                                setRequestForm(prev => ({ ...prev, selected_events: prev.selected_events.filter(n => n !== name) }));
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                          <span>{e.name}</span>
+                          <span className="text-zinc-500 font-mono text-[11px]">({e.date})</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {settings.letter_show_details && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Additional Details</label>
+                  <Textarea
+                    placeholder="Describe your specific contributions, departments, roles, or special requests..."
+                    rows={4}
+                    value={requestForm.additional_details}
+                    onChange={e => setRequestForm({ ...requestForm, additional_details: e.target.value })}
+                    className="resize-none"
+                  />
+                </div>
+              )}
+            </CardContent>
+
+            <CardFooter className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800 bg-zinc-900/40">
+              <Button variant="ghost" size="sm" onClick={closeRequestModal} disabled={submittingRequest}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSubmitRequest} disabled={submittingRequest} className="bg-indigo-600 hover:bg-indigo-500 text-white">
+                {submittingRequest ? "Submitting..." : "Submit Request"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

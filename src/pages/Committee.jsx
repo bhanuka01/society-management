@@ -4,6 +4,37 @@ import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import StudentProfileModal from "../components/StudentProfileModal";
 import EventSelect from "../components/EventSelect";
 import CalEmbedModal from "../components/CalEmbedModal";
+import { 
+  Users, 
+  Search, 
+  Plus, 
+  Download, 
+  Calendar, 
+  Clock, 
+  Video, 
+  CheckCircle2, 
+  XCircle, 
+  UserCheck, 
+  UserX, 
+  HelpCircle, 
+  ExternalLink, 
+  ChevronLeft, 
+  ChevronRight, 
+  X, 
+  AlertCircle, 
+  Check, 
+  Mail, 
+  Settings,
+  Sparkles,
+  User,
+  Trash2,
+  Send,
+  CalendarDays
+} from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 
 const EMPTY = { st_id: "", function_id: "", oc_position: "", apply_status: "Pending", interviewer_email: "" };
 const STATUS_OPTS = ["Pending", "Invited", "Interview Scheduled", "Accept", "Reject"];
@@ -36,7 +67,8 @@ export default function Committee({ isAdmin = false, session }) {
     return localStorage.getItem("committee_cal_url") || "https://cal.com/adss-ruhuna/committee-interview";
   });
   const [calSetupModalOpen, setCalSetupModalOpen] = useState(false);
-  const CAL_WEBHOOK_URL = "https://zbhwelmxdgldbwbnsfhd.supabase.co/functions/v1/cal-webhook";
+
+  const [calSavedToast, setCalSavedToast] = useState(false);
 
   const handleCalUrlChange = (url) => {
     setCustomCalUrl(url);
@@ -111,7 +143,6 @@ export default function Committee({ isAdmin = false, session }) {
   const [interviewerSearch, setInterviewerSearch] = useState("");
   const [interviewerPage, setInterviewerPage] = useState(0);
 
-  // Helper to check if a row belongs to the current logged-in user
   const isOwnRow = (row) => {
     if (!session) return false;
     if (session.stId && row.st_id?.toUpperCase() === session.stId?.toUpperCase()) return true;
@@ -133,7 +164,6 @@ export default function Committee({ isAdmin = false, session }) {
     setSelectedEvent(current => current || nextEvents[0]?.event_id || "");
     setFunctions(fRes.data || []);
 
-    // Combine staff profiles and members into staffList dropdown
     const list = [];
     if (profileRes.data) {
       profileRes.data.forEach(p => {
@@ -192,7 +222,6 @@ export default function Committee({ isAdmin = false, session }) {
       setMsg({ type: "error", text: records.error.message });
     } else {
       let rawData = records.data || [];
-      // Pin applicant's own application row at the top of the table
       rawData.sort((a, b) => {
         const aOwn = isOwnRow(a);
         const bOwn = isOwnRow(b);
@@ -323,7 +352,6 @@ export default function Committee({ isAdmin = false, session }) {
     if (error) { setMsg({ type: "error", text: error.message }); return; }
     setMsg({ type: "success", text: "OC record saved." });
 
-    // Send application received email if candidate email exists
     const { data: member } = await supabase.from("members").select("email, name").eq("st_id", form.st_id.trim()).maybeSingle();
     if (member?.email) {
       triggerSendEmail({
@@ -341,7 +369,6 @@ export default function Committee({ isAdmin = false, session }) {
     setTimeout(closeModal, 700);
   };
 
-  // Dispatch Email via Supabase Edge Function (Gmail SMTP)
   const triggerSendEmail = async (payload) => {
     try {
       const { data, error } = await supabase.functions.invoke("send-email", {
@@ -390,7 +417,6 @@ export default function Committee({ isAdmin = false, session }) {
     setEmailSendingId(null);
   };
 
-  // Open Interviewer Dropdown Invite Modal
   const openInviteModal = (o) => {
     const defaultInterviewer = o.interviewer_email || session?.email || (staffList[0]?.email || "");
     setSelectedInterviewerEmail(defaultInterviewer);
@@ -400,7 +426,6 @@ export default function Committee({ isAdmin = false, session }) {
     setInviteModal({ isOpen: true, row: o });
   };
 
-  // Process sending interview invitation with selected interviewer B
   const sendInviteWithInterviewer = async () => {
     const o = inviteModal.row;
     if (!o) return;
@@ -417,7 +442,6 @@ export default function Committee({ isAdmin = false, session }) {
     setInviteSending(true);
     setEmailSendingId(`${o.st_id}-${o.function_id}`);
 
-    // Update status to 'Invited' and record chosen interviewer_email in DB
     const { error } = await supabase.from("oc")
       .update({
         apply_status: "Invited",
@@ -440,7 +464,6 @@ export default function Committee({ isAdmin = false, session }) {
         bookingUrlObj.searchParams.set("email", recipientEmail);
         bookingUrlObj.searchParams.set("name", studentName);
         bookingUrlObj.searchParams.set("st_id", o.st_id);
-        // Cal.com native parameter for auto-adding guests/interviewers
         bookingUrlObj.searchParams.set("guests", finalInterviewerEmail);
         bookingUrlObj.searchParams.set("interviewer_email", finalInterviewerEmail);
 
@@ -481,21 +504,17 @@ export default function Committee({ isAdmin = false, session }) {
     else { setFnName(""); load(); setFnModal(false); }
   };
 
-  // High-contrast readable status badges
-  const statusBadge = (s) => {
-    if (s === "Accept") return <span className="badge" style={{ backgroundColor: "#16a34a", color: "#ffffff", fontWeight: "600", padding: "4px 10px" }}>Accepted</span>;
-    if (s === "Reject") return <span className="badge" style={{ backgroundColor: "#dc2626", color: "#ffffff", fontWeight: "600", padding: "4px 10px" }}>Rejected</span>;
-    if (s === "Invited") return <span className="badge" style={{ backgroundColor: "#2563eb", color: "#ffffff", fontWeight: "600", padding: "4px 10px" }}>Invited</span>;
-    if (s === "Interview Scheduled") return <span className="badge" style={{ backgroundColor: "#9333ea", color: "#ffffff", fontWeight: "600", padding: "4px 10px" }}>Interview Scheduled</span>;
-    return <span className="badge" style={{ backgroundColor: "#d97706", color: "#ffffff", fontWeight: "600", padding: "4px 10px" }}>Pending</span>;
+  const renderStatusBadge = (s) => {
+    if (s === "Accept") return <Badge variant="success" className="text-[11px] font-semibold px-2.5 py-0.5">Accepted</Badge>;
+    if (s === "Reject") return <Badge variant="destructive" className="text-[11px] font-semibold px-2.5 py-0.5">Rejected</Badge>;
+    if (s === "Invited") return <Badge variant="default" className="text-[11px] font-semibold px-2.5 py-0.5 bg-blue-600/20 text-blue-300 border-blue-500/30">Invited</Badge>;
+    if (s === "Interview Scheduled") return <Badge variant="default" className="text-[11px] font-semibold px-2.5 py-0.5 bg-purple-600/20 text-purple-300 border-purple-500/30">Interview Scheduled</Badge>;
+    return <Badge variant="warning" className="text-[11px] font-semibold px-2.5 py-0.5">Pending</Badge>;
   };
 
   const selectedEventInfo = events.find(e => e.event_id === selectedEvent);
 
-  // Filter staffList for Invite Modal Search & Pagination
   const fullInterviewerOptions = [];
-
-  // Add Logged-in User at top
   if (session?.email) {
     fullInterviewerOptions.push({
       name: session.name ? `Me (${session.name})` : "Me (Current User)",
@@ -505,14 +524,12 @@ export default function Committee({ isAdmin = false, session }) {
     });
   }
 
-  // Add staff members
   staffList.forEach(st => {
     if (!fullInterviewerOptions.some(item => item.email.toLowerCase() === st.email.toLowerCase())) {
       fullInterviewerOptions.push(st);
     }
   });
 
-  // Filter by Search Query
   const filteredInterviewers = fullInterviewerOptions.filter(item => {
     const q = interviewerSearch.trim().toLowerCase();
     if (!q) return true;
@@ -526,142 +543,219 @@ export default function Committee({ isAdmin = false, session }) {
   );
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">diversity_3</span></span> Committee (OC)</h1>
-        <p className="page-subtitle">{selectedEventInfo ? `${selectedEventInfo.name} - ${total} assignments` : "select an event to manage OC assignments"}</p>
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8 text-zinc-200">
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-800/80">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <Users className="w-5 h-5" />
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Committee (OC) Management
+            </h1>
+          </div>
+          <p className="text-sm text-zinc-400">
+            {selectedEventInfo ? `${selectedEventInfo.name} — ${total} total assignments` : "Select an event to manage OC assignments"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportCSV}
+                className="flex items-center gap-2 text-xs border-zinc-700/80 text-zinc-300 hover:text-white"
+              >
+                <Download className="w-3.5 h-3.5" /> Export CSV
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFnModal(true)}
+                className="flex items-center gap-1.5 text-xs border-zinc-700/80 text-zinc-300 hover:text-white"
+              >
+                <Plus className="w-3.5 h-3.5" /> Sub-team Function
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={openAdd}
+                className="flex items-center gap-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-950/40"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add OC
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Dynamic Statistics Grid */}
-      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(5,1fr)", marginBottom: 16 }}>
-        <div className="stat-card"><div className="stat-label">Pending</div><div className="stat-value">{statusCounts.Pending}</div></div>
-        <div className="stat-card blue" style={{ borderColor: "#3b82f6" }}><div className="stat-label">Invited</div><div className="stat-value">{statusCounts.Invited}</div></div>
-        <div className="stat-card purple" style={{ borderColor: "#8b5cf6" }}><div className="stat-label">Scheduled</div><div className="stat-value">{statusCounts.Scheduled}</div></div>
-        <div className="stat-card green"><div className="stat-label">Accepted</div><div className="stat-value">{statusCounts.Accept}</div></div>
-        <div className="stat-card red"><div className="stat-label">Rejected</div><div className="stat-value">{statusCounts.Reject}</div></div>
+      {/* 5 Stat Cards Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        <Card className="p-4 bg-[#17171a]/80 border-amber-500/30">
+          <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-1">Pending</span>
+          <p className="text-2xl font-black text-white">{statusCounts.Pending}</p>
+        </Card>
+
+        <Card className="p-4 bg-[#17171a]/80 border-blue-500/30">
+          <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider block mb-1">Invited</span>
+          <p className="text-2xl font-black text-white">{statusCounts.Invited}</p>
+        </Card>
+
+        <Card className="p-4 bg-[#17171a]/80 border-purple-500/30">
+          <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider block mb-1">Scheduled</span>
+          <p className="text-2xl font-black text-white">{statusCounts.Scheduled}</p>
+        </Card>
+
+        <Card className="p-4 bg-[#17171a]/80 border-emerald-500/30">
+          <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">Accepted</span>
+          <p className="text-2xl font-black text-white">{statusCounts.Accept}</p>
+        </Card>
+
+        <Card className="p-4 bg-[#17171a]/80 border-rose-500/30">
+          <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider block mb-1">Rejected</span>
+          <p className="text-2xl font-black text-white">{statusCounts.Reject}</p>
+        </Card>
       </div>
 
-      {events.length === 0 ? (
-        <div className="card"><div className="empty-state"><div className="icon">*</div><p>Create an event first, then add OC assignments.</p></div></div>
-      ) : (
-        <>
-          <div className="card mb-3" style={{ marginBottom: 16 }}>
-            <div className="card-header">
-              <span className="card-title">Event Committee</span>
-              {selectedEventInfo && <span className="badge badge-gray">{selectedEventInfo.date}</span>}
-            </div>
-            <EventSelect
-              events={events}
-              value={selectedEvent}
-              onChange={(id) => { setPage(0); setSelectedEvent(id); }}
-              placeholder="Search or select an event..."
-            />
+      {/* Event Selection & Configuration Card */}
+      <Card className="p-5 bg-[#17171a]/90 border border-zinc-800/90 shadow-xl mb-6 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-indigo-400" />
+            <span className="text-sm font-bold text-white">Target Event Selection</span>
+            {selectedEventInfo && (
+              <Badge variant="secondary" className="text-xs font-mono">
+                {selectedEventInfo.date}
+              </Badge>
+            )}
+          </div>
+        </div>
 
-            {/* Editable Cal.com Interview Link & Setup Popup Button (Admins/Editors ONLY) */}
-            {isAdmin && (
-              <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
-                <div style={{ flex: 1, minWidth: "260px" }}>
-                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: "600", color: "#94a3b8", marginBottom: "4px" }}>
-                    🔗 Cal.com Interview Link (Editable)
-                  </label>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <input
-                      type="text"
-                      value={customCalUrl}
-                      onChange={e => handleCalUrlChange(e.target.value)}
-                      placeholder="https://cal.com/adss-ruhuna/committee-interview"
-                      style={{ flex: 1, padding: "7px 12px", fontSize: "0.88rem", borderRadius: "6px" }}
-                    />
-                    <a
-                      href={customCalUrl.startsWith("http") ? customCalUrl : `https://${customCalUrl}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-ghost btn-sm"
-                      style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "7px 12px", fontSize: "0.82rem", border: "1px solid rgba(255, 255, 255, 0.15)", whiteSpace: "nowrap" }}
-                      title="Open link in new tab"
-                    >
-                      ↗️ Open Link
-                    </a>
-                  </div>
-                </div>
+        <EventSelect
+          events={events}
+          value={selectedEvent}
+          onChange={(id) => { setPage(0); setSelectedEvent(id); }}
+          placeholder="Search or select an event..."
+        />
 
-                <div style={{ alignSelf: "flex-end" }}>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => setCalSetupModalOpen(true)}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      backgroundColor: "rgba(59, 130, 246, 0.15)",
-                      color: "#60a5fa",
-                      border: "1px solid rgba(59, 130, 246, 0.3)",
-                      padding: "8px 14px",
-                      fontWeight: "600",
-                      fontSize: "0.85rem",
-                      borderRadius: "6px"
-                    }}
-                  >
-                    ⚙️ How to Setup Cal.com
-                  </button>
-                </div>
+        {/* Editable Cal.com Link (Admin Only) */}
+        {isAdmin && (
+          <div className="pt-3 border-t border-zinc-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5 flex items-center gap-1">
+                <Settings className="w-3.5 h-3.5 text-indigo-400" /> Cal.com Booking Link
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="text"
+                  value={customCalUrl}
+                  onChange={e => handleCalUrlChange(e.target.value)}
+                  placeholder="https://cal.com/adss-ruhuna/committee-interview"
+                  className="h-9 text-xs flex-1 min-w-[220px]"
+                />
+                <a
+                  href={customCalUrl.startsWith("http") ? customCalUrl : `https://${customCalUrl}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-3 h-9 rounded-lg text-xs font-medium border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 whitespace-nowrap"
+                >
+                  <ExternalLink className="w-3 h-3" /> Open
+                </a>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    handleCalUrlChange(customCalUrl);
+                    setCalSavedToast(true);
+                    setTimeout(() => setCalSavedToast(false), 2000);
+                  }}
+                  className="h-9 text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 whitespace-nowrap"
+                >
+                  {calSavedToast ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved!</> : <><Check className="w-3.5 h-3.5" /> Save</>}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCalSetupModalOpen(true)}
+                  className="h-9 text-xs border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 whitespace-nowrap"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" /> Setup Guide
+                </Button>
               </div>
-            )}
-          </div>
-
-          <div className="toolbar" style={{ gap: "12px", alignItems: "center", marginBottom: "16px" }}>
-            <div className="search-input-wrap" style={{ position: "relative", flex: 1, minWidth: "220px" }}>
-              {/* <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: "1rem" }}>🔍</span> */}
-              <input
-                placeholder="Search by ID, position, status..."
-                value={search}
-                onChange={e => { setPage(0); setSearch(e.target.value); }}
-                style={{ paddingLeft: "36px", width: "100%" }}
-              />
             </div>
-            <select value={filterStatus} onChange={e => { setPage(0); setFilterStatus(e.target.value); }} style={{ width: 160 }}>
-              <option value="All">All Statuses</option>
-              {STATUS_OPTS.map(s => <option key={s}>{s}</option>)}
-            </select>
-            <button className="btn btn-ghost" onClick={exportCSV}>Export CSV</button>
-            {isAdmin && (
-              <>
-                <button className="btn btn-ghost" onClick={() => setFnModal(true)}>+ Function</button>
-                <button className="btn btn-primary" onClick={openAdd}>+ Add OC</button>
-              </>
-            )}
           </div>
+        )}
+      </Card>
 
-          {msg && !modal && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+      {/* Toolbar & Search Controls */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+          <Input
+            placeholder="Search by ST ID, position, status..."
+            value={search}
+            onChange={e => { setPage(0); setSearch(e.target.value); }}
+            className="pl-10 h-10 w-full"
+          />
+        </div>
 
-          {loading ? (
-            <div className="loader"><div className="spinner" /></div>
-          ) : (
-            <div className="table-wrap" style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
-                    {isAdmin && <th style={{ textAlign: "left", padding: "12px" }}>ST ID</th>}
-                    <th style={{ textAlign: "left", padding: "12px" }}>Name</th>
-                    <th style={{ textAlign: "left", padding: "12px" }}>OC Position & Function</th>
-                    <th style={{ textAlign: "left", padding: "12px" }}>Interview Status</th>
-                    <th style={{ textAlign: "left", padding: "12px" }}>Assigned Interviewer</th>
-                    <th style={{ textAlign: "left", padding: "12px" }}>Interview Slot</th>
-                    {isAdmin && <th style={{ textAlign: "center", padding: "12px", minWidth: "220px" }}>Actions</th>}
+        <select 
+          value={filterStatus} 
+          onChange={e => { setPage(0); setFilterStatus(e.target.value); }} 
+          className="h-10 px-3.5 rounded-lg border border-zinc-800 bg-[#141417] text-xs font-semibold text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-44 sm:w-52 flex-shrink-0 cursor-pointer"
+        >
+          <option value="All">All Statuses</option>
+          {STATUS_OPTS.map(s => <option key={s}>{s}</option>)}
+        </select>
+      </div>
+
+      {msg && !modal && (
+        <div className={`p-3.5 mb-6 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
+          msg.type === "error" ? "bg-rose-950/40 border-rose-900/60 text-rose-300" : "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
+        }`}>
+          {msg.type === "error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+          <span>{msg.text}</span>
+        </div>
+      )}
+
+      {/* Main Committee Table Card */}
+      <Card className="bg-[#17171a]/90 border border-zinc-800 shadow-xl overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-zinc-400">
+            <div className="w-9 h-9 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+            <span className="text-sm font-medium text-zinc-400">Loading assignments...</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse" style={{ fontSize: "13px" }}>
+              <thead>
+                <tr className="border-b border-zinc-800 text-zinc-400 text-xs font-semibold uppercase tracking-wider bg-zinc-900/60">
+                  {isAdmin && <th className="py-3 px-4">ST ID</th>}
+                  <th className="py-3 px-4">Candidate Name</th>
+                  <th className="py-3 px-4">OC Position & Function</th>
+                  <th className="py-3 px-4">Interview Status</th>
+                  <th className="py-3 px-4">Assigned Interviewer</th>
+                  <th className="py-3 px-4">Interview Slot</th>
+                  {isAdmin && <th className="py-3 px-4 text-center">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/40">
+                {oc.length === 0 ? (
+                  <tr>
+                    <td colSpan={isAdmin ? 7 : 5} className="py-16 text-center text-zinc-500 text-xs">
+                      <Users className="w-8 h-8 mx-auto mb-2 text-zinc-600 stroke-[1.5]" />
+                      <span>No committee assignments found for the current filter.</span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {oc.length === 0 ? (
-                    <tr><td colSpan={isAdmin ? 7 : 5}><div className="empty-state"><div className="icon">*</div><p>No records found</p></div></td></tr>
-                  ) : oc.map(o => {
+                ) : (
+                  oc.map(o => {
                     const isProcessing = emailSendingId === `${o.st_id}-${o.function_id}`;
                     const own = isOwnRow(o);
-
-                    // Privacy Control: Staff (isAdmin) or Applicant (own row) can view details
                     const canSeeDetails = isAdmin || own;
 
-                    // Resolve Interviewer Name ONLY (do not display email)
                     const interviewerDisplayName = (() => {
                       if (!o.interviewer_email) return null;
                       const staffMatch = staffList.find(s => s.email?.toLowerCase() === o.interviewer_email?.toLowerCase());
@@ -671,576 +765,547 @@ export default function Committee({ isAdmin = false, session }) {
                     return (
                       <tr
                         key={`${o.st_id}-${o.function_id}`}
-                        style={{
-                          borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-                          backgroundColor: own ? "rgba(59, 130, 246, 0.12)" : "transparent",
-                          borderLeft: own ? "4px solid #3b82f6" : "none"
-                        }}
+                        className={`transition-colors hover:bg-zinc-800/40 ${
+                          own ? "bg-indigo-600/10 border-l-4 border-l-indigo-500" : ""
+                        }`}
                       >
                         {isAdmin && (
-                          <td className="mono" style={{ padding: "12px" }}>
+                          <td className="py-3.5 px-4 font-mono text-xs font-semibold text-zinc-300">
                             {o.st_id}
                           </td>
                         )}
-                        <td style={{ padding: "12px" }}>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                            {isAdmin ? (
-                              <strong
-                                className="clickable-member"
-                                onClick={() => setProfileTarget(o.st_id)}
-                                style={{ cursor: "pointer", color: "#60a5fa", fontSize: "13px", fontWeight: "600" }}
-                              >
-                                {o.members?.name || "-"}
-                              </strong>
-                            ) : (
-                              <strong style={{ color: "#f8fafc", fontSize: "13px" }}>{o.members?.name || "-"}</strong>
-                            )}
-                          </div>
+
+                        <td className="py-3.5 px-4">
+                          {isAdmin ? (
+                            <button
+                              onClick={() => setProfileTarget(o.st_id)}
+                              className="font-bold text-indigo-400 hover:underline text-left text-sm"
+                            >
+                              {o.members?.name || "-"}
+                            </button>
+                          ) : (
+                            <span className="font-bold text-zinc-100 text-sm">{o.members?.name || "-"}</span>
+                          )}
                         </td>
-                        <td style={{ padding: "10px 12px" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span style={{ fontWeight: 600, fontSize: "12px", color: "var(--text)" }}>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-bold text-white text-xs">
                               {o.oc_position || "-"}
                             </span>
-                            <span style={{ fontSize: "11px", color: "var(--text3)" }}>
+                            <span className="text-[11px] text-zinc-400 font-medium">
                               {o.functions?.function_name || "-"}
                             </span>
                           </div>
                         </td>
-                        <td style={{ padding: "12px" }}>{statusBadge(o.apply_status)}</td>
 
-                        {/* Assigned Interviewer (Name ONLY) */}
-                        <td style={{ padding: "12px" }}>
+                        <td className="py-3.5 px-4">
+                          {renderStatusBadge(o.apply_status)}
+                        </td>
+
+                        <td className="py-3.5 px-4">
                           {interviewerDisplayName ? (
-                            <div style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              backgroundColor: "rgba(59, 130, 246, 0.15)",
-                              color: "#93c5fd",
-                              border: "1px solid rgba(59, 130, 246, 0.3)",
-                              padding: "4px 10px",
-                              borderRadius: "6px",
-                              fontSize: "0.85rem",
-                              fontWeight: "500"
-                            }}>
-                              <span>{interviewerDisplayName}</span>
-                            </div>
+                            <Badge variant="secondary" className="inline-flex items-center gap-1 bg-indigo-500/10 text-indigo-300 border-indigo-500/20 text-xs px-2.5 py-0.5">
+                              <User className="w-3 h-3" /> {interviewerDisplayName}
+                            </Badge>
                           ) : (
-                            <span style={{
-                              backgroundColor: "rgba(148, 163, 184, 0.1)",
-                              color: "#cbd5e1",
-                              padding: "4px 8px",
-                              borderRadius: "6px",
-                              fontSize: "0.8rem"
-                            }}>Unassigned</span>
+                            <span className="text-xs text-zinc-500 italic">Unassigned</span>
                           )}
                         </td>
 
-                        {/* Interview Slot (Scheduled date/time visible to all members; meeting link strictly private to applicant & admins) */}
-                        <td style={{ padding: "12px" }}>
+                        <td className="py-3.5 px-4">
                           {o.interview_date ? (
-                            <div>
-                              <div style={{ fontSize: "0.85rem", fontWeight: "600", color: "#34d399" }}>
-                                📅 {new Date(o.interview_date).toLocaleString()}
-                              </div>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                                {new Date(o.interview_date).toLocaleString()}
+                              </span>
                               {canSeeDetails && o.interview_link && (
-                                <a href={o.interview_link} target="_blank" rel="noreferrer" style={{ fontSize: "0.8rem", color: "#60a5fa", textDecoration: "underline", display: "inline-block", marginTop: "2px" }}>
-                                  🔗 Join Meeting
+                                <a 
+                                  href={o.interview_link} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="text-xs font-semibold text-blue-400 hover:underline inline-flex items-center gap-1"
+                                >
+                                  <Video className="w-3 h-3" /> Join Meeting
                                 </a>
                               )}
                             </div>
                           ) : (
-                            <span style={{
-                              backgroundColor: "rgba(148, 163, 184, 0.1)",
-                              color: "#cbd5e1",
-                              padding: "4px 8px",
-                              borderRadius: "6px",
-                              fontSize: "0.82rem"
-                            }}>Not booked</span>
+                            <span className="text-xs text-zinc-500 italic">Not booked</span>
                           )}
                         </td>
 
                         {isAdmin && (
-                          <td style={{ padding: "12px" }}>
-                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center" }}>
-                              {/* Send Cal.com Interview Invite */}
-                              <button
-                                className="btn btn-sm"
-                                style={{ backgroundColor: "#0284c7", color: "#ffffff", fontWeight: "600", border: "none", padding: "4px 10px" }}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              <Button
+                                size="sm"
                                 onClick={() => openInviteModal(o)}
                                 disabled={isProcessing}
-                                title="Select Interviewer and send Cal.com invitation email"
+                                className="h-7 px-2.5 text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold"
+                                title="Select Interviewer & Send Invite Email"
                               >
                                 Invite
-                              </button>
+                              </Button>
 
-                              {/* Open Cal.com Embed Modal */}
-                              <button
-                                className="btn btn-ghost btn-sm"
-                                style={{ border: "1px solid #60a5fa", color: "#60a5fa", padding: "4px 10px" }}
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => setCalModal({ isOpen: true, row: o })}
+                                className="h-7 px-2 text-xs border-indigo-500/40 text-indigo-300 hover:bg-indigo-950/40"
                                 title="Book via Cal.com Embed"
                               >
                                 Cal
-                              </button>
+                              </Button>
 
                               {o.apply_status !== "Accept" && (
-                                <button
-                                  className="btn btn-success btn-sm"
-                                  style={{ backgroundColor: "#16a34a", color: "#ffffff", border: "none", padding: "4px 10px" }}
+                                <Button
+                                  size="sm"
                                   onClick={() => openAcceptModal(o)}
                                   disabled={isProcessing}
+                                  className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
                                 >
                                   Accept
-                                </button>
+                                </Button>
                               )}
+
                               {o.apply_status !== "Reject" && (
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  style={{ backgroundColor: "#dc2626", color: "#ffffff", border: "none", padding: "4px 10px" }}
+                                <Button
+                                  size="sm"
                                   onClick={() => updateStatus(o, "Reject")}
                                   disabled={isProcessing}
+                                  className="h-7 px-2.5 text-xs bg-rose-600 hover:bg-rose-500 text-white font-semibold"
                                 >
                                   Reject
-                                </button>
+                                </Button>
                               )}
-                              <button className="btn btn-danger btn-sm" style={{ padding: "4px 8px" }} onClick={() => handleDelete(o.st_id, o.function_id)}>
-                                Del
-                              </button>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(o.st_id, o.function_id)}
+                                className="h-7 w-7 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
                             </div>
                           </td>
                         )}
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-              <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Add OC Modal */}
-      {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 className="modal-title">Add OC Assignment</h2>
-              <button className="modal-close" onClick={closeModal}>x</button>
-            </div>
-            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
-
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Member ST ID *</label>
-                <input placeholder="Type member ST ID" value={form.st_id} onChange={e => setForm({ ...form, st_id: e.target.value })} autoFocus />
-              </div>
-              <div className="form-group">
-                <label>Function *</label>
-                <select value={form.function_id} onChange={e => setForm({ ...form, function_id: e.target.value })}>
-                  <option value="">Select Function</option>
-                  {functions.map(f => <option key={f.id} value={f.id}>{f.function_name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Apply Status</label>
-                <select value={form.apply_status} onChange={e => setForm({ ...form, apply_status: e.target.value })}>
-                  {STATUS_OPTS.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>OC Position</label>
-                <input placeholder="e.g. Head of Logistics" value={form.oc_position} onChange={e => setForm({ ...form, oc_position: e.target.value })} />
-              </div>
-            </div>
-
-            {/* Select Interviewer B Dropdown */}
-            <div className="form-group">
-              <label>Assigned Interviewer</label>
-              <select value={form.interviewer_email} onChange={e => setForm({ ...form, interviewer_email: e.target.value })}>
-                <option value="">Select Staff Interviewer</option>
-                {session?.email && <option value={session.email}>Me ({session.name || session.email}) [Current User]</option>}
-                {staffList.map((st, idx) => (
-                  <option key={`${st.email}-${idx}`} value={st.email}>
-                    {st.name} ({st.email}) — [{st.role.toUpperCase()}]
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save & Send Email"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Invite Modal with Search & Paginated Interviewer Picker (5 items/page) */}
-      {inviteModal.isOpen && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setInviteModal({ isOpen: false, row: null })}>
-          <div className="modal" style={{ maxWidth: 520 }}>
-            <div className="modal-header">
-              <h2 className="modal-title">✉️ Invite Candidate to Interview</h2>
-              <button className="modal-close" onClick={() => setInviteModal({ isOpen: false, row: null })}>x</button>
-            </div>
-
-            {/* Candidate Summary Box */}
-            <div style={{ background: "var(--bg3)", padding: "12px", borderRadius: "8px", marginBottom: "16px", fontSize: "0.9rem", border: "1px solid var(--border)" }}>
-              <p style={{ margin: "0 0 4px 0" }}><strong>Candidate:</strong> {inviteModal.row?.members?.name} ({inviteModal.row?.st_id})</p>
-              <p style={{ margin: "0 0 4px 0" }}><strong>Email:</strong> {inviteModal.row?.members?.email || "No email"}</p>
-              <p style={{ margin: 0 }}><strong>Position:</strong> {inviteModal.row?.oc_position || inviteModal.row?.functions?.function_name}</p>
-            </div>
-
-            {/* Searchable & Paginated Interviewer Picker */}
-            <div className="form-group" style={{ marginBottom: "16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <label style={{ fontWeight: "600", color: "#60a5fa", margin: 0 }}>
-                  👤 Select Interviewer (Receives Booking Copy)
-                </label>
-                <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>
-                  Showing {filteredInterviewers.length} staff
-                </span>
-              </div>
-
-              {/* Search Bar */}
-              <input
-                type="text"
-                placeholder="🔍 Search interviewer by name or email..."
-                value={interviewerSearch}
-                onChange={e => {
-                  setInterviewerSearch(e.target.value);
-                  setInterviewerPage(0);
-                }}
-                style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", marginBottom: "10px", fontSize: "0.88rem" }}
-              />
-
-              {/* Paginated List (5 items per page) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "250px", overflowY: "auto" }}>
-                {paginatedInterviewers.length === 0 ? (
-                  <div style={{ padding: "12px", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem", background: "var(--bg)", borderRadius: "6px" }}>
-                    No interviewers found matching "{interviewerSearch}"
-                  </div>
-                ) : (
-                  paginatedInterviewers.map((st, idx) => {
-                    const isSelected = selectedInterviewerEmail === st.email;
-                    return (
-                      <div
-                        key={`${st.email}-${idx}`}
-                        onClick={() => setSelectedInterviewerEmail(st.email)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          backgroundColor: isSelected ? "rgba(2, 132, 199, 0.25)" : "var(--bg3)",
-                          border: isSelected ? "1px solid #0284c7" : "1px solid rgba(255, 255, 255, 0.05)",
-                          transition: "all 0.15s ease"
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <span style={{ fontSize: "1.1rem" }}>{st.isSelf ? "⭐" : "👤"}</span>
-                          <div>
-                            <div style={{ fontSize: "0.88rem", fontWeight: "600", color: isSelected ? "#38bdf8" : "#f8fafc" }}>
-                              {st.name}
-                            </div>
-                            <div style={{ fontSize: "0.78rem", color: "#cbd5e1" }}>
-                              {st.email}
-                            </div>
-                          </div>
-                        </div>
-                        <span className={`badge ${st.role === "admin" ? "badge-red" : st.role === "editor" ? "badge-purple" : "badge-gray"}`} style={{ fontSize: "0.72rem" }}>
-                          {st.isSelf ? "Me" : st.role ? st.role.toUpperCase() : "STAFF"}
-                        </span>
-                      </div>
-                    );
                   })
                 )}
-
-                {/* Custom Email Option */}
-                <div
-                  onClick={() => setSelectedInterviewerEmail("custom")}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    backgroundColor: selectedInterviewerEmail === "custom" ? "rgba(2, 132, 199, 0.25)" : "var(--bg3)",
-                    border: selectedInterviewerEmail === "custom" ? "1px solid #0284c7" : "1px solid rgba(255, 255, 255, 0.05)",
-                  }}
-                >
-                  <span style={{ fontSize: "1.1rem" }}>✏️</span>
-                  <div style={{ fontSize: "0.88rem", fontWeight: "600", color: selectedInterviewerEmail === "custom" ? "#38bdf8" : "#f8fafc" }}>
-                    Enter Custom Email...
-                  </div>
-                </div>
-              </div>
-
-              {/* Pagination Controls for Interviewer Picker */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "10px", padding: "0 4px" }}>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setInterviewerPage(p => Math.max(0, p - 1))}
-                  disabled={interviewerPage === 0}
-                  style={{ padding: "3px 10px", fontSize: "0.8rem" }}
-                >
-                  ◀ Prev
-                </button>
-                <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
-                  Page {interviewerPage + 1} of {totalInterviewerPages}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setInterviewerPage(p => Math.min(totalInterviewerPages - 1, p + 1))}
-                  disabled={interviewerPage >= totalInterviewerPages - 1}
-                  style={{ padding: "3px 10px", fontSize: "0.8rem" }}
-                >
-                  Next ▶
-                </button>
-              </div>
-            </div>
-
-            {/* Custom Email Input Box */}
-            {selectedInterviewerEmail === "custom" && (
-              <div className="form-group" style={{ marginBottom: "16px" }}>
-                <label>Custom Interviewer Email *</label>
-                <input
-                  type="email"
-                  placeholder="e.g. interviewer@domain.com"
-                  value={customInterviewerEmail}
-                  onChange={e => setCustomInterviewerEmail(e.target.value)}
-                  autoFocus
-                />
-              </div>
-            )}
-
-            {/* Cal.com Link Input */}
-            <div className="form-group" style={{ marginBottom: "16px" }}>
-              <label>Cal.com Link</label>
-              <input
-                value={customCalUrl}
-                onChange={e => handleCalUrlChange(e.target.value)}
-                placeholder="https://cal.com/adss-ruhuna/committee-interview"
-              />
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setInviteModal({ isOpen: false, row: null })}>Cancel</button>
-              <button className="btn btn-primary" onClick={sendInviteWithInterviewer} disabled={inviteSending}>
-                {inviteSending ? "Sending Invite..." : "✉️ Send Invitation Email"}
-              </button>
-            </div>
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+
+        {total > PAGE_SIZE && (
+          <div className="p-4 border-t border-zinc-800 bg-zinc-900/40">
+            <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
+          </div>
+        )}
+      </Card>
+
+      {/* STUDENT PROFILE PREVIEW MODAL */}
+      {profileTarget && (
+        <StudentProfileModal
+          stId={profileTarget}
+          onClose={() => setProfileTarget(null)}
+        />
       )}
 
-      {/* Add Function Modal */}
-      {fnModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setFnModal(false)}>
-          <div className="modal" style={{ maxWidth: 380 }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Add Function</h2>
-              <button className="modal-close" onClick={() => setFnModal(false)}>x</button>
-            </div>
-            <div className="form-group">
-              <label>Function Name</label>
-              <input placeholder="e.g. Logistics, Marketing..." value={fnName} onChange={e => setFnName(e.target.value)} autoFocus />
-            </div>
-            <div className="mb-3 mt-1" style={{ marginTop: 10 }}>
-              <p className="text-sm text-muted">Existing: {functions.map(f => f.function_name).join(", ") || "None"}</p>
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setFnModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={addFunction} disabled={fnSaving}>{fnSaving ? "Adding..." : "Add Function"}</button>
-            </div>
-          </div>
-        </div>
+      {/* CAL.COM EMBED MODAL */}
+      {calModal.isOpen && calModal.row && (
+        <CalEmbedModal
+          row={calModal.row}
+          customCalUrl={customCalUrl}
+          onClose={() => setCalModal({ isOpen: false, row: null })}
+          onSuccess={() => loadOc(selectedEvent, page, filterStatus, search)}
+        />
       )}
 
-      {/* Setup Cal.com Modal */}
-      {calSetupModalOpen && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setCalSetupModalOpen(false)}>
-          <div className="modal" style={{ maxWidth: 580 }}>
-            <div className="modal-header">
-              <h2 className="modal-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span>⚙️</span> Cal.com Setup Guide & Webhook Configuration
-              </h2>
-              <button className="modal-close" onClick={() => setCalSetupModalOpen(false)}>x</button>
-            </div>
+      {/* INTERVIEWER INVITE MODAL */}
+      {inviteModal.isOpen && inviteModal.row && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setInviteModal({ isOpen: false, row: null })}>
+          <Card 
+            className="w-full max-w-lg max-h-[90vh] flex flex-col bg-[#17171a] border-zinc-700/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-zinc-800">
+              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                <Mail className="w-4 h-4 text-sky-400" /> Invite Candidate to Interview
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setInviteModal({ isOpen: false, row: null })} className="h-7 w-7 text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
 
-            <div style={{ fontSize: "0.9rem", color: "#e2e8f0", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.5 }}>
-                Follow these instructions to connect your <strong>Cal.com</strong> account to Society Management for automated interview tracking and Google Meet booking updates.
-              </p>
-
-              {/* Step 1 */}
-              <div style={{ background: "var(--bg3)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div style={{ fontWeight: "700", color: "#60a5fa", marginBottom: "4px" }}>
-                  Step 1: Set up Cal.com Event Type
-                </div>
-                <p style={{ margin: 0, fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.4 }}>
-                  1. Log in to your <a href="https://cal.com" target="_blank" rel="noreferrer" style={{ color: "#38bdf8", textDecoration: "underline" }}>Cal.com</a> dashboard.<br />
-                  2. Create or edit an Event Type (e.g. <code>committee-interview</code>).<br />
-                  3. Copy your link (default: <code>https://cal.com/adss-ruhuna/committee-interview</code>) and save it in the <strong>Cal.com Interview Link</strong> box on the Event Committee panel.
-                </p>
+            <CardContent className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800 space-y-1">
+                <p className="font-bold text-white text-sm">{inviteModal.row.members?.name}</p>
+                <p className="text-zinc-400 font-mono">ID: {inviteModal.row.st_id} • Position: {inviteModal.row.oc_position || inviteModal.row.functions?.function_name}</p>
               </div>
 
-              {/* Step 2 - Date & Time Range & Date Overrides Setup */}
-              <div style={{ background: "var(--bg3)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div style={{ fontWeight: "700", color: "#facc15", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span>📅</span> Step 2: Set Up Interview Time, Date Range & Date Overrides
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                  Select Assigned Interviewer
+                </label>
+                
+                <div className="relative mb-2">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <Input
+                    placeholder="Search staff or member name..."
+                    value={interviewerSearch}
+                    onChange={e => { setInterviewerSearch(e.target.value); setInterviewerPage(0); }}
+                    className="pl-9 h-8 text-xs"
+                  />
                 </div>
-                <p style={{ margin: 0, fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5 }}>
-                  1. Log in to <a href="https://cal.com" target="_blank" rel="noreferrer" style={{ color: "#38bdf8", textDecoration: "underline" }}>Cal.com</a> and click <strong>Availability</strong> in the left sidebar.<br />
-                  2. Create a new Availability Schedule specifically for committee interviews.<br />
-                  3. Set your specific <strong>Date &amp; Time Range</strong> for interview days.<br />
-                  4. Use <strong>Date Overrides</strong> (<em>"Add dates when your availability changes from your daily hours"</em>) to pick exact interview dates and custom time slots for candidate interviews.<br />
-                  5. Go to <strong>Event Types</strong> &gt; select your <code>committee-interview</code> event &gt; assign this schedule under <strong>Availability</strong>.
-                </p>
-              </div>
 
-              {/* Step 3 */}
-              <div style={{ background: "var(--bg3)", padding: "12px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div style={{ fontWeight: "700", color: "#34d399", marginBottom: "4px" }}>
-                  Step 3: Interview Invitation & Booking
-                </div>
-                <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5 }}>
-                  <li>Click <strong>✉️ Invite</strong> next to an OC applicant to send an invitation email with the custom booking link.</li>
-                  <li>The candidate selects an open slot based on your configured Time Availability.</li>
-                  <li>The scheduled interview time automatically updates on the Committee dashboard!</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="modal-actions" style={{ marginTop: "20px" }}>
-              <button className="btn btn-primary" onClick={() => setCalSetupModalOpen(false)}>Got it!</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cal.com Embed Modal */}
-      <CalEmbedModal
-        isOpen={calModal.isOpen}
-        onClose={() => setCalModal({ isOpen: false, row: null })}
-        calLink={customCalUrl}
-        studentName={calModal.row?.members?.name}
-        studentEmail={calModal.row?.members?.email}
-        stId={calModal.row?.st_id}
-        interviewerEmail={calModal.row?.interviewer_email || session?.email}
-        eventName={selectedEventInfo?.name}
-        position={calModal.row?.oc_position || calModal.row?.functions?.function_name}
-      />
-
-      {/* Accept & Select Position Modal */}
-      {acceptModal.isOpen && acceptModal.row && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}>
-          <div className="modal" style={{ maxWidth: "500px" }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Accept Committee Member</h2>
-              <button className="modal-close" onClick={() => setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}>x</button>
-            </div>
-
-            <div style={{ marginBottom: "15px", fontSize: "13px", color: "var(--text)" }}>
-              <p style={{ margin: "0 0 6px 0" }}>
-                <strong>Applicant:</strong> {acceptModal.row.members?.name || acceptModal.row.st_id} ({acceptModal.row.st_id})
-              </p>
-              <p style={{ margin: 0 }}>
-                <strong>Function:</strong> {acceptModal.row.functions?.function_name || "General"}
-              </p>
-            </div>
-
-            <div className="form-group" style={{ marginBottom: "15px" }}>
-              <label style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", display: "block" }}>
-                Assign Official Position (Select ONLY 1) *
-              </label>
-              <span className="text-muted" style={{ fontSize: "11px", display: "block", marginBottom: "10px" }}>
-                The applicant selected preferred position(s). Choose the single position to assign for this member:
-              </span>
-
-              {acceptModal.positions && acceptModal.positions.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
-                  {acceptModal.positions.map((pos, idx) => {
-                    const isChecked = acceptModal.selectedPosition === pos && !acceptModal.customPosition;
-                    return (
-                      <label
-                        key={idx}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "10px 14px",
-                          background: isChecked ? "rgba(34, 197, 94, 0.15)" : "var(--bg3)",
-                          border: `1px solid ${isChecked ? "#22c55e" : "var(--border)"}`,
-                          borderRadius: "var(--r)",
-                          cursor: "pointer",
-                          transition: "all 0.15s ease"
-                        }}
-                      >
+                <div className="space-y-1.5 max-h-48 overflow-y-auto p-2 rounded-xl border border-zinc-800 bg-zinc-900/50">
+                  {paginatedInterviewers.map(item => (
+                    <label 
+                      key={item.email}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                        selectedInterviewerEmail === item.email 
+                          ? "bg-indigo-600/20 border-indigo-500/50 text-white" 
+                          : "border-zinc-800 hover:bg-zinc-800/40 text-zinc-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
                         <input
                           type="radio"
-                          name="accept-position-radio"
-                          checked={isChecked}
-                          onChange={() => setAcceptModal(prev => ({ ...prev, selectedPosition: pos, customPosition: "" }))}
-                          style={{ width: "16px", height: "16px", accentColor: "#22c55e", cursor: "pointer" }}
+                          name="interviewerChoice"
+                          value={item.email}
+                          checked={selectedInterviewerEmail === item.email}
+                          onChange={() => setSelectedInterviewerEmail(item.email)}
+                          className="w-3.5 h-3.5 text-indigo-600"
                         />
-                        <span style={{ fontSize: "13px", fontWeight: isChecked ? "600" : "400", color: "var(--text)" }}>
-                          {pos}
-                        </span>
-                      </label>
-                    );
-                  })}
+                        <span className="font-medium">{item.name}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-500 font-mono">{item.email}</span>
+                    </label>
+                  ))}
+
+                  <label 
+                    className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                      selectedInterviewerEmail === "custom" 
+                        ? "bg-indigo-600/20 border-indigo-500/50 text-white" 
+                        : "border-zinc-800 hover:bg-zinc-800/40 text-zinc-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="interviewerChoice"
+                      value="custom"
+                      checked={selectedInterviewerEmail === "custom"}
+                      onChange={() => setSelectedInterviewerEmail("custom")}
+                      className="w-3.5 h-3.5 text-indigo-600"
+                    />
+                    <span className="font-semibold">Enter Custom Interviewer Email</span>
+                  </label>
                 </div>
-              ) : (
-                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "10px" }}>
-                  No preferred position was specified by applicant.
+
+                {totalInterviewerPages > 1 && (
+                  <div className="flex items-center justify-between mt-2 text-[11px] text-zinc-500">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setInterviewerPage(p => Math.max(0, p - 1))}
+                      disabled={interviewerPage === 0}
+                      className="h-6 text-[11px]"
+                    >
+                      Prev
+                    </Button>
+                    <span>Page {interviewerPage + 1} of {totalInterviewerPages}</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setInterviewerPage(p => Math.min(totalInterviewerPages - 1, p + 1))}
+                      disabled={interviewerPage >= totalInterviewerPages - 1}
+                      className="h-6 text-[11px]"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {selectedInterviewerEmail === "custom" && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Custom Interviewer Email</label>
+                  <Input
+                    placeholder="e.g. interviewer@domain.com"
+                    value={customInterviewerEmail}
+                    onChange={e => setCustomInterviewerEmail(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+              )}
+            </CardContent>
+
+            <CardFooter className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800 bg-zinc-900/40">
+              <Button variant="ghost" size="sm" onClick={() => setInviteModal({ isOpen: false, row: null })} disabled={inviteSending}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={sendInviteWithInterviewer} disabled={inviteSending} className="bg-sky-600 hover:bg-sky-500 text-white font-semibold">
+                {inviteSending ? "Sending..." : "Send Invite Email"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* ACCEPT POSITION SELECTION MODAL */}
+      {acceptModal.isOpen && acceptModal.row && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}>
+          <Card 
+            className="w-full max-w-md flex flex-col bg-[#17171a] border-zinc-700/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-zinc-800">
+              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Accept & Assign Final Position
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })} className="h-7 w-7 text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
+
+            <CardContent className="p-5 space-y-4 text-xs">
+              <p className="text-zinc-400 leading-relaxed">
+                Confirm acceptance for <strong className="text-white">{acceptModal.row.members?.name}</strong> and assign their final committee position.
+              </p>
+
+              {acceptModal.positions.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Selected Applied Position</label>
+                  <div className="space-y-1.5">
+                    {acceptModal.positions.map((pos, idx) => (
+                      <label key={idx} className="flex items-center gap-2 p-2 rounded-lg border border-zinc-800 bg-zinc-900/50 text-xs font-medium text-zinc-200 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="posChoice"
+                          value={pos}
+                          checked={acceptModal.selectedPosition === pos && !acceptModal.customPosition}
+                          onChange={() => setAcceptModal(prev => ({ ...prev, selectedPosition: pos, customPosition: "" }))}
+                          className="w-3.5 h-3.5 text-indigo-600"
+                        />
+                        <span>{pos}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "12px", fontWeight: "500", color: "var(--text-muted)" }}>
-                  Or type a custom assigned position:
-                </label>
-                <input
-                  placeholder="e.g. Design Lead..."
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1">Custom Position (Overrides Selection)</label>
+                <Input
+                  placeholder="e.g. Lead Coordinator / Team Head"
                   value={acceptModal.customPosition}
                   onChange={e => setAcceptModal(prev => ({ ...prev, customPosition: e.target.value }))}
-                  style={{ fontSize: "13px" }}
+                  className="h-9 text-xs"
                 />
               </div>
-            </div>
+            </CardContent>
 
-            <div className="modal-actions" style={{ marginTop: "20px" }}>
-              <button
-                className="btn btn-ghost"
-                onClick={() => setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}
-              >
+            <CardFooter className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800 bg-zinc-900/40">
+              <Button variant="ghost" size="sm" onClick={() => setAcceptModal({ isOpen: false, row: null, positions: [], selectedPosition: "", customPosition: "" })}>
                 Cancel
-              </button>
-              <button
-                className="btn btn-success"
-                onClick={handleConfirmAccept}
-                disabled={!!emailSendingId}
-                style={{ backgroundColor: "#16a34a", color: "#ffffff", border: "none" }}
-              >
-                {emailSendingId ? "Accepting..." : "Confirm & Accept Member"}
-              </button>
-            </div>
-          </div>
+              </Button>
+              <Button size="sm" onClick={handleConfirmAccept} className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
+                Confirm & Accept
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       )}
 
-      <StudentProfileModal stId={profileTarget} onClose={() => setProfileTarget(null)} />
+      {/* ADD OC MODAL */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={closeModal}>
+          <Card 
+            className="w-full max-w-lg flex flex-col bg-[#17171a] border-zinc-700/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-zinc-800">
+              <CardTitle className="text-base font-bold text-white">Add OC Assignment</CardTitle>
+              <Button variant="ghost" size="icon" onClick={closeModal} className="h-7 w-7 text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
+
+            {msg && (
+              <div className={`mx-5 mt-4 p-3 rounded-lg border text-xs font-semibold flex items-center gap-2 ${
+                msg.type === "error" ? "bg-rose-950/40 border-rose-900/60 text-rose-300" : "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
+              }`}>
+                {msg.type === "error" ? <AlertCircle className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                <span>{msg.text}</span>
+              </div>
+            )}
+
+            <CardContent className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Member ST ID *</label>
+                  <Input
+                    placeholder="Type member ST ID"
+                    value={form.st_id}
+                    onChange={e => setForm({ ...form, st_id: e.target.value })}
+                    className="h-9 text-xs"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Function *</label>
+                  <select
+                    value={form.function_id}
+                    onChange={e => setForm({ ...form, function_id: e.target.value })}
+                    className="w-full h-9 px-3 rounded-lg border border-zinc-800 bg-[#141417] text-xs font-medium text-zinc-200"
+                  >
+                    <option value="">Select Function</option>
+                    {functions.map(f => <option key={f.id} value={f.id}>{f.function_name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Apply Status</label>
+                  <select
+                    value={form.apply_status}
+                    onChange={e => setForm({ ...form, apply_status: e.target.value })}
+                    className="w-full h-9 px-3 rounded-lg border border-zinc-800 bg-[#141417] text-xs font-medium text-zinc-200"
+                  >
+                    {STATUS_OPTS.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">OC Position Title</label>
+                  <Input
+                    placeholder="e.g. Lead Coordinator"
+                    value={form.oc_position}
+                    onChange={e => setForm({ ...form, oc_position: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1">Assigned Interviewer Email</label>
+                <Input
+                  placeholder="interviewer@email.com"
+                  value={form.interviewer_email}
+                  onChange={e => setForm({ ...form, interviewer_email: e.target.value })}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800 bg-zinc-900/40">
+              <Button variant="ghost" size="sm" onClick={closeModal} disabled={saving}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">
+                {saving ? "Saving..." : "Save Record"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* ADD SUB-TEAM FUNCTION MODAL */}
+      {fnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setFnModal(false)}>
+          <Card 
+            className="w-full max-w-md flex flex-col bg-[#17171a] border-zinc-700/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-zinc-800">
+              <CardTitle className="text-base font-bold text-white">Add Sub-team Function</CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setFnModal(false)} className="h-7 w-7 text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
+
+            <CardContent className="p-5 space-y-3 text-xs">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1">Function Name *</label>
+                <Input
+                  placeholder="e.g. Media & Photography"
+                  value={fnName}
+                  onChange={e => setFnName(e.target.value)}
+                  className="h-9 text-xs"
+                  autoFocus
+                />
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800 bg-zinc-900/40">
+              <Button variant="ghost" size="sm" onClick={() => setFnModal(false)} disabled={fnSaving}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={addFunction} disabled={fnSaving} className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">
+                {fnSaving ? "Saving..." : "Create Function"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* CAL.COM SETUP HELP MODAL */}
+      {calSetupModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setCalSetupModalOpen(false)}>
+          <Card 
+            className="w-full max-w-xl max-h-[85vh] flex flex-col bg-[#17171a] border-zinc-700/80 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-zinc-800">
+              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                <Settings className="w-4 h-4 text-indigo-400" /> How to Setup Cal.com Automated Interviews
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setCalSetupModalOpen(false)} className="h-7 w-7 text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
+
+            <CardContent className="flex-1 overflow-y-auto p-5 space-y-4 text-xs text-zinc-300 leading-relaxed">
+              <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-900/50 text-indigo-300">
+                Follow these 3 quick steps to connect your Cal.com event type to Supabase.
+              </div>
+
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/50">
+                  <strong className="text-white block mb-1">Step 1: Get your Cal.com Event Link</strong>
+                  <p className="text-zinc-400">Copy your Cal.com booking link (e.g. <code className="text-indigo-300">https://cal.com/adss-ruhuna/committee-interview</code>) and paste it into the Cal.com input box on the Committee page.</p>
+                </div>
+
+                <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/50">
+                  <strong className="text-white block mb-1">Step 2: Add Webhook in Cal.com</strong>
+                  <p className="text-zinc-400">In Cal.com settings, navigate to <strong>Webhooks</strong> and add a new webhook pointing to:</p>
+                  <code className="block mt-1 p-2 rounded bg-black/50 text-emerald-400 font-mono text-[11px] break-all select-all">
+                    https://zbhwelmxdgldbwbnsfhd.supabase.co/functions/v1/cal-webhook
+                  </code>
+                </div>
+
+                <div className="p-3 rounded-lg border border-zinc-800 bg-zinc-900/50">
+                  <strong className="text-white block mb-1">Step 3: Enable Webhook Triggers</strong>
+                  <p className="text-zinc-400">Enable <strong>BOOKING_CREATED</strong> and <strong>BOOKING_RESCHEDULED</strong> events so Supabase automatically updates applicant status to <em>Interview Scheduled</em>!</p>
+                </div>
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex items-center justify-end pt-3 border-t border-zinc-800 bg-zinc-900/40">
+              <Button size="sm" onClick={() => setCalSetupModalOpen(false)}>
+                Got it
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
