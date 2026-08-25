@@ -93,11 +93,11 @@ export default function StudentProfileModal({ stId, onClose }) {
             {profileTarget.profile_image_url ? (
               <img 
                 src={profileTarget.profile_image_url} 
-                alt={profileTarget.name} 
+                alt={profileTarget.preferred_name || profileTarget.name} 
                 style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }} 
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profileTarget.name);
+                  e.target.src = "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(profileTarget.preferred_name || profileTarget.name);
                 }}
               />
             ) : (
@@ -109,14 +109,18 @@ export default function StudentProfileModal({ stId, onClose }) {
           
           <div style={{ flex: 1, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
             <div>
-              <label>Full Name</label>
-              <div style={{ fontSize: "20px", fontWeight: "800", marginTop: "4px", color: "var(--text)" }}>{profileTarget.name}</div>
-              {profileTarget.st_position && (
-                <span className="badge badge-purple" style={{ marginTop: "6px" }}>{profileTarget.st_position}</span>
-              )}
-              {profileTarget.member_function && (
-                <span className="badge badge-gray" style={{ marginTop: "6px", marginLeft: "6px" }}>{profileTarget.member_function}</span>
-              )}
+              <label style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text3)" }}>Student Member</label>
+              <div style={{ fontSize: "22px", fontWeight: "800", marginTop: "2px", color: "var(--text)" }}>
+                {profileTarget.preferred_name || profileTarget.name}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                {profileTarget.st_position && (
+                  <span className="badge badge-purple">{profileTarget.st_position}</span>
+                )}
+                {profileTarget.member_function && (
+                  <span className="badge badge-gray">{profileTarget.member_function}</span>
+                )}
+              </div>
             </div>
             <div style={{ textAlign: "right", minWidth: "120px" }}>
               <label>Student ID</label>
@@ -128,6 +132,22 @@ export default function StudentProfileModal({ stId, onClose }) {
                   <span className="text-muted">-</span>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Both Names Block: Full Name & Preferred Name */}
+        <div className="form-row form-row-2" style={{ background: "var(--bg3)", padding: "12px 16px", borderRadius: "var(--r)", marginBottom: "12px", border: "1px solid var(--border)" }}>
+          <div className="form-group">
+            <label>Full Name</label>
+            <div style={{ fontSize: "14px", fontWeight: "700", marginTop: "2px", color: "var(--text)" }}>
+              {profileTarget.name || "—"}
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Preferred Name (Calling Name)</label>
+            <div style={{ fontSize: "14px", fontWeight: "700", marginTop: "2px", color: "var(--accent)" }}>
+              {profileTarget.preferred_name || <span className="text-muted" style={{ fontWeight: "normal", fontStyle: "italic" }}>Not provided</span>}
             </div>
           </div>
         </div>

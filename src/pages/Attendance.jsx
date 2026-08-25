@@ -799,7 +799,7 @@ export default function Attendance({ isAdmin = false, session = { role: "guest",
           <div className="card"><div className="empty-state"><div className="icon">*</div><p>Create an event first, then seed attendance.</p></div></div>
         ) : (
           <>
-            <div className="card mb-3" style={{ marginBottom: 16 }}>
+            <div className="card mb-3 relative z-30" style={{ marginBottom: 16, overflow: "visible" }}>
               <div className="card-header">
                 <span className="card-title">Event Attendance</span>
                 {selectedEventInfo && <span className="badge badge-gray">{selectedEventInfo.date}</span>}

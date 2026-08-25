@@ -31,7 +31,7 @@ const NAV_ITEMS = [
   { id: "attendance", label: "Attendance", icon: "check_circle" },
   { id: "members", label: "Members", icon: "groups" },
   { id: "committee", label: "Committee", icon: "diversity_3" },
-  { id: "tasks", label: "OC Tasks", icon: "task_alt" },
+  // { id: "tasks", label: "OC Tasks", icon: "task_alt" },
   { id: "events", label: "Events", icon: "event" },
   { id: "messages", label: "Messages", icon: "mail" },
   { id: "letters", label: "Letter Requests", icon: "description" },
@@ -92,7 +92,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(!_isReturningUser);
   const [showLogin, setShowLogin] = useState(false);
   const [authMode, setAuthMode] = useState("login");
-  const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "", level: "1", phone: "", memberFunction: "Finance" });
+  const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "", preferredName: "", level: "1", phone: "", memberFunction: "Finance" });
   const [loginError, setLoginError] = useState("");
   const [authSaving, setAuthSaving] = useState(false);
   const [regEnabled, setRegEnabled] = useState(true);
@@ -140,7 +140,7 @@ export default function App() {
   };
 
   const resetAuthForm = () => {
-    setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" });
+    setLogin({ role: "member", email: "", password: "", name: "", preferredName: "", stId: "", level: "1", phone: "", memberFunction: "Finance" });
     setLoginError("");
     setProfileImageFile(null);
     if (previewUrl) {
@@ -225,7 +225,7 @@ export default function App() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("id, email, full_name, role, st_id, status")
+        .select("id, email, full_name, preferred_name, role, st_id, status")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -235,7 +235,9 @@ export default function App() {
         const profileData = {
           role: userRole,
           stId: data?.st_id || "",
-          name: data?.full_name || user.email || "",
+          name: data?.preferred_name || data?.full_name || user.email || "",
+          fullName: data?.full_name || "",
+          preferredName: data?.preferred_name || "",
           email: data?.email || user.email || "",
           userId: user.id,
           status: userStatus,
@@ -310,6 +312,7 @@ export default function App() {
 
       let v_st_id = null;
       let v_name = name;
+      let v_preferred_name = login.preferredName.trim() || null;
 
       // Check if email exists in the members table to link st_id for all roles (member, editor, admin)
       const { data: memberRows, error: memberErr } = await supabase
@@ -327,6 +330,9 @@ export default function App() {
         v_st_id = memberData.st_id;
         if (!v_name) {
           v_name = memberData.name;
+        }
+        if (!v_preferred_name && memberData.preferred_name) {
+          v_preferred_name = memberData.preferred_name;
         }
       }
 
@@ -406,6 +412,7 @@ export default function App() {
         options: {
           data: {
             full_name: v_name,
+            preferred_name: v_preferred_name,
             role,
             st_id: finalStId,
             level: login.level || "1",
@@ -735,7 +742,7 @@ export default function App() {
                 {loginError && <div className="alert alert-error">{loginError}</div>}
                 <div className="auth-tabs">
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>Register</button>
+                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", preferredName: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>Register</button>
                 </div>
                 {authMode === "register" && (
                   <>
@@ -748,6 +755,16 @@ export default function App() {
                           onChange={e => setLogin({ ...login, name: e.target.value })}
                           autoFocus
                           required
+                        />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Preferred Name <span className="text-muted" style={{ fontSize: "12px", fontWeight: "normal" }}>(Calling Name)</span></label>
+                        <input
+                          placeholder="Pathum"
+                          value={login.preferredName}
+                          onChange={e => setLogin({ ...login, preferredName: e.target.value })}
                         />
                       </div>
                     </div>
@@ -1043,6 +1060,16 @@ export default function App() {
                           onChange={e => setLogin({ ...login, name: e.target.value })}
                           autoFocus
                           required
+                        />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Preferred Name <span className="text-muted" style={{ fontSize: "12px", fontWeight: "normal" }}>(Calling Name)</span></label>
+                        <input
+                          placeholder="Pathum"
+                          value={login.preferredName}
+                          onChange={e => setLogin({ ...login, preferredName: e.target.value })}
                         />
                       </div>
                     </div>

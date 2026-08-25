@@ -61,6 +61,7 @@ export default function EventSelect({
         width: "100%",
         display: "inline-block",
         userSelect: "none",
+        zIndex: isOpen ? 100 : 1,
         ...style
       }}
     >
@@ -72,8 +73,8 @@ export default function EventSelect({
           alignItems: "center",
           justifyContent: "space-between",
           padding: "10px 14px",
-          background: "var(--surface)",
-          border: isOpen ? "1px solid var(--accent)" : "1px solid var(--border)",
+          background: "var(--surface, #17171a)",
+          border: isOpen ? "1px solid var(--accent, #6366f1)" : "1px solid var(--border, #27272a)",
           borderRadius: "var(--r, 8px)",
           cursor: "pointer",
           transition: "border-color 0.2s, box-shadow 0.2s",
@@ -85,7 +86,7 @@ export default function EventSelect({
           <span style={{ fontSize: "16px", flexShrink: 0 }}>📅</span>
           {selectedEvent ? (
             <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              <span style={{ fontWeight: "600", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ fontWeight: "600", color: "var(--text, #ffffff)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {selectedEvent.name}
               </span>
               {selectedEvent.date && (
@@ -100,7 +101,7 @@ export default function EventSelect({
             </span>
           )}
         </div>
-        <span style={{ fontSize: "12px", color: "var(--text3)", transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
+        <span style={{ fontSize: "12px", color: "var(--text3, #a1a1aa)", transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
           ▼
         </span>
       </div>
@@ -110,14 +111,14 @@ export default function EventSelect({
         <div
           style={{
             position: "absolute",
-            top: "calc(100% + 4px)",
+            top: "calc(100% + 6px)",
             left: 0,
             right: 0,
-            zIndex: 999,
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r, 8px)",
-            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+            zIndex: 99999,
+            background: "#18181b",
+            border: "1px solid var(--border, #3f3f46)",
+            borderRadius: "var(--r, 10px)",
+            boxShadow: "0 16px 36px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0,0,0,0.3)",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column"

@@ -4,7 +4,7 @@ import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import StudentProfileModal from "../components/StudentProfileModal";
 import PhoneContact from "../components/PhoneContact";
 
-const EMPTY_FORM = { st_id: "", name: "", level: "", st_position: "", member_function: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "", role: "member" };
+const EMPTY_FORM = { st_id: "", name: "", preferred_name: "", level: "", st_position: "", member_function: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "", role: "member" };
 
 const getInitials = (name) => {
   if (!name) return "??";
@@ -48,11 +48,13 @@ function parseCSV(text) {
 }
 
 function mapHeaders(headers) {
-  const mapping = { st_id: -1, name: -1, level: -1, st_position: -1, member_function: -1, email: -1, mobile_number: -1, profile_image_url: -1, linkedin_url: -1 };
+  const mapping = { st_id: -1, name: -1, preferred_name: -1, level: -1, st_position: -1, member_function: -1, email: -1, mobile_number: -1, profile_image_url: -1, linkedin_url: -1 };
   headers.forEach((h, index) => {
     const clean = h.trim().toLowerCase().replace(/[\s_-]/g, "");
     if (["stid", "studentid", "id", "stno", "studentno", "regno", "registrationno"].includes(clean)) {
       if (mapping.st_id === -1) mapping.st_id = index;
+    } else if (["preferredname", "callingname", "nickname", "preferred", "callname", "shortname"].includes(clean)) {
+      if (mapping.preferred_name === -1) mapping.preferred_name = index;
     } else if (["name", "fullname", "studentname", "membername"].includes(clean)) {
       if (mapping.name === -1) mapping.name = index;
     } else if (["level", "year", "academicyear", "studyingyear"].includes(clean)) {
@@ -106,6 +108,7 @@ export default function Members({ isAdmin = false }) {
   const [settingsMsg, setSettingsMsg] = useState(null);
   const [editPermissions, setEditPermissions] = useState({
     name: false,
+    preferred_name: true,
     photo: true,
     whatsapp: false,
     linkedin: true,
@@ -119,6 +122,7 @@ export default function Members({ isAdmin = false }) {
       .select("key, value")
       .in("key", [
         "member_edit_name",
+        "member_edit_preferred_name",
         "member_edit_photo",
         "member_edit_whatsapp",
         "member_edit_linkedin",
@@ -129,6 +133,7 @@ export default function Members({ isAdmin = false }) {
     if (data) {
       const perms = {
         name: false,
+        preferred_name: true,
         photo: true,
         whatsapp: false,
         linkedin: true,
@@ -137,6 +142,7 @@ export default function Members({ isAdmin = false }) {
       };
       data.forEach(item => {
         if (item.key === "member_edit_name") perms.name = item.value === "true";
+        if (item.key === "member_edit_preferred_name") perms.preferred_name = item.value === "true";
         if (item.key === "member_edit_photo") perms.photo = item.value === "true";
         if (item.key === "member_edit_whatsapp") perms.whatsapp = item.value === "true";
         if (item.key === "member_edit_linkedin") perms.linkedin = item.value === "true";
@@ -174,7 +180,7 @@ export default function Members({ isAdmin = false }) {
     if (viewFilter === "pending") {
       const { data, count, error } = await supabase
         .from("profiles")
-        .select("id, email, full_name, role, st_id, status, created_at, members(mobile_number, level, member_function, profile_image_url)")
+        .select("id, email, full_name, preferred_name, role, st_id, status, created_at, members(mobile_number, level, member_function, profile_image_url, preferred_name)")
         .in("status", ["pending", "rejected"])
         .order("created_at", { ascending: false });
 
@@ -185,7 +191,9 @@ export default function Members({ isAdmin = false }) {
       } else {
         const mappedData = (data || []).map(p => ({
           st_id: p.st_id,
-          name: p.full_name,
+          name: p.preferred_name || p.members?.preferred_name || p.full_name,
+          full_name: p.full_name,
+          preferred_name: p.preferred_name || p.members?.preferred_name || "",
           email: p.email,
           role: p.role,
           level: p.members?.level || 1,
@@ -202,6 +210,8 @@ export default function Members({ isAdmin = false }) {
           filtered = mappedData.filter(m =>
             (m.st_id || "").toLowerCase().includes(q) ||
             (m.name || "").toLowerCase().includes(q) ||
+            (m.full_name || "").toLowerCase().includes(q) ||
+            (m.preferred_name || "").toLowerCase().includes(q) ||
             (m.email || "").toLowerCase().includes(q) ||
             (m.member_function || "").toLowerCase().includes(q)
           );
@@ -225,7 +235,7 @@ export default function Members({ isAdmin = false }) {
 
     const q = searchText.trim();
     if (q) {
-      query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
+      query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,preferred_name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
     }
 
     const { data, count } = await query;
@@ -240,7 +250,8 @@ export default function Members({ isAdmin = false }) {
   const openEdit = (m) => {
     setForm({
       st_id: m.st_id,
-      name: m.name,
+      name: m.name || "",
+      preferred_name: m.preferred_name || "",
       level: m.level || "",
       st_position: m.st_position || "",
       member_function: m.member_function || "",
@@ -256,7 +267,8 @@ export default function Members({ isAdmin = false }) {
   const openEditPending = (m) => {
     setForm({
       st_id: m.st_id,
-      name: m.name,
+      name: m.full_name || m.name || "",
+      preferred_name: m.preferred_name || "",
       level: m.level || "",
       st_position: "",
       member_function: "",
@@ -318,7 +330,7 @@ export default function Members({ isAdmin = false }) {
       if (viewFilter === "pending") {
         const { data, error } = await supabase
           .from("profiles")
-          .select("st_id, full_name, email, role, status, members(mobile_number, level, member_function)")
+          .select("st_id, full_name, preferred_name, email, role, status, members(mobile_number, level, member_function, preferred_name)")
           .in("status", ["pending", "rejected"])
           .order("created_at", { ascending: false });
 
@@ -327,10 +339,11 @@ export default function Members({ isAdmin = false }) {
           return;
         }
 
-        headers = ["ST ID", "Full Name", "Email", "Role", "Status", "Level", "Mobile Number", "Function"];
+        headers = ["ST ID", "Full Name", "Preferred Name", "Email", "Role", "Status", "Level", "Mobile Number", "Function"];
         exportData = (data || []).map(p => [
           p.st_id || "",
           p.full_name || "",
+          p.preferred_name || p.members?.preferred_name || "",
           p.email || "",
           p.role || "",
           p.status || "",
@@ -346,7 +359,7 @@ export default function Members({ isAdmin = false }) {
 
         const q = search.trim();
         if (q) {
-          query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
+          query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,preferred_name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
         }
 
         const { data, error } = await query;
@@ -355,10 +368,11 @@ export default function Members({ isAdmin = false }) {
           return;
         }
 
-        headers = ["st_id", "name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
+        headers = ["st_id", "name", "preferred_name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
         exportData = (data || []).map(m => [
           m.st_id || "",
           m.name || "",
+          m.preferred_name || "",
           m.email || "",
           m.level || "",
           m.st_position || "",
@@ -398,10 +412,10 @@ export default function Members({ isAdmin = false }) {
   };
 
   const downloadTemplate = () => {
-    const headers = ["st_id", "name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
+    const headers = ["st_id", "name", "preferred_name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
     const rows = [
-      ["SC/2022/12345", "John Doe", "john.doe@example.com", "2", "Member", "Logistics", "+94771234567", "https://example.com/john.jpg", "https://linkedin.com/in/johndoe"],
-      ["SC/2023/54321", "Jane Smith", "jane.smith@example.com", "1", "Committee Member", "Marketing", "+94777654321", "https://example.com/jane.jpg", "https://linkedin.com/in/janesmith"]
+      ["SC/2022/12345", "Pathum Nissanka", "Pathum", "pathum@example.com", "2", "Member", "Logistics", "+94771234567", "https://example.com/john.jpg", "https://linkedin.com/in/pathum"],
+      ["SC/2023/54321", "Jane Smith", "Jane", "jane.smith@example.com", "1", "Committee Member", "Marketing", "+94777654321", "https://example.com/jane.jpg", "https://linkedin.com/in/janesmith"]
     ];
     const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -437,6 +451,7 @@ export default function Members({ isAdmin = false }) {
         const rowNum = idx + 2;
         const st_id = mapping.st_id !== -1 ? row[mapping.st_id]?.trim() : "";
         const name = mapping.name !== -1 ? row[mapping.name]?.trim() : "";
+        const preferred_name = mapping.preferred_name !== -1 ? row[mapping.preferred_name]?.trim() : "";
         const email = mapping.email !== -1 ? row[mapping.email]?.trim() : "";
         const levelRaw = mapping.level !== -1 ? row[mapping.level]?.trim() : "";
         const st_position = mapping.st_position !== -1 ? row[mapping.st_position]?.trim() : "";
@@ -479,6 +494,7 @@ export default function Members({ isAdmin = false }) {
         const payload = {
           st_id: normalizedStId || "",
           name: name || "",
+          preferred_name: preferred_name || null,
           email: email || null,
           level: level,
           st_position: st_position || null,
@@ -643,6 +659,7 @@ export default function Members({ isAdmin = false }) {
         .update({
           st_id: finalStId,
           name: form.name.trim(),
+          preferred_name: form.preferred_name?.trim() || null,
           email: form.email.trim() || null,
           level: form.level ? parseInt(form.level) : null,
           mobile_number: form.mobile_number.trim() || null
@@ -661,6 +678,7 @@ export default function Members({ isAdmin = false }) {
         .update({
           st_id: finalStId,
           full_name: form.name.trim(),
+          preferred_name: form.preferred_name?.trim() || null,
           email: form.email.trim(),
           role: form.role
         })
@@ -682,6 +700,7 @@ export default function Members({ isAdmin = false }) {
     const payload = {
       st_id: finalStId,
       name: form.name.trim(),
+      preferred_name: form.preferred_name?.trim() || null,
       email: form.email.trim() || null,
       level: form.level ? parseInt(form.level) : null,
       st_position: form.st_position.trim() || null,
@@ -878,10 +897,10 @@ export default function Members({ isAdmin = false }) {
                       flexShrink: 0
                     }}>
                       {m.profile_image_url ? (
-                        <img src={m.profile_image_url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={m.profile_image_url} alt={m.preferred_name || m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         <span style={{ fontSize: "12px", fontWeight: "700", color: "#e4e1ed", letterSpacing: "0.05em" }}>
-                          {getInitials(m.name)}
+                          {getInitials(m.preferred_name || m.name)}
                         </span>
                       )}
                     </div>
@@ -892,12 +911,12 @@ export default function Members({ isAdmin = false }) {
                     {m.st_id}
                   </td>
 
-                  {/* 3. Name & Email */}
+                  {/* 3. Name & Email (Showing ONLY Preferred Name in table) */}
                   <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
                       {viewFilter === "pending" ? (
                         <span style={{ fontWeight: "700", fontSize: "15px", color: "var(--text)" }}>
-                          {m.name}
+                          {m.preferred_name || m.name}
                         </span>
                       ) : (
                         <span
@@ -905,7 +924,7 @@ export default function Members({ isAdmin = false }) {
                           onClick={() => openViewProfile(m.st_id)}
                           style={{ cursor: "pointer", color: "#818cf8", fontWeight: "700", fontSize: "15px" }}
                         >
-                          {m.name}
+                          {m.preferred_name || m.name}
                         </span>
                       )}
                       {m.email && (
@@ -1020,10 +1039,14 @@ export default function Members({ isAdmin = false }) {
                 <input type="number" placeholder="e.g. 2" min="1" max="6" value={form.level} onChange={e => setForm({ ...form, level: e.target.value })} />
               </div>
             </div>
-            <div className="form-row">
+            <div className="form-row form-row-2">
               <div className="form-group">
                 <label>Full Name *</label>
                 <input placeholder="Student full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Preferred Name (Calling Name)</label>
+                <input placeholder="e.g. Pathum" value={form.preferred_name} onChange={e => setForm({ ...form, preferred_name: e.target.value })} />
               </div>
             </div>
             <div className="form-row">
@@ -1273,6 +1296,7 @@ export default function Members({ isAdmin = false }) {
                           <tr>
                             <th>Student ID</th>
                             <th>Full Name</th>
+                            <th>Preferred Name</th>
                             <th>Email</th>
                             <th>Level</th>
                             <th>Position</th>
@@ -1286,6 +1310,7 @@ export default function Members({ isAdmin = false }) {
                           {parsedData.rows.slice(0, 5).map((row, idx) => {
                             const st_id = parsedData.mapping.st_id !== -1 ? row[parsedData.mapping.st_id] : "";
                             const name = parsedData.mapping.name !== -1 ? row[parsedData.mapping.name] : "";
+                            const preferred_name = parsedData.mapping.preferred_name !== -1 ? row[parsedData.mapping.preferred_name] : "";
                             const email = parsedData.mapping.email !== -1 ? row[parsedData.mapping.email] : "";
                             const level = parsedData.mapping.level !== -1 ? row[parsedData.mapping.level] : "";
                             const position = parsedData.mapping.st_position !== -1 ? row[parsedData.mapping.st_position] : "";
@@ -1297,6 +1322,7 @@ export default function Members({ isAdmin = false }) {
                               <tr key={idx}>
                                 <td className="mono">{st_id || <span className="text-red">Missing</span>}</td>
                                 <td><strong>{name || <span className="text-red">Missing</span>}</strong></td>
+                                <td>{preferred_name || "-"}</td>
                                 <td>{email || "-"}</td>
                                 <td>{level || "-"}</td>
                                 <td>{position || "-"}</td>
@@ -1352,7 +1378,7 @@ export default function Members({ isAdmin = false }) {
                   />
                   <div className="csv-dropzone-icon">📥</div>
                   <div className="csv-dropzone-text">Drag & drop your CSV file here, or click to browse</div>
-                  <div className="csv-dropzone-sub">Supported columns: st_id, name, email, level, st_position, member_function, mobile_number, profile_image_url, linkedin_url</div>
+                  <div className="csv-dropzone-sub">Supported columns: st_id, name, preferred_name, email, level, st_position, member_function, mobile_number, profile_image_url, linkedin_url</div>
                 </div>
 
                 <div className="flex justify-between items-center" style={{ marginTop: "16px" }}>
@@ -1387,7 +1413,7 @@ export default function Members({ isAdmin = false }) {
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg3)", padding: "16px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
 
-              {/* Field 1: Name */}
+              {/* Field 1: Full Name */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                 <div>
                   <strong style={{ fontSize: "14px", display: "block" }}>Full Name</strong>
@@ -1408,6 +1434,33 @@ export default function Members({ isAdmin = false }) {
                   }}>
                     <span style={{
                       position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.name ? "24px" : "3px", bottom: "3px",
+                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Field 1b: Preferred Name */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <strong style={{ fontSize: "14px", display: "block" }}>Preferred Name</strong>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit their calling / preferred name</span>
+                </div>
+                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissions.preferred_name}
+                    disabled={savingSettings}
+                    onChange={e => togglePermission("preferred_name", e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span className={`slider round ${editPermissions.preferred_name ? "active" : ""}`} style={{
+                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: editPermissions.preferred_name ? "var(--accent)" : "#ccc",
+                    transition: ".3s", borderRadius: "24px"
+                  }}>
+                    <span style={{
+                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.preferred_name ? "24px" : "3px", bottom: "3px",
                       backgroundColor: "white", transition: ".3s", borderRadius: "50%"
                     }} />
                   </span>

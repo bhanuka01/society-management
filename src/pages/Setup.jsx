@@ -6,6 +6,7 @@ const SQL = `-- Run this in Supabase SQL Editor (supabase.com â†’ your project â
 CREATE TABLE IF NOT EXISTS members (
   st_id             VARCHAR(50) PRIMARY KEY,
   name              VARCHAR(255) NOT NULL,
+  preferred_name    VARCHAR(255),
   email             VARCHAR(255) UNIQUE,
   level             INT,
   st_position       VARCHAR(100),
@@ -16,6 +17,9 @@ CREATE TABLE IF NOT EXISTS members (
 );
 
 -- If your members table already exists, run this once:
+ALTER TABLE members
+ADD COLUMN IF NOT EXISTS preferred_name VARCHAR(255);
+
 ALTER TABLE members
 ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
 

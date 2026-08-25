@@ -40,6 +40,7 @@ export default function MyInfo({ session }) {
   const [editModal, setEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
+    preferred_name: "",
     profile_image_url: "",
     mobile_number: "",
     linkedin_url: "",
@@ -60,6 +61,7 @@ export default function MyInfo({ session }) {
     letter_show_events: true,
     letter_show_details: true,
     member_edit_name: false,
+    member_edit_preferred_name: true,
     member_edit_photo: true,
     member_edit_whatsapp: false,
     member_edit_linkedin: true,
@@ -94,6 +96,7 @@ export default function MyInfo({ session }) {
   const openEditModal = () => {
     setEditForm({
       name: profile?.name || "",
+      preferred_name: profile?.preferred_name || "",
       profile_image_url: profile?.profile_image_url || "",
       mobile_number: profile?.mobile_number || "",
       linkedin_url: profile?.linkedin_url || "",
@@ -129,6 +132,11 @@ export default function MyInfo({ session }) {
         }
         updates.name = editForm.name.trim();
         profileUpdates.full_name = editForm.name.trim();
+      }
+
+      if (settings.member_edit_preferred_name !== false) {
+        updates.preferred_name = editForm.preferred_name.trim() || null;
+        profileUpdates.preferred_name = editForm.preferred_name.trim() || null;
       }
 
       if (settings.member_edit_photo) {
@@ -187,7 +195,7 @@ export default function MyInfo({ session }) {
 
       if (error) throw error;
 
-      if (profileUpdates.full_name) {
+      if (Object.keys(profileUpdates).length > 0) {
         await supabase
           .from("profiles")
           .update(profileUpdates)
@@ -230,7 +238,7 @@ export default function MyInfo({ session }) {
           .select("key, value")
           .in("key", [
             "letter_show_name", "letter_show_events", "letter_show_details",
-            "member_edit_name", "member_edit_photo", "member_edit_whatsapp",
+            "member_edit_name", "member_edit_preferred_name", "member_edit_photo", "member_edit_whatsapp",
             "member_edit_linkedin", "member_edit_position", "member_edit_function"
           ]),
         supabase
@@ -295,21 +303,21 @@ export default function MyInfo({ session }) {
               .eq("st_id", session.stId),
             supabase
               .from("profiles")
-              .select("email, full_name"),
+              .select("email, full_name, preferred_name"),
             supabase
               .from("members")
-              .select("email, name")
+              .select("email, name, preferred_name")
           ]);
 
           const map = {};
           if (profileRes.data) {
             profileRes.data.forEach(p => {
-              if (p.email) map[p.email.toLowerCase()] = p.full_name || p.email;
+              if (p.email) map[p.email.toLowerCase()] = p.preferred_name || p.full_name || p.email;
             });
           }
           if (memberRes.data) {
             memberRes.data.forEach(m => {
-              if (m.email && !map[m.email.toLowerCase()]) map[m.email.toLowerCase()] = m.name || m.email;
+              if (m.email && !map[m.email.toLowerCase()]) map[m.email.toLowerCase()] = m.preferred_name || m.name || m.email;
             });
           }
           setStaffMap(map);
@@ -483,9 +491,14 @@ export default function MyInfo({ session }) {
           </div>
 
           <div className="flex-1 flex flex-col justify-center text-left">
-            <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight mb-2">
-              {profile.name}
+            <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight mb-1">
+              {profile.preferred_name || profile.name}
             </h2>
+            {profile.preferred_name && profile.name && (
+              <p className="text-xs sm:text-sm font-medium text-zinc-400 mb-2">
+                Full Name: <span className="text-zinc-200 font-semibold">{profile.name}</span>
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge variant="default" className="bg-indigo-600/20 text-indigo-300 border-indigo-500/30 font-mono text-xs px-2.5 py-0.5">
                 {profile.st_id}
@@ -502,11 +515,29 @@ export default function MyInfo({ session }) {
           </div>
         </div>
 
-        {/* Details Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6">
+        {/* Details Grid: Showing both Full Name & Preferred Name clearly */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-6">
           <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/60">
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1">
-              Member Function
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <User className="w-3.5 h-3.5 text-indigo-400" /> Full Name
+            </span>
+            <span className="text-sm font-semibold text-white">
+              {profile.name || "—"}
+            </span>
+          </div>
+
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/60">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Preferred Name
+            </span>
+            <span className="text-sm font-semibold text-white">
+              {profile.preferred_name || <span className="text-zinc-500 font-normal italic">Not provided</span>}
+            </span>
+          </div>
+
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/60">
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <Briefcase className="w-3.5 h-3.5 text-purple-400" /> Member Function
             </span>
             <span className="text-sm font-medium text-white">
               {profile.member_function || "Not assigned"}
@@ -864,6 +895,7 @@ export default function MyInfo({ session }) {
 
             <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
               {!settings.member_edit_name &&
+               !settings.member_edit_preferred_name &&
                !settings.member_edit_photo &&
                !settings.member_edit_whatsapp &&
                !settings.member_edit_linkedin &&
@@ -883,6 +915,19 @@ export default function MyInfo({ session }) {
                         value={editForm.name}
                         onChange={e => setEditForm({ ...editForm, name: e.target.value })}
                         required
+                      />
+                    </div>
+                  )}
+
+                  {settings.member_edit_preferred_name !== false && (
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                        Preferred Name <span className="text-zinc-500 font-normal">(Calling Name)</span>
+                      </label>
+                      <Input
+                        placeholder="e.g. Pathum"
+                        value={editForm.preferred_name}
+                        onChange={e => setEditForm({ ...editForm, preferred_name: e.target.value })}
                       />
                     </div>
                   )}

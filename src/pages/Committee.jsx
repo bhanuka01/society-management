@@ -622,7 +622,7 @@ export default function Committee({ isAdmin = false, session }) {
       </div>
 
       {/* Event Selection & Configuration Card */}
-      <Card className="p-5 bg-[#17171a]/90 border border-zinc-800/90 shadow-xl mb-6 space-y-4">
+      <Card className="p-5 bg-[#17171a]/95 border border-zinc-800/90 shadow-xl mb-6 space-y-4 relative z-30 overflow-visible">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-indigo-400" />
@@ -691,7 +691,7 @@ export default function Committee({ isAdmin = false, session }) {
       </Card>
 
       {/* Toolbar & Search Controls */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 relative z-10">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
           <Input

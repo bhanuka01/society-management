@@ -1077,109 +1077,148 @@ export default function Events({ isAdmin = false, session }) {
       {/* Apply for OC Modal */}
       {applyModal && (
         <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
           onClick={e => e.target === e.currentTarget && closeApplyModal()}
         >
-          <div className="bg-[#121212] border border-zinc-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center pb-4 border-b border-zinc-800">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span className="material-symbols-outlined text-zinc-400">group_add</span>
-                Apply for OC - {applyTarget?.name}
-              </h2>
+          <div className="bg-[#121214] border border-zinc-800 rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden my-auto">
+            {/* Header (Sticky) */}
+            <div className="flex justify-between items-center px-5 py-4 border-b border-zinc-800/80 flex-shrink-0 bg-[#121214]">
+              <div className="min-w-0 pr-2">
+                <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2 truncate">
+                  <span className="material-symbols-outlined text-blue-400 text-xl">group_add</span>
+                  Apply for OC
+                </h2>
+                <p className="text-xs text-zinc-400 truncate mt-0.5">
+                  {applyTarget?.name}
+                </p>
+              </div>
               <button 
                 onClick={closeApplyModal}
-                className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            {msg && (
-              <div className={`p-3 rounded-lg text-sm border ${msg.type === "error" ? "bg-red-950/30 text-red-400 border-red-900/50" : "bg-emerald-950/30 text-emerald-400 border-emerald-900/50"}`}>
-                {msg.text}
-              </div>
-            )}
-
-            {existingApp && (
-              <div className={`p-3 rounded-xl border text-xs ${existingApp.apply_status === "Accept" ? "bg-emerald-950/30 border-emerald-900/50 text-emerald-400" : existingApp.apply_status === "Reject" ? "bg-red-950/30 border-red-900/50 text-red-400" : "bg-amber-950/30 border-amber-900/50 text-amber-400"}`}>
-                <div className="font-semibold mb-0.5">
-                  {existingApp.apply_status === "Accept" ? "✓ Application Accepted" : existingApp.apply_status === "Reject" ? "✕ Application Rejected" : "⏳ Application Pending"}
+            {/* Scrollable Content Body */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              {msg && (
+                <div className={`p-3 rounded-lg text-xs sm:text-sm border ${msg.type === "error" ? "bg-red-950/30 text-red-400 border-red-900/50" : "bg-emerald-950/30 text-emerald-400 border-emerald-900/50"}`}>
+                  {msg.text}
                 </div>
-                <div className="text-zinc-300">
-                  {existingApp.apply_status === "Pending" 
-                    ? "You can update your preferred positions below."
-                    : `Status: ${existingApp.apply_status}`}
+              )}
+
+              {existingApp && (
+                <div className={`p-3 rounded-xl border text-xs ${existingApp.apply_status === "Accept" ? "bg-emerald-950/30 border-emerald-900/50 text-emerald-400" : existingApp.apply_status === "Reject" ? "bg-red-950/30 border-red-900/50 text-red-400" : "bg-amber-950/30 border-amber-900/50 text-amber-400"}`}>
+                  <div className="font-semibold mb-0.5">
+                    {existingApp.apply_status === "Accept" ? "✓ Application Accepted" : existingApp.apply_status === "Reject" ? "✕ Application Rejected" : "⏳ Application Pending"}
+                  </div>
+                  <div className="text-zinc-300">
+                    {existingApp.apply_status === "Pending" 
+                      ? "You can update your preferred positions below."
+                      : `Status: ${existingApp.apply_status}`}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {applyForm.member_function_name && (
-              <div className="bg-[#1e1e21] p-3 rounded-xl border border-zinc-800">
-                <label className="block text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">Your Function</label>
-                <div className="text-sm font-semibold text-white">
-                  💼 {applyForm.member_function_name}
+              {applyForm.member_function_name && (
+                <div className="bg-[#1a1a1d] px-3.5 py-2.5 rounded-xl border border-zinc-800/80 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Your Function</span>
+                  <span className="text-xs font-semibold text-zinc-100 flex items-center gap-1.5">
+                    💼 {applyForm.member_function_name}
+                  </span>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                Preferred Positions (Select 1 or more) *
-              </label>
-              <div className="space-y-2 mt-2">
-                {(() => {
-                  const available = parsePositionsList(applyTarget?.available_oc_positions);
-                  const selected = applyForm.selected_positions || [];
-                  const isLocked = existingApp && existingApp.apply_status !== "Pending";
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-zinc-300">
+                    Preferred Positions <span className="text-red-400">*</span>
+                  </label>
+                  <span className="text-[11px] text-zinc-400">
+                    {(applyForm.selected_positions || []).length} selected
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                  {(() => {
+                    const available = parsePositionsList(applyTarget?.available_oc_positions);
+                    const selected = applyForm.selected_positions || [];
+                    const isLocked = existingApp && existingApp.apply_status !== "Pending";
 
-                  return (
-                    <>
-                      {available.map(pos => {
-                        const checked = selected.includes(pos);
-                        return (
-                          <label
-                            key={pos}
-                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checked ? "bg-blue-950/30 border-blue-600 text-white" : "bg-[#1e1e21] border-zinc-800 text-zinc-300 hover:border-zinc-700"}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={isLocked}
-                              onChange={() => {
-                                if (isLocked) return;
-                                const nextSelected = checked
-                                  ? selected.filter(p => p !== pos)
-                                  : [...selected, pos];
-                                setApplyForm({ ...applyForm, selected_positions: nextSelected });
-                              }}
-                              className="w-4 h-4 rounded accent-blue-600"
-                            />
-                            <span className="text-xs font-medium">{pos}</span>
-                          </label>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
+                    if (available.length === 0) {
+                      return (
+                        <div className="col-span-2 text-center py-6 text-xs text-zinc-500 bg-[#1a1a1d] rounded-xl border border-zinc-800">
+                          No specific OC positions listed for this event.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {available.map(pos => {
+                          const checked = selected.includes(pos);
+                          return (
+                            <label
+                              key={pos}
+                              className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all select-none ${
+                                checked 
+                                  ? "bg-blue-950/30 border-blue-500 text-white ring-1 ring-blue-500/20" 
+                                  : "bg-[#1a1a1d] border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800/40"
+                              } ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={isLocked}
+                                onChange={() => {
+                                  if (isLocked) return;
+                                  const nextSelected = checked
+                                    ? selected.filter(p => p !== pos)
+                                    : [...selected, pos];
+                                  setApplyForm({ ...applyForm, selected_positions: nextSelected });
+                                }}
+                                className="w-4 h-4 rounded accent-blue-600 flex-shrink-0"
+                              />
+                              <span className="text-xs font-medium leading-tight truncate" title={pos}>
+                                {pos}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
-              <button 
-                onClick={closeApplyModal}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm transition-colors"
-              >
-                Cancel
-              </button>
-              {(!existingApp || existingApp.apply_status === "Pending") && (
+            {/* Footer (Sticky) */}
+            <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-t border-zinc-800/80 bg-[#121214] flex-shrink-0">
+              <div className="text-[11px] text-zinc-400 hidden sm:block">
+                {existingApp && existingApp.apply_status !== "Pending"
+                  ? "Application locked" 
+                  : (applyForm.selected_positions || []).length > 0 
+                    ? `${(applyForm.selected_positions || []).length} position(s) selected` 
+                    : "Select at least 1 position"}
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
                 <button 
-                  onClick={handleApplySave} 
-                  disabled={saving || !applyForm.function_id}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  onClick={closeApplyModal}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs sm:text-sm transition-colors font-medium"
                 >
-                  {saving ? "Submitting..." : existingApp ? "Update Application" : "Submit Application"}
+                  Cancel
                 </button>
-              )}
+                {(!existingApp || existingApp.apply_status === "Pending") && (
+                  <button 
+                    onClick={handleApplySave} 
+                    disabled={saving || !applyForm.function_id || (applyForm.selected_positions || []).length === 0}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                  >
+                    {saving ? "Submitting..." : existingApp ? "Update Application" : "Submit Application"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
