@@ -1,10 +1,55 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import StudentProfileModal from "../components/StudentProfileModal";
+import { StudentNameLink } from "../components/StudentProfileContext";
 import PhoneContact from "../components/PhoneContact";
+import {
+  Users,
+  Search,
+  Plus,
+  Upload,
+  Download,
+  TrendingUp,
+  SlidersHorizontal,
+  Copy,
+  Check,
+  Edit3,
+  Trash2,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  X,
+  ExternalLink,
+  Clock,
+  AlertCircle,
+  RefreshCw,
+  FileSpreadsheet,
+  Phone,
+  Shield,
+  Tag,
+  Sparkles
+} from "lucide-react";
 
-const EMPTY_FORM = { st_id: "", name: "", preferred_name: "", level: "", st_position: "", member_function: "", email: "", mobile_number: "", profile_image_url: "", linkedin_url: "", role: "member" };
+const LinkedInIcon = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.2V10.9H6.46M7.83 6.64a1.65 1.65 0 0 0-1.66 1.66 1.66 1.66 0 0 0 1.66 1.66 1.66 1.66 0 0 0 1.65-1.66 1.66 1.66 0 0 0-1.65-1.66Z" />
+  </svg>
+);
+
+const EMPTY_FORM = {
+  st_id: "",
+  name: "",
+  preferred_name: "",
+  level: "",
+  st_position: "",
+  member_function: "",
+  email: "",
+  mobile_number: "",
+  profile_image_url: "",
+  linkedin_url: "",
+  role: "member",
+};
 
 const getInitials = (name) => {
   if (!name) return "??";
@@ -29,10 +74,10 @@ function parseCSV(text) {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === "," && !inQuotes) {
       row.push("");
-    } else if ((char === '\r' || char === '\n') && !inQuotes) {
-      if (char === '\r' && nextChar === '\n') {
+    } else if ((char === "\r" || char === "\n") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") {
         i++;
       }
       lines.push(row);
@@ -44,11 +89,22 @@ function parseCSV(text) {
   if (row.length > 1 || row[0] !== "") {
     lines.push(row);
   }
-  return lines.filter(r => r.length > 0 && r.some(cell => cell.trim() !== ""));
+  return lines.filter((r) => r.length > 0 && r.some((cell) => cell.trim() !== ""));
 }
 
 function mapHeaders(headers) {
-  const mapping = { st_id: -1, name: -1, preferred_name: -1, level: -1, st_position: -1, member_function: -1, email: -1, mobile_number: -1, profile_image_url: -1, linkedin_url: -1 };
+  const mapping = {
+    st_id: -1,
+    name: -1,
+    preferred_name: -1,
+    level: -1,
+    st_position: -1,
+    member_function: -1,
+    email: -1,
+    mobile_number: -1,
+    profile_image_url: -1,
+    linkedin_url: -1,
+  };
   headers.forEach((h, index) => {
     const clean = h.trim().toLowerCase().replace(/[\s_-]/g, "");
     if (["stid", "studentid", "id", "stno", "studentno", "regno", "registrationno"].includes(clean)) {
@@ -76,7 +132,42 @@ function mapHeaders(headers) {
   return mapping;
 }
 
-export default function Members({ isAdmin = false }) {
+export default function Members({ isAdmin = false, theme }) {
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    if (theme) return theme;
+    if (typeof document !== "undefined") {
+      return (
+        document.documentElement.getAttribute("data-theme") ||
+        (document.documentElement.classList.contains("dark") ? "dark" : "light")
+      );
+    }
+    return "dark";
+  });
+
+  useEffect(() => {
+    if (theme) {
+      setCurrentTheme(theme);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const updateTheme = () => {
+      const active =
+        document.documentElement.getAttribute("data-theme") ||
+        (document.documentElement.classList.contains("dark") ? "dark" : "light");
+      setCurrentTheme(active);
+    };
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const isDark = currentTheme !== "light";
+
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -87,7 +178,9 @@ export default function Members({ isAdmin = false }) {
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
-  const [viewFilter, setViewFilter] = useState("active");
+  const [viewFilter, setViewFilter] = useState("active"); // 'active' | 'alumni' | 'all' | 'pending'
+  const [pendingCount, setPendingCount] = useState(0);
+  const [copiedStId, setCopiedStId] = useState(null);
 
   // CSV Import State
   const [csvModal, setCsvModal] = useState(false);
@@ -113,8 +206,20 @@ export default function Members({ isAdmin = false }) {
     whatsapp: false,
     linkedin: true,
     position: false,
-    function: false
+    function: false,
   });
+
+  const loadPendingCount = async () => {
+    try {
+      const { count } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["pending", "rejected"]);
+      setPendingCount(count || 0);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const loadEditPermissions = async () => {
     const { data } = await supabase
@@ -127,7 +232,7 @@ export default function Members({ isAdmin = false }) {
         "member_edit_whatsapp",
         "member_edit_linkedin",
         "member_edit_position",
-        "member_edit_function"
+        "member_edit_function",
       ]);
 
     if (data) {
@@ -138,9 +243,9 @@ export default function Members({ isAdmin = false }) {
         whatsapp: false,
         linkedin: true,
         position: false,
-        function: false
+        function: false,
       };
-      data.forEach(item => {
+      data.forEach((item) => {
         if (item.key === "member_edit_name") perms.name = item.value === "true";
         if (item.key === "member_edit_preferred_name") perms.preferred_name = item.value === "true";
         if (item.key === "member_edit_photo") perms.photo = item.value === "true";
@@ -167,8 +272,37 @@ export default function Members({ isAdmin = false }) {
     if (error) {
       setSettingsMsg({ type: "error", text: "Failed to update permission: " + error.message });
     } else {
-      setEditPermissions(prev => ({ ...prev, [key]: checked }));
-      setSettingsMsg({ type: "success", text: `Permission updated.` });
+      setEditPermissions((prev) => ({ ...prev, [key]: checked }));
+      setSettingsMsg({ type: "success", text: "Permission updated." });
+    }
+  };
+
+  const toggleAllPermissions = async (enable) => {
+    setSavingSettings(true);
+    setSettingsMsg(null);
+    const keys = ["name", "preferred_name", "photo", "whatsapp", "linkedin", "position", "function"];
+    const rows = keys.map((k) => ({
+      key: `member_edit_${k}`,
+      value: enable ? "true" : "false",
+    }));
+
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert(rows, { onConflict: "key" });
+
+    setSavingSettings(false);
+    if (error) {
+      setSettingsMsg({ type: "error", text: "Failed to update permissions: " + error.message });
+    } else {
+      const nextPerms = {};
+      keys.forEach((k) => {
+        nextPerms[k] = enable;
+      });
+      setEditPermissions(nextPerms);
+      setSettingsMsg({
+        type: "success",
+        text: enable ? "All permissions enabled." : "All permissions disabled.",
+      });
     }
   };
 
@@ -177,10 +311,14 @@ export default function Members({ isAdmin = false }) {
     const from = pageToLoad * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
+    loadPendingCount();
+
     if (viewFilter === "pending") {
-      const { data, count, error } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, full_name, preferred_name, role, st_id, status, created_at, members(mobile_number, level, member_function, profile_image_url, preferred_name)")
+        .select(
+          "id, email, full_name, preferred_name, role, st_id, status, created_at, members(mobile_number, level, member_function, profile_image_url, preferred_name)"
+        )
         .in("status", ["pending", "rejected"])
         .order("created_at", { ascending: false });
 
@@ -189,7 +327,7 @@ export default function Members({ isAdmin = false }) {
         setMembers([]);
         setTotal(0);
       } else {
-        const mappedData = (data || []).map(p => ({
+        const mappedData = (data || []).map((p) => ({
           st_id: p.st_id,
           name: p.preferred_name || p.members?.preferred_name || p.full_name,
           full_name: p.full_name,
@@ -201,19 +339,20 @@ export default function Members({ isAdmin = false }) {
           member_function: p.members?.member_function || "",
           profile_image_url: p.members?.profile_image_url || "",
           profile_id: p.id,
-          status: p.status
+          status: p.status,
         }));
 
         const q = searchText.trim().toLowerCase();
         let filtered = mappedData;
         if (q) {
-          filtered = mappedData.filter(m =>
-            (m.st_id || "").toLowerCase().includes(q) ||
-            (m.name || "").toLowerCase().includes(q) ||
-            (m.full_name || "").toLowerCase().includes(q) ||
-            (m.preferred_name || "").toLowerCase().includes(q) ||
-            (m.email || "").toLowerCase().includes(q) ||
-            (m.member_function || "").toLowerCase().includes(q)
+          filtered = mappedData.filter(
+            (m) =>
+              (m.st_id || "").toLowerCase().includes(q) ||
+              (m.name || "").toLowerCase().includes(q) ||
+              (m.full_name || "").toLowerCase().includes(q) ||
+              (m.preferred_name || "").toLowerCase().includes(q) ||
+              (m.email || "").toLowerCase().includes(q) ||
+              (m.member_function || "").toLowerCase().includes(q)
           );
         }
 
@@ -224,18 +363,16 @@ export default function Members({ isAdmin = false }) {
       return;
     }
 
-    let query = supabase
-      .from("members")
-      .select("*", { count: "exact" })
-      .order("st_id")
-      .range(from, to);
+    let query = supabase.from("members").select("*", { count: "exact" }).order("st_id").range(from, to);
 
     if (viewFilter === "active") query = query.lte("level", 4);
     else if (viewFilter === "alumni") query = query.gt("level", 4);
 
     const q = searchText.trim();
     if (q) {
-      query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,preferred_name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
+      query = query.or(
+        `st_id.ilike.%${q}%,name.ilike.%${q}%,preferred_name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`
+      );
     }
 
     const { data, count } = await query;
@@ -244,9 +381,18 @@ export default function Members({ isAdmin = false }) {
     setLoading(false);
   };
 
-  useEffect(() => { load(page, search); loadEditPermissions(); }, [page, search, viewFilter]);
+  useEffect(() => {
+    load(page, search);
+    loadEditPermissions();
+  }, [page, search, viewFilter]);
 
-  const openAdd = () => { setForm(EMPTY_FORM); setEditTarget(null); setModal(true); setMsg(null); };
+  const openAdd = () => {
+    setForm(EMPTY_FORM);
+    setEditTarget(null);
+    setModal(true);
+    setMsg(null);
+  };
+
   const openEdit = (m) => {
     setForm({
       st_id: m.st_id,
@@ -258,12 +404,13 @@ export default function Members({ isAdmin = false }) {
       email: m.email || "",
       mobile_number: m.mobile_number || "",
       profile_image_url: m.profile_image_url || "",
-      linkedin_url: m.linkedin_url || ""
+      linkedin_url: m.linkedin_url || "",
     });
     setEditTarget(m.st_id);
     setModal(true);
     setMsg(null);
   };
+
   const openEditPending = (m) => {
     setForm({
       st_id: m.st_id,
@@ -276,7 +423,7 @@ export default function Members({ isAdmin = false }) {
       mobile_number: m.mobile_number || "",
       profile_image_url: "",
       linkedin_url: "",
-      role: m.role || "member"
+      role: m.role || "member",
     });
     setEditTarget(m.st_id);
     setEditProfileTarget({ profile_id: m.profile_id, role: m.role });
@@ -284,16 +431,33 @@ export default function Members({ isAdmin = false }) {
     setMsg(null);
   };
 
-  const closeModal = () => { setModal(false); setMsg(null); setEditProfileTarget(null); };
+  const closeModal = () => {
+    setModal(false);
+    setMsg(null);
+    setEditProfileTarget(null);
+  };
 
   const promoteAll = async () => {
-    if (!confirm("Are you sure you want to promote all active members to the next level? Level 4 members will become Alumni (Level 5).")) return;
+    if (
+      !confirm(
+        "Are you sure you want to promote all active members to the next academic level? Level 4 members will transition to Alumni (Level 5)."
+      )
+    )
+      return;
     setLoading(true);
     const { data: activeMembers, error: fetchErr } = await supabase.from("members").select("*").lte("level", 4);
-    if (fetchErr) { alert(fetchErr.message); setLoading(false); return; }
-    if (!activeMembers || activeMembers.length === 0) { alert("No active members found to promote."); setLoading(false); return; }
+    if (fetchErr) {
+      alert(fetchErr.message);
+      setLoading(false);
+      return;
+    }
+    if (!activeMembers || activeMembers.length === 0) {
+      alert("No active members found to promote.");
+      setLoading(false);
+      return;
+    }
 
-    const updated = activeMembers.map(m => ({ ...m, level: (parseInt(m.level) || 0) + 1 }));
+    const updated = activeMembers.map((m) => ({ ...m, level: (parseInt(m.level) || 0) + 1 }));
     const { error: upsertErr } = await supabase.from("members").upsert(updated, { onConflict: "st_id" });
 
     if (upsertErr) alert(upsertErr.message);
@@ -330,7 +494,9 @@ export default function Members({ isAdmin = false }) {
       if (viewFilter === "pending") {
         const { data, error } = await supabase
           .from("profiles")
-          .select("st_id, full_name, preferred_name, email, role, status, members(mobile_number, level, member_function, preferred_name)")
+          .select(
+            "st_id, full_name, preferred_name, email, role, status, members(mobile_number, level, member_function, preferred_name)"
+          )
           .in("status", ["pending", "rejected"])
           .order("created_at", { ascending: false });
 
@@ -340,7 +506,7 @@ export default function Members({ isAdmin = false }) {
         }
 
         headers = ["ST ID", "Full Name", "Preferred Name", "Email", "Role", "Status", "Level", "Mobile Number", "Function"];
-        exportData = (data || []).map(p => [
+        exportData = (data || []).map((p) => [
           p.st_id || "",
           p.full_name || "",
           p.preferred_name || p.members?.preferred_name || "",
@@ -349,7 +515,7 @@ export default function Members({ isAdmin = false }) {
           p.status || "",
           p.members?.level || "",
           p.members?.mobile_number || "",
-          p.members?.member_function || ""
+          p.members?.member_function || "",
         ]);
         fileName = `pending_members_${new Date().toISOString().slice(0, 10)}.csv`;
       } else {
@@ -359,7 +525,9 @@ export default function Members({ isAdmin = false }) {
 
         const q = search.trim();
         if (q) {
-          query = query.or(`st_id.ilike.%${q}%,name.ilike.%${q}%,preferred_name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`);
+          query = query.or(
+            `st_id.ilike.%${q}%,name.ilike.%${q}%,preferred_name.ilike.%${q}%,st_position.ilike.%${q}%,member_function.ilike.%${q}%`
+          );
         }
 
         const { data, error } = await query;
@@ -369,7 +537,7 @@ export default function Members({ isAdmin = false }) {
         }
 
         headers = ["st_id", "name", "preferred_name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
-        exportData = (data || []).map(m => [
+        exportData = (data || []).map((m) => [
           m.st_id || "",
           m.name || "",
           m.preferred_name || "",
@@ -379,7 +547,7 @@ export default function Members({ isAdmin = false }) {
           m.member_function || "",
           m.mobile_number || "",
           m.profile_image_url || "",
-          m.linkedin_url || ""
+          m.linkedin_url || "",
         ]);
         fileName = `members_${viewFilter}_${new Date().toISOString().slice(0, 10)}.csv`;
       }
@@ -391,9 +559,7 @@ export default function Members({ isAdmin = false }) {
 
       const csvRows = [
         headers.join(","),
-        ...exportData.map(row =>
-          row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-        )
+        ...exportData.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
       ];
 
       const csvContent = csvRows.join("\n");
@@ -414,10 +580,10 @@ export default function Members({ isAdmin = false }) {
   const downloadTemplate = () => {
     const headers = ["st_id", "name", "preferred_name", "email", "level", "st_position", "member_function", "mobile_number", "profile_image_url", "linkedin_url"];
     const rows = [
-      ["SC/2022/12345", "Pathum Nissanka", "Pathum", "pathum@example.com", "2", "Member", "Logistics", "+94771234567", "https://example.com/john.jpg", "https://linkedin.com/in/pathum"],
-      ["SC/2023/54321", "Jane Smith", "Jane", "jane.smith@example.com", "1", "Committee Member", "Marketing", "+94777654321", "https://example.com/jane.jpg", "https://linkedin.com/in/janesmith"]
+      ["SC/2022/12345", "Pathum Nissanka", "Pathum", "pathum@example.com", "2", "Member", "Logistics", "+94771234567", "https://example.com/avatar.jpg", "https://linkedin.com/in/pathum"],
+      ["SC/2023/54321", "Jane Smith", "Jane", "jane.smith@example.com", "1", "Committee Member", "Marketing", "+94777654321", "https://example.com/jane.jpg", "https://linkedin.com/in/janesmith"],
     ];
-    const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(","))].join("\n");
+    const csvContent = [headers.join(","), ...rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -501,7 +667,7 @@ export default function Members({ isAdmin = false }) {
           member_function: member_function || null,
           mobile_number: mobile_number || null,
           profile_image_url: profile_image_url || null,
-          linkedin_url: linkedin_url || null
+          linkedin_url: linkedin_url || null,
         };
 
         if (rowValid) {
@@ -517,7 +683,7 @@ export default function Members({ isAdmin = false }) {
         mapping,
         validRows,
         invalidRows,
-        errors
+        errors,
       });
     };
     reader.readAsText(file);
@@ -538,8 +704,8 @@ export default function Members({ isAdmin = false }) {
         setImporting(false);
         return;
       }
-      const existingSet = new Set(existing.map(m => m.st_id));
-      const toInsert = parsedData.validRows.filter(row => !existingSet.has(row.st_id));
+      const existingSet = new Set(existing.map((m) => m.st_id));
+      const toInsert = parsedData.validRows.filter((row) => !existingSet.has(row.st_id));
       const skippedCount = parsedData.validRows.length - toInsert.length;
 
       if (toInsert.length === 0) {
@@ -547,7 +713,7 @@ export default function Members({ isAdmin = false }) {
           success: 0,
           skipped: skippedCount,
           failed: 0,
-          validationSkipped: parsedData.invalidRows.length
+          validationSkipped: parsedData.invalidRows.length,
         });
         setImporting(false);
         load(page, search);
@@ -574,7 +740,7 @@ export default function Members({ isAdmin = false }) {
         success: inserted,
         skipped: skippedCount,
         failed: failed,
-        validationSkipped: parsedData.invalidRows.length
+        validationSkipped: parsedData.invalidRows.length,
       });
     } else {
       // Upsert strategy
@@ -599,7 +765,7 @@ export default function Members({ isAdmin = false }) {
         success: upserted,
         skipped: 0,
         failed: failed,
-        validationSkipped: parsedData.invalidRows.length
+        validationSkipped: parsedData.invalidRows.length,
       });
     }
 
@@ -611,9 +777,18 @@ export default function Members({ isAdmin = false }) {
     setProfileTarget(stId);
   };
 
+  const handleCopyStId = (stId, e) => {
+    if (e) e.stopPropagation();
+    if (!stId) return;
+    navigator.clipboard.writeText(stId);
+    setCopiedStId(stId);
+    setTimeout(() => setCopiedStId(null), 1800);
+  };
+
   const handleSave = async () => {
     if (!form.st_id.trim() || !form.name.trim()) {
-      setMsg({ type: "error", text: "ST ID and Name are required." }); return;
+      setMsg({ type: "error", text: "ST ID and Name are required." });
+      return;
     }
 
     const rawStId = form.st_id.trim();
@@ -633,7 +808,6 @@ export default function Members({ isAdmin = false }) {
       const stIdChanged = finalStId !== editTarget;
 
       if (stIdChanged) {
-        // 1. Check if the new st_id is already in members
         const { data: exists } = await supabase
           .from("members")
           .select("st_id")
@@ -646,14 +820,12 @@ export default function Members({ isAdmin = false }) {
           return;
         }
 
-        // 2. Set profile st_id to null first to bypass foreign key constraint
         await supabase
           .from("profiles")
           .update({ st_id: null })
           .eq("id", editProfileTarget.profile_id);
       }
 
-      // 3. Update member details
       const { error: memberErr } = await supabase
         .from("members")
         .update({
@@ -662,7 +834,7 @@ export default function Members({ isAdmin = false }) {
           preferred_name: form.preferred_name?.trim() || null,
           email: form.email.trim() || null,
           level: form.level ? parseInt(form.level) : null,
-          mobile_number: form.mobile_number.trim() || null
+          mobile_number: form.mobile_number.trim() || null,
         })
         .eq("st_id", editTarget);
 
@@ -672,7 +844,6 @@ export default function Members({ isAdmin = false }) {
         return;
       }
 
-      // 4. Update profile details
       const { error: profileErr } = await supabase
         .from("profiles")
         .update({
@@ -680,7 +851,7 @@ export default function Members({ isAdmin = false }) {
           full_name: form.name.trim(),
           preferred_name: form.preferred_name?.trim() || null,
           email: form.email.trim(),
-          role: form.role
+          role: form.role,
         })
         .eq("id", editProfileTarget.profile_id);
 
@@ -691,9 +862,11 @@ export default function Members({ isAdmin = false }) {
       }
 
       setSaving(false);
-      setMsg({ type: "success", text: "Pending registration details updated." });
+      setMsg({ type: "success", text: "Registration details updated." });
       load(page, search);
-      setTimeout(() => { closeModal(); }, 800);
+      setTimeout(() => {
+        closeModal();
+      }, 800);
       return;
     }
 
@@ -707,7 +880,7 @@ export default function Members({ isAdmin = false }) {
       member_function: form.member_function.trim() || null,
       mobile_number: form.mobile_number.trim() || null,
       profile_image_url: form.profile_image_url.trim() || null,
-      linkedin_url: form.linkedin_url.trim() || null
+      linkedin_url: form.linkedin_url.trim() || null,
     };
     let error;
     if (editTarget) {
@@ -716,7 +889,10 @@ export default function Members({ isAdmin = false }) {
       ({ error } = await supabase.from("members").insert([payload]));
     }
     setSaving(false);
-    if (error) { setMsg({ type: "error", text: error.message }); return; }
+    if (error) {
+      setMsg({ type: "error", text: error.message });
+      return;
+    }
     setMsg({ type: "success", text: editTarget ? "Member updated." : "Member added." });
     load(page, search);
     setTimeout(closeModal, 800);
@@ -748,7 +924,12 @@ export default function Members({ isAdmin = false }) {
       .from("members")
       .update({
         st_position: m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin",
-        member_function: m.role === "member" ? (m.member_function && m.member_function !== "Pending Review" ? m.member_function : "General") : "Staff"
+        member_function:
+          m.role === "member"
+            ? m.member_function && m.member_function !== "Pending Review"
+              ? m.member_function
+              : "General"
+            : "Staff",
       })
       .eq("st_id", m.st_id);
 
@@ -761,13 +942,11 @@ export default function Members({ isAdmin = false }) {
   };
 
   const handleReject = async (m) => {
-    if (!confirm(`Reject registration for ${m.name}? They will see a rejection notification when attempting to log in.`)) return;
+    if (!confirm(`Reject registration for ${m.name}? They will see a rejection notification when attempting to log in.`))
+      return;
     setLoading(true);
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ status: "rejected" })
-      .eq("id", m.profile_id);
+    const { error } = await supabase.from("profiles").update({ status: "rejected" }).eq("id", m.profile_id);
 
     if (error) {
       alert("Error rejecting registration: " + error.message);
@@ -778,13 +957,11 @@ export default function Members({ isAdmin = false }) {
   };
 
   const handleDeletePending = async (m) => {
-    if (!confirm(`Permanently delete registration and details for ${m.name} from the database? This cannot be undone.`)) return;
+    if (!confirm(`Permanently delete registration and details for ${m.name} from the database? This cannot be undone.`))
+      return;
     setLoading(true);
 
-    const { error: profileErr } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", m.profile_id);
+    const { error: profileErr } = await supabase.from("profiles").delete().eq("id", m.profile_id);
 
     if (profileErr) {
       alert("Error deleting profile: " + profileErr.message);
@@ -792,10 +969,7 @@ export default function Members({ isAdmin = false }) {
       return;
     }
 
-    const { error: memberErr } = await supabase
-      .from("members")
-      .delete()
-      .eq("st_id", m.st_id);
+    const { error: memberErr } = await supabase.from("members").delete().eq("st_id", m.st_id);
 
     if (memberErr) {
       console.error("Error deleting member row: ", memberErr.message);
@@ -806,302 +980,991 @@ export default function Members({ isAdmin = false }) {
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title"><span className="icon"><span className="material-symbols-outlined">groups</span></span> Members</h1>
-        <p className="page-subtitle">{total} registered students</p>
-      </div>
-
-      <div className="toolbar" style={{ flexWrap: "wrap", gap: "1rem" }}>
-        <div className="search-input-wrap">
-          <span className="search-icon">?</span>
-          <input placeholder="Search by ID, name, position..." value={search} onChange={e => { setPage(0); setSearch(e.target.value); }} />
-        </div>
-
-        <div className="flex gap-2" style={{ alignItems: "center" }}>
-          <label style={{ fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>View:</label>
-          <select
-            value={viewFilter}
-            onChange={e => { setPage(0); setViewFilter(e.target.value); }}
-            style={{ padding: "0.5rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}
-          >
-            <option value="active">Active Members</option>
-            <option value="alumni">Alumni (Level 5+)</option>
-            <option value="all">All Members</option>
-            <option value="pending">Pending Approvals</option>
-          </select>
-        </div>
-
-        <div className="flex gap-2" style={{ marginLeft: "auto", flexWrap: "wrap" }}>
-          <button className="btn btn-ghost" onClick={exportMembersCSV} title="Export members list to CSV file">
-            📥 Export CSV
-          </button>
-          {isAdmin && (
-            <>
-              <button className="btn btn-ghost" onClick={() => { setSettingsMsg(null); setEditSettingsModal(true); }}>⚙️ Edit Permissions</button>
-              <button className="btn btn-ghost" onClick={openImportCSV}>Import CSV</button>
-              <button className="btn btn-ghost" onClick={promoteAll} style={{ color: "var(--accent)" }}>Promote All</button>
-              <button className="btn btn-primary" onClick={openAdd}>+ Add Member</button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="loader"><div className="spinner" /></div>
-      ) : (
-        <div className="table-wrap">
-          <table style={{ fontSize: "14px" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                <th style={{ width: "60px", padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Profile</th>
-                <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Student ID</th>
-                <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Name</th>
-                {viewFilter === "pending" ? (
-                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Requested Role</th>
-                ) : (
-                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Level</th>
+    <div
+      className={`min-h-screen font-inter-variable pb-20 transition-colors duration-150 ${
+        isDark
+          ? "bg-[#08090a] text-[#d0d6e0] selection:bg-[#e4f222]/20 selection:text-white"
+          : "bg-[#f8fafc] text-gray-800 selection:bg-indigo-500/20 selection:text-indigo-900"
+      }`}
+    >
+      {/* ── HIGH-DENSITY LINEAR STICKY CONTROL BAR ── */}
+      <div
+        className={`border-b sticky top-0 z-20 backdrop-blur-md transition-colors ${
+          isDark
+            ? "border-[#23252a] bg-[#0c0c0e]/95"
+            : "border-gray-200 bg-white/95 shadow-sm"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5">
+          {/* Row 1: Title, Telemetry Chips & Action Toolbar */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className={`w-7 h-7 rounded-[6px] border flex items-center justify-center flex-shrink-0 ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a]"
+                    : "bg-indigo-50 border-indigo-100"
+                }`}
+              >
+                <Users
+                  className={`w-4 h-4 ${
+                    isDark ? "text-[#e4f222]" : "text-indigo-600"
+                  }`}
+                />
+              </div>
+              <h1
+                className={`text-[15px] sm:text-[16px] font-[590] tracking-[-0.018em] truncate ${
+                  isDark ? "text-[#ffffff]" : "text-gray-900"
+                }`}
+              >
+                Members Directory & Registry
+              </h1>
+              <div
+                className={`hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border font-berkeley-mono text-[10px] ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-[#8a8f98]"
+                    : "bg-gray-50 border-gray-200 text-gray-600"
+                }`}
+              >
+                <span>{total} in view</span>
+                {pendingCount > 0 && (
+                  <>
+                    <span className={isDark ? "text-[#383b42]" : "text-gray-300"}>·</span>
+                    <span
+                      className={`font-[590] ${
+                        isDark ? "text-[#f59e0b]" : "text-amber-600"
+                      }`}
+                    >
+                      {pendingCount} pending approvals
+                    </span>
+                  </>
                 )}
-                {viewFilter === "pending" ? (
-                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Phone</th>
-                ) : (
-                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Position</th>
-                )}
-                {viewFilter === "pending" && (
-                  <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)" }}>Year</th>
-                )}
-                <th style={{ padding: "12px 16px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "0.05em", color: "var(--text3)", textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.length === 0 ? (
-                <tr>
-                  <td colSpan={viewFilter === "pending" ? 7 : 6}>
-                    <div className="empty-state"><div className="icon">*</div><p>No members found</p></div>
-                  </td>
-                </tr>
-              ) : members.map(m => (
-                <tr key={m.st_id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  {/* 1. Profile Picture */}
-                  <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                    <div style={{
-                      width: "38px",
-                      height: "38px",
-                      borderRadius: "50%",
-                      overflow: "hidden",
-                      background: "#27272a",
-                      border: "1px solid #3f3f46",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0
-                    }}>
-                      {m.profile_image_url ? (
-                        <img src={m.profile_image_url} alt={m.preferred_name || m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      ) : (
-                        <span style={{ fontSize: "12px", fontWeight: "700", color: "#e4e1ed", letterSpacing: "0.05em" }}>
-                          {getInitials(m.preferred_name || m.name)}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* 2. Student ID */}
-                  <td className="mono" style={{ padding: "12px 16px", verticalAlign: "middle", fontSize: "14px", fontWeight: "500", color: "#d4d4d8" }}>
-                    {m.st_id}
-                  </td>
-
-                  {/* 3. Name & Email (Showing ONLY Preferred Name in table) */}
-                  <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                      {viewFilter === "pending" ? (
-                        <span style={{ fontWeight: "700", fontSize: "15px", color: "var(--text)" }}>
-                          {m.preferred_name || m.name}
-                        </span>
-                      ) : (
-                        <span
-                          className="clickable-member"
-                          onClick={() => openViewProfile(m.st_id)}
-                          style={{ cursor: "pointer", color: "#818cf8", fontWeight: "700", fontSize: "15px" }}
-                        >
-                          {m.preferred_name || m.name}
-                        </span>
-                      )}
-                      {m.email && (
-                        <span style={{ fontSize: "12px", color: "var(--text3)", wordBreak: "break-all" }}>
-                          {m.email}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* 4. Level / Role */}
-                  {viewFilter === "pending" ? (
-                    <>
-                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                          <span className="badge badge-purple" style={{ fontSize: "12px", padding: "4px 10px" }}>{m.role}</span>
-                          <span className="badge" style={{
-                            fontSize: "12px",
-                            padding: "4px 10px",
-                            backgroundColor: m.status === "rejected" ? "rgba(220, 38, 38, 0.15)" : "rgba(245, 158, 11, 0.15)",
-                            color: m.status === "rejected" ? "var(--red)" : "var(--amber)",
-                            border: m.status === "rejected" ? "1px solid rgba(220, 38, 38, 0.2)" : "1px solid rgba(245, 158, 11, 0.2)"
-                          }}>
-                            {m.status === "rejected" ? "Rejected" : "Pending"}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ padding: "12px 16px", verticalAlign: "middle", fontSize: "14px" }}>
-                        <PhoneContact phone={m.mobile_number} />
-                      </td>
-                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                        <span className="badge badge-purple" style={{ fontSize: "12px", padding: "4px 10px" }}>Year {m.level}</span>
-                      </td>
-                      <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "right" }}>
-                        <div className="flex gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
-                          <button className="btn btn-ghost btn-sm" style={{ color: "var(--green)", fontSize: "13px" }} onClick={() => handleApprove(m)}>Approve</button>
-                          {m.status === "pending" && (
-                            <button className="btn btn-ghost btn-sm" style={{ color: "var(--amber)", fontSize: "13px" }} onClick={() => handleReject(m)}>Reject</button>
-                          )}
-                          <button className="btn btn-ghost btn-sm" style={{ fontSize: "13px" }} onClick={() => openEditPending(m)}>Edit</button>
-                          <button className="btn btn-danger btn-sm" style={{ fontSize: "13px" }} onClick={() => handleDeletePending(m)}>Delete</button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                        {m.level ? (
-                          <span className="badge badge-purple" style={{ fontSize: "12px", padding: "4px 10px" }}>
-                            Level {m.level}
-                          </span>
-                        ) : (
-                          <span className="text-muted" style={{ fontSize: "13px" }}>-</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "12px 16px", verticalAlign: "middle" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <span style={{ fontWeight: "600", fontSize: "14px", color: "var(--text)" }}>
-                            {m.st_position || m.member_function || "General Member"}
-                          </span>
-                          {m.st_position && m.member_function && (
-                            <span style={{ fontSize: "12px", color: "var(--text3)" }}>
-                              {m.member_function}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: "12px 16px", verticalAlign: "middle", textAlign: "right" }}>
-                        <div className="flex gap-2" style={{ justifyContent: "flex-end" }}>
-                          {isAdmin ? (
-                            <>
-                              <button className="btn btn-ghost btn-sm" style={{ fontSize: "13px" }} onClick={() => openEdit(m)}>Edit</button>
-                              <button className="btn btn-danger btn-sm" style={{ fontSize: "13px" }} onClick={() => handleDelete(m.st_id)}>Delete</button>
-                            </>
-                          ) : (
-                            <button className="btn btn-ghost btn-sm" style={{ fontSize: "13px" }} onClick={() => openViewProfile(m.st_id)}>View</button>
-                          )}
-                        </div>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
-        </div>
-      )}
-
-      {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 className="modal-title">{editTarget ? "Edit Member" : "Add New Member"}</h2>
-              <button className="modal-close" onClick={closeModal}>x</button>
+              </div>
             </div>
 
-            {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+            {/* Quick Action Tools */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button
+                onClick={exportMembersCSV}
+                className={`h-7 px-2.5 rounded-[6px] border font-berkeley-mono text-[11px] font-[510] transition-colors flex items-center gap-1.5 ${
+                  isDark
+                    ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
+                    : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-sm"
+                }`}
+                title="Export members list to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
 
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>ST ID *</label>
-                <input placeholder="e.g. SC/2022/12984" value={form.st_id} onChange={e => setForm({ ...form, st_id: e.target.value })} disabled={!!editTarget && !editProfileTarget} />
+              {isAdmin && (
+                <>
+                  <button
+                    onClick={() => {
+                      setSettingsMsg(null);
+                      loadEditPermissions();
+                      setEditSettingsModal(true);
+                    }}
+                    className={`h-7 px-2.5 rounded-[6px] border font-berkeley-mono text-[11px] font-[510] transition-colors flex items-center gap-1.5 ${
+                      isDark
+                        ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
+                        : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-sm"
+                    }`}
+                    title="Configure self-edit permissions for members"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Permissions</span>
+                  </button>
+
+                  <button
+                    onClick={openImportCSV}
+                    className={`h-7 px-2.5 rounded-[6px] border font-berkeley-mono text-[11px] font-[510] transition-colors flex items-center gap-1.5 ${
+                      isDark
+                        ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
+                        : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-sm"
+                    }`}
+                    title="Import members from CSV"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Import</span>
+                  </button>
+
+                  <button
+                    onClick={promoteAll}
+                    className={`h-7 px-2.5 rounded-[6px] border font-berkeley-mono text-[11px] font-[510] transition-colors flex items-center gap-1.5 ${
+                      isDark
+                        ? "bg-[#161718] hover:bg-[#23252a] text-[#818cf8] hover:text-white border-[#23252a]"
+                        : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 border-indigo-200 shadow-sm"
+                    }`}
+                    title="Promote all active members to next level"
+                  >
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">Promote All</span>
+                  </button>
+
+                  {/* Primary Action Button */}
+                  <button
+                    onClick={openAdd}
+                    className={`h-7 px-3 font-[510] tracking-[-0.011em] text-[12px] rounded-[6px] flex items-center gap-1.5 flex-shrink-0 shadow-sm transition-all ${
+                      isDark
+                        ? "bg-[#e4f222] hover:brightness-105 text-[#08090a]"
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Member</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Segmented View Navigation Tabs & Real-time Search */}
+          <div
+            className={`flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t ${
+              isDark ? "border-[#1a1b1e]" : "border-gray-100"
+            }`}
+          >
+            {/* View Tabs */}
+            <div
+              className={`flex items-center p-0.5 rounded-[6px] border overflow-x-auto scrollbar-none max-w-full ${
+                isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-100 border-gray-200"
+              }`}
+            >
+              {[
+                { id: "active", label: "Active Members" },
+                { id: "alumni", label: "Alumni (L5+)" },
+                { id: "all", label: "All Members" },
+                {
+                  id: "pending",
+                  label:
+                    pendingCount > 0
+                      ? `⏳ Pending Approvals (${pendingCount})`
+                      : "Pending Approvals",
+                  color: pendingCount > 0 ? (isDark ? "#f59e0b" : "#d97706") : null,
+                },
+              ].map((tab) => {
+                const active = viewFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setPage(0);
+                      setViewFilter(tab.id);
+                    }}
+                    className={`px-2.5 py-1 rounded-[4px] font-berkeley-mono text-[11px] font-[510] whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                      active
+                        ? isDark
+                          ? "bg-[#23252a] text-white"
+                          : "bg-white text-gray-900 shadow-sm"
+                        : isDark
+                        ? "text-[#8a8f98] hover:text-white"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    {tab.color && (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: tab.color }}
+                      />
+                    )}
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search
+                className={`absolute left-2.5 top-2 w-3.5 h-3.5 ${
+                  isDark ? "text-[#62666d]" : "text-gray-400"
+                }`}
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => {
+                  setPage(0);
+                  setSearch(e.target.value);
+                }}
+                placeholder="Search by ID, name, function..."
+                className={`w-full rounded-[6px] pl-8 pr-7 py-1 text-[12px] transition-colors font-sans border ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:outline-none focus:border-[#d0d6e0]"
+                    : "bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-indigo-500 shadow-sm"
+                }`}
+              />
+              {search && (
+                <button
+                  onClick={() => {
+                    setPage(0);
+                    setSearch("");
+                  }}
+                  className={`absolute right-2 top-1.5 ${
+                    isDark ? "text-[#62666d] hover:text-white" : "text-gray-400 hover:text-gray-600"
+                  }`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main Content Area ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Table / Ledger Container */}
+        <div
+          className={`rounded-[12px] overflow-hidden border ${
+            isDark
+              ? "bg-[#0f1011] border-[#23252a] shadow-xl"
+              : "bg-white border-gray-200 shadow-sm"
+          }`}
+        >
+          {loading ? (
+            <div
+              className={`flex flex-col items-center justify-center py-24 gap-3 ${
+                isDark ? "text-[#62666d]" : "text-gray-500"
+              }`}
+            >
+              <div
+                className={`w-6 h-6 border-2 rounded-full animate-spin ${
+                  isDark
+                    ? "border-[#23252a] border-t-[#e4f222]"
+                    : "border-gray-200 border-t-indigo-600"
+                }`}
+              />
+              <span className="text-[12px] font-berkeley-mono">Loading member records...</span>
+            </div>
+          ) : members.length === 0 ? (
+            <div
+              className={`p-12 text-center flex flex-col items-center justify-center max-w-md mx-auto space-y-2 ${
+                isDark ? "text-[#62666d]" : "text-gray-500"
+              }`}
+            >
+              <div
+                className={`w-10 h-10 rounded-[6px] border flex items-center justify-center ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-[#8a8f98]"
+                    : "bg-gray-50 border-gray-200 text-gray-400"
+                }`}
+              >
+                <Users
+                  className={`w-5 h-5 ${isDark ? "text-[#62666d]" : "text-gray-400"}`}
+                />
+              </div>
+              <h3
+                className={`text-[14px] font-[510] ${
+                  isDark ? "text-white" : "text-gray-900"
+                }`}
+              >
+                No members found
+              </h3>
+              <p
+                className={`text-[12px] leading-relaxed font-sans ${
+                  isDark ? "text-[#8a8f98]" : "text-gray-600"
+                }`}
+              >
+                {search
+                  ? `No member records match "${search}". Try clearing search filters.`
+                  : viewFilter === "pending"
+                  ? "No registrations currently awaiting staff approval."
+                  : "No registered members found in this view."}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr
+                    className={`border-b font-berkeley-mono text-[10px] uppercase tracking-wider ${
+                      isDark
+                        ? "border-[#23252a] bg-[#161718]/60 text-[#8a8f98]"
+                        : "border-gray-200 bg-gray-50/80 text-gray-500"
+                    }`}
+                  >
+                    <th className="py-2.5 px-4 w-12 font-[510]">Profile</th>
+                    <th className="py-2.5 px-4 font-[510]">Student ID</th>
+                    <th className="py-2.5 px-4 font-[510]">Calling & Full Name</th>
+                    {viewFilter === "pending" ? (
+                      <>
+                        <th className="py-2.5 px-4 font-[510]">Requested Role</th>
+                        <th className="py-2.5 px-4 font-[510]">Contact</th>
+                        <th className="py-2.5 px-4 font-[510]">Academic Year</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="py-2.5 px-4 font-[510]">Level</th>
+                        <th className="py-2.5 px-4 font-[510]">Position & Function</th>
+                        <th className="py-2.5 px-4 font-[510]">Contact & Links</th>
+                      </>
+                    )}
+                    <th className="py-2.5 px-4 text-right font-[510]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${isDark ? "divide-[#23252a]" : "divide-gray-100"}`}>
+                  {members.map((m) => {
+                    const isCopied = copiedStId === m.st_id;
+
+                    return (
+                      <tr
+                        key={m.st_id}
+                        className={`transition-colors group text-[12.5px] ${
+                          isDark ? "hover:bg-[#161718]/40" : "hover:bg-gray-50/80"
+                        }`}
+                      >
+                        {/* 1. Profile Picture / Avatar */}
+                        <td className="py-3 px-4 align-middle">
+                          <div
+                            className={`w-8 h-8 rounded-[6px] overflow-hidden border flex items-center justify-center flex-shrink-0 ${
+                              isDark
+                                ? "bg-[#161718] border-[#23252a]"
+                                : "bg-gray-100 border-gray-200"
+                            }`}
+                          >
+                            {m.profile_image_url ? (
+                              <img
+                                src={m.profile_image_url}
+                                alt={m.preferred_name || m.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span
+                                className={`text-[11px] font-berkeley-mono font-[510] ${
+                                  isDark ? "text-[#d0d6e0]" : "text-gray-700"
+                                }`}
+                              >
+                                {getInitials(m.preferred_name || m.name)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 2. Student ID with 1-click Copy */}
+                        <td
+                          className={`py-3 px-4 align-middle font-berkeley-mono text-[12px] ${
+                            isDark ? "text-[#d0d6e0]" : "text-gray-800"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>{m.st_id}</span>
+                            <button
+                              onClick={(e) => handleCopyStId(m.st_id, e)}
+                              className={`transition-colors ${
+                                isDark
+                                  ? "text-[#62666d] hover:text-white"
+                                  : "text-gray-400 hover:text-gray-700"
+                              }`}
+                              title="Copy Student ID"
+                            >
+                              {isCopied ? (
+                                <Check className="w-3 h-3 text-[#27a644]" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* 3. Name (Calling Name / Full Name & Email) */}
+                        <td className="py-3 px-4 align-middle">
+                          <div className="flex flex-col">
+                            <StudentNameLink
+                              stId={m.st_id}
+                              name={m.preferred_name || m.name}
+                              className="!text-[13.5px]"
+                            />
+                            {m.email && (
+                              <span
+                                className={`text-[11px] truncate max-w-xs font-sans ${
+                                  isDark ? "text-[#8a8f98]" : "text-gray-500"
+                                }`}
+                              >
+                                {m.email}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 4/5/6. Role-specific columns */}
+                        {viewFilter === "pending" ? (
+                          <>
+                            {/* Requested Role & Status */}
+                            <td className="py-3 px-4 align-middle">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`font-berkeley-mono text-[10px] px-1.5 py-0.5 rounded-[3px] border uppercase ${
+                                    isDark
+                                      ? "bg-[#6366f1]/10 text-[#818cf8] border-[#6366f1]/30"
+                                      : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                  }`}
+                                >
+                                  {m.role}
+                                </span>
+                                <span
+                                  className={`font-berkeley-mono text-[10px] px-1.5 py-0.5 rounded-[3px] border uppercase ${
+                                    m.status === "rejected"
+                                      ? isDark
+                                        ? "bg-[#eb5757]/10 text-[#eb5757] border-[#eb5757]/30"
+                                        : "bg-red-50 text-red-700 border-red-200"
+                                      : isDark
+                                      ? "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/30"
+                                      : "bg-amber-50 text-amber-700 border-amber-200"
+                                  }`}
+                                >
+                                  {m.status}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Phone */}
+                            <td className="py-3 px-4 align-middle font-berkeley-mono text-[11px]">
+                              <PhoneContact phone={m.mobile_number} />
+                            </td>
+
+                            {/* Academic Year */}
+                            <td className="py-3 px-4 align-middle">
+                              <span
+                                className={`font-berkeley-mono text-[10px] px-2 py-0.5 rounded-[3px] border ${
+                                  isDark
+                                    ? "bg-[#161718] border-[#23252a] text-[#8a8f98]"
+                                    : "bg-gray-100 border-gray-200 text-gray-700"
+                                }`}
+                              >
+                                Year {m.level}
+                              </span>
+                            </td>
+
+                            {/* Pending Actions */}
+                            <td className="py-3 px-4 align-middle text-right">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                <button
+                                  onClick={() => handleApprove(m)}
+                                  className={`h-6 px-2 rounded-[4px] border font-berkeley-mono text-[10px] font-[510] transition-colors flex items-center gap-1 ${
+                                    isDark
+                                      ? "bg-[#27a644]/10 hover:bg-[#27a644]/20 text-[#27a644] border-[#27a644]/30"
+                                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                                  }`}
+                                  title="Approve Member"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>Approve</span>
+                                </button>
+                                {m.status === "pending" && (
+                                  <button
+                                    onClick={() => handleReject(m)}
+                                    className={`h-6 px-2 rounded-[4px] border font-berkeley-mono text-[10px] transition-colors flex items-center gap-1 ${
+                                      isDark
+                                        ? "bg-[#f59e0b]/10 hover:bg-[#f59e0b]/20 text-[#f59e0b] border-[#f59e0b]/30"
+                                        : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                                    }`}
+                                    title="Reject Registration"
+                                  >
+                                    <X className="w-3 h-3" />
+                                    <span>Reject</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openEditPending(m)}
+                                  className={`h-6 px-2 rounded-[4px] border font-berkeley-mono text-[10px] transition-colors ${
+                                    isDark
+                                      ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
+                                      : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-sm"
+                                  }`}
+                                  title="Edit details"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePending(m)}
+                                  className={`p-1 rounded-[4px] transition-colors ${
+                                    isDark
+                                      ? "text-[#62666d] hover:text-[#eb5757] hover:bg-[#eb5757]/10"
+                                      : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                  }`}
+                                  title="Permanently Delete"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            {/* Academic Level */}
+                            <td className="py-3 px-4 align-middle">
+                              {m.level ? (
+                                <span
+                                  className={`font-berkeley-mono text-[10px] px-1.5 py-0.5 rounded-[3px] border ${
+                                    m.level > 4
+                                      ? isDark
+                                        ? "bg-[#161718] text-[#8a8f98] border-[#23252a]"
+                                        : "bg-gray-100 text-gray-600 border-gray-200"
+                                      : isDark
+                                      ? "bg-[#6366f1]/10 text-[#818cf8] border-[#6366f1]/30"
+                                      : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                  }`}
+                                >
+                                  {m.level > 4 ? "ALUMNI" : `LEVEL ${m.level}`}
+                                </span>
+                              ) : (
+                                <span
+                                  className={`font-berkeley-mono text-[11px] ${
+                                    isDark ? "text-[#62666d]" : "text-gray-400"
+                                  }`}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Position & Function */}
+                            <td className="py-3 px-4 align-middle">
+                              <div className="flex flex-col">
+                                <span
+                                  className={`font-[510] text-[12.5px] leading-tight ${
+                                    isDark ? "text-white" : "text-gray-900"
+                                  }`}
+                                >
+                                  {m.st_position || m.member_function || "General Member"}
+                                </span>
+                                {m.st_position && m.member_function && (
+                                  <span
+                                    className={`text-[11px] font-berkeley-mono ${
+                                      isDark ? "text-[#8a8f98]" : "text-gray-500"
+                                    }`}
+                                  >
+                                    {m.member_function}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Contact & Links */}
+                            <td className="py-3 px-4 align-middle font-berkeley-mono text-[11px]">
+                              <div className="flex items-center gap-2">
+                                <PhoneContact phone={m.mobile_number} />
+                                {m.linkedin_url && (
+                                  <a
+                                    href={m.linkedin_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`p-1 rounded-[3px] transition-colors ${
+                                      isDark
+                                        ? "text-[#8a8f98] hover:text-[#818cf8] hover:bg-[#161718]"
+                                        : "text-gray-400 hover:text-indigo-600 hover:bg-gray-100"
+                                    }`}
+                                    title="Open LinkedIn Profile"
+                                  >
+                                    <LinkedInIcon className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Active Actions */}
+                            <td className="py-3 px-4 align-middle text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1">
+                                {isAdmin ? (
+                                  <>
+                                    <button
+                                      onClick={() => openEdit(m)}
+                                      className={`p-1 rounded-[4px] border border-transparent transition-all ${
+                                        isDark
+                                          ? "text-[#8a8f98] hover:text-white hover:bg-[#161718] hover:border-[#23252a]"
+                                          : "text-gray-400 hover:text-gray-700 hover:bg-gray-100 hover:border-gray-200"
+                                      }`}
+                                      title="Edit Member"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(m.st_id)}
+                                      className={`p-1 rounded-[4px] border border-transparent transition-all ${
+                                        isDark
+                                          ? "text-[#8a8f98] hover:text-[#eb5757] hover:bg-[#eb5757]/10 hover:border-[#eb5757]/30"
+                                          : "text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200"
+                                      }`}
+                                      title="Delete Member"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => openViewProfile(m.st_id)}
+                                    className={`h-6 px-2.5 rounded-[4px] border font-berkeley-mono text-[11px] transition-colors flex items-center gap-1 ${
+                                      isDark
+                                        ? "bg-[#161718] hover:bg-[#23252a] text-[#d0d6e0] hover:text-white border-[#23252a]"
+                                        : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-sm"
+                                    }`}
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>Dossier</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── Table Pagination ── */}
+          <div
+            className={`border-t px-4 py-2 ${
+              isDark ? "border-[#23252a]" : "border-gray-200 bg-gray-50/50"
+            }`}
+          >
+            <Pagination page={page} total={total} loading={loading} onPageChange={setPage} />
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════
+          MODAL 1: Add / Edit Member
+         ═══════════════════════════════════════════════ */}
+      {modal && (
+        <div
+          className={`fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto ${
+            isDark ? "bg-[#08090a]/80" : "bg-slate-900/40"
+          }`}
+          onClick={(e) => e.target === e.currentTarget && closeModal()}
+        >
+          <div
+            className={`border rounded-[12px] w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto ${
+              isDark
+                ? "bg-[#0f1011] border-[#23252a] text-[#d0d6e0]"
+                : "bg-white border-gray-200 text-gray-800 shadow-xl"
+            }`}
+          >
+            {/* Header */}
+            <div
+              className={`flex justify-between items-center pb-3 border-b ${
+                isDark ? "border-[#23252a]" : "border-gray-200"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Users
+                  className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`}
+                />
+                <h2
+                  className={`text-[15px] font-[590] ${
+                    isDark ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  {editTarget ? `Edit Member: ${editTarget}` : "Add New Society Member"}
+                </h2>
+              </div>
+              <button
+                onClick={closeModal}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition-colors ${
+                  isDark
+                    ? "hover:bg-[#161718] text-[#8a8f98] hover:text-white"
+                    : "hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {msg && (
+              <div
+                className={`p-3 rounded-[6px] text-[12px] font-berkeley-mono border ${
+                  msg.type === "error"
+                    ? isDark
+                      ? "bg-[#eb5757]/10 text-[#eb5757] border-[#eb5757]/30"
+                      : "bg-red-50 text-red-700 border-red-200"
+                    : isDark
+                    ? "bg-[#27a644]/10 text-[#27a644] border-[#27a644]/30"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                }`}
+              >
+                {msg.text}
+              </div>
+            )}
+
+            {/* ST ID & Level */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label
+                  className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Student ID (ST ID) *
+                </label>
+                <input
+                  placeholder="e.g. SC/2022/12984"
+                  value={form.st_id}
+                  onChange={(e) => setForm({ ...form, st_id: e.target.value })}
+                  disabled={!!editTarget && !editProfileTarget}
+                  className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border disabled:opacity-40 font-berkeley-mono transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                      : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                  }`}
+                />
                 {form.st_id && !/^(?:SC\/)?\d{4}\/\d{5}$/i.test(form.st_id.trim()) && (
-                  <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
-                    Invalid Student ID format. Correct format: SC/2022/12984
+                  <span
+                    className={`text-[11px] font-berkeley-mono mt-1 block ${
+                      isDark ? "text-[#eb5757]" : "text-red-600"
+                    }`}
+                  >
+                    Correct format: SC/2022/12984
                   </span>
                 )}
               </div>
-              <div className="form-group">
-                <label>Level / Year</label>
-                <input type="number" placeholder="e.g. 2" min="1" max="6" value={form.level} onChange={e => setForm({ ...form, level: e.target.value })} />
-              </div>
-            </div>
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Full Name *</label>
-                <input placeholder="Student full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>Preferred Name (Calling Name)</label>
-                <input placeholder="e.g. Pathum" value={form.preferred_name} onChange={e => setForm({ ...form, preferred_name: e.target.value })} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Email Address</label>
-                <input type="email" placeholder="Student email address" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-              </div>
-            </div>
-            {editProfileTarget ? (
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Requested Role / Access Level</label>
-                  <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
-                    <option value="member">Member</option>
-                    <option value="editor">Editor</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Student Position</label>
-                    <input placeholder="e.g. President, Secretary..." value={form.st_position} onChange={e => setForm({ ...form, st_position: e.target.value })} />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Member Function</label>
-                    <input placeholder="e.g. Logistics, Marketing, Finance..." value={form.member_function} onChange={e => setForm({ ...form, member_function: e.target.value })} />
-                  </div>
-                </div>
-              </>
-            )}
-            <div className="form-row form-row-2">
-              <div className="form-group">
-                <label>Mobile Number</label>
-                <input placeholder="e.g. +94771234567" value={form.mobile_number} onChange={e => setForm({ ...form, mobile_number: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>LinkedIn Profile URL</label>
-                <input placeholder="e.g. https://linkedin.com/in/..." value={form.linkedin_url} onChange={e => setForm({ ...form, linkedin_url: e.target.value })} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Profile Image URL</label>
-                <input placeholder="e.g. https://example.com/avatar.jpg" value={form.profile_image_url} onChange={e => setForm({ ...form, profile_image_url: e.target.value })} />
+              <div>
+                <label
+                  className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Academic Level / Year
+                </label>
+                <input
+                  type="number"
+                  placeholder="1-6"
+                  min="1"
+                  max="6"
+                  value={form.level}
+                  onChange={(e) => setForm({ ...form, level: e.target.value })}
+                  className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border font-berkeley-mono transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                      : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                  }`}
+                />
               </div>
             </div>
 
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {/* Full Name & Preferred Calling Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label
+                  className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Full Name *
+                </label>
+                <input
+                  placeholder="Student full name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                      : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                  }`}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Preferred / Calling Name
+                </label>
+                <input
+                  placeholder="e.g. Pathum"
+                  value={form.preferred_name}
+                  onChange={(e) => setForm({ ...form, preferred_name: e.target.value })}
+                  className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                      : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Email Address */}
+            <div>
+              <label
+                className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                  isDark ? "text-[#8a8f98]" : "text-gray-600"
+                }`}
+              >
+                Email Address
+              </label>
+              <input
+                type="email"
+                placeholder="student@ruh.ac.lk"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border transition-colors ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                    : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                }`}
+              />
+            </div>
+
+            {/* Role selection for pending profiles OR Position/Function */}
+            {editProfileTarget ? (
+              <div>
+                <label
+                  className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Requested Role / Access Tier
+                </label>
+                <select
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border font-berkeley-mono transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a] text-white focus:outline-none"
+                      : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                  }`}
+                >
+                  <option value="member">Member</option>
+                  <option value="editor">Editor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label
+                    className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                      isDark ? "text-[#8a8f98]" : "text-gray-600"
+                    }`}
+                  >
+                    Student Position
+                  </label>
+                  <input
+                    placeholder="e.g. President, Secretary..."
+                    value={form.st_position}
+                    onChange={(e) => setForm({ ...form, st_position: e.target.value })}
+                    className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border transition-colors ${
+                      isDark
+                        ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                        : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label
+                    className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                      isDark ? "text-[#8a8f98]" : "text-gray-600"
+                    }`}
+                  >
+                    Member Function
+                  </label>
+                  <input
+                    placeholder="e.g. Finance, Logistics, PR..."
+                    value={form.member_function}
+                    onChange={(e) => setForm({ ...form, member_function: e.target.value })}
+                    className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border transition-colors ${
+                      isDark
+                        ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                        : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                    }`}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Contact & Social */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label
+                  className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Mobile / WhatsApp Number
+                </label>
+                <input
+                  placeholder="+94771234567"
+                  value={form.mobile_number}
+                  onChange={(e) => setForm({ ...form, mobile_number: e.target.value })}
+                  className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border font-berkeley-mono transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                      : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                  }`}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  LinkedIn Profile URL
+                </label>
+                <input
+                  placeholder="https://linkedin.com/in/..."
+                  value={form.linkedin_url}
+                  onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })}
+                  className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border font-berkeley-mono transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                      : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Avatar URL */}
+            <div>
+              <label
+                className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1 ${
+                  isDark ? "text-[#8a8f98]" : "text-gray-600"
+                }`}
+              >
+                Profile Photo URL
+              </label>
+              <input
+                placeholder="https://example.com/avatar.jpg"
+                value={form.profile_image_url}
+                onChange={(e) => setForm({ ...form, profile_image_url: e.target.value })}
+                className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border font-berkeley-mono transition-colors ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
+                    : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
+                }`}
+              />
+            </div>
+
+            {/* Footer */}
+            <div
+              className={`flex justify-end gap-2 pt-3 border-t ${
+                isDark ? "border-[#23252a]" : "border-gray-200"
+              }`}
+            >
+              <button
+                onClick={closeModal}
+                className={`px-3.5 py-1.5 rounded-[6px] text-[12px] font-[510] border transition-colors ${
+                  isDark
+                    ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
+                    : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-300 shadow-sm"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className={`px-4 py-1.5 rounded-[6px] text-[12px] font-[510] transition-all disabled:opacity-40 shadow-sm ${
+                  isDark
+                    ? "bg-[#e4f222] hover:brightness-105 text-[#08090a]"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                }`}
+              >
                 {saving ? "Saving..." : editTarget ? "Update Member" : "Add Member"}
               </button>
             </div>
@@ -1109,241 +1972,326 @@ export default function Members({ isAdmin = false }) {
         </div>
       )}
 
+      {/* ═══════════════════════════════════════════════
+          MODAL 2: CSV Importer
+         ═══════════════════════════════════════════════ */}
       {csvModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && !importing && closeCsvModal()}>
-          <div className="modal" style={{ maxWidth: "600px" }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Import Members from CSV</h2>
-              <button className="modal-close" onClick={closeCsvModal} disabled={importing}>x</button>
+        <div
+          className={`fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto ${
+            isDark ? "bg-[#08090a]/80" : "bg-slate-900/40"
+          }`}
+          onClick={(e) => e.target === e.currentTarget && !importing && closeCsvModal()}
+        >
+          <div
+            className={`border rounded-[12px] w-full max-w-xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto ${
+              isDark
+                ? "bg-[#0f1011] border-[#23252a] text-[#d0d6e0]"
+                : "bg-white border-gray-200 text-gray-800 shadow-xl"
+            }`}
+          >
+            <div
+              className={`flex justify-between items-center pb-3 border-b ${
+                isDark ? "border-[#23252a]" : "border-gray-200"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet
+                  className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`}
+                />
+                <h2
+                  className={`text-[15px] font-[590] ${
+                    isDark ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Import Members via CSV
+                </h2>
+              </div>
+              <button
+                onClick={closeCsvModal}
+                disabled={importing}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition-colors ${
+                  isDark
+                    ? "hover:bg-[#161718] text-[#8a8f98] hover:text-white"
+                    : "hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {importResult ? (
-              <div>
-                <div className="alert alert-success">Import process finished!</div>
-                <div className="about-list" style={{ marginBottom: "20px" }}>
-                  <div>
-                    <span>Successfully Processed</span>
-                    <strong>{importResult.success} members</strong>
+              <div className="space-y-4">
+                <div
+                  className={`p-3 border rounded-[6px] text-[12px] font-berkeley-mono flex items-center gap-2 ${
+                    isDark
+                      ? "bg-[#27a644]/10 border-[#27a644]/30 text-[#27a644]"
+                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <span>Batch import finished successfully.</span>
+                </div>
+
+                <div
+                  className={`border rounded-[6px] p-3 font-berkeley-mono text-[12px] space-y-1.5 ${
+                    isDark
+                      ? "bg-[#161718] border-[#23252a]"
+                      : "bg-gray-50 border-gray-200 text-gray-700"
+                  }`}
+                >
+                  <div className="flex justify-between">
+                    <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                      Processed:
+                    </span>
+                    <strong className={isDark ? "text-white" : "text-gray-900"}>
+                      {importResult.success} members
+                    </strong>
                   </div>
                   {importResult.skipped > 0 && (
-                    <div>
-                      <span>Skipped (Duplicates)</span>
-                      <strong>{importResult.skipped} members</strong>
+                    <div className="flex justify-between">
+                      <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                        Skipped (Duplicates):
+                      </span>
+                      <strong className={isDark ? "text-[#f59e0b]" : "text-amber-600"}>
+                        {importResult.skipped} members
+                      </strong>
                     </div>
                   )}
                   {importResult.validationSkipped > 0 && (
-                    <div>
-                      <span>Skipped (Validation Failures)</span>
-                      <strong>{importResult.validationSkipped} rows</strong>
+                    <div className="flex justify-between">
+                      <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                        Validation Failures:
+                      </span>
+                      <strong className={isDark ? "text-[#eb5757]" : "text-red-600"}>
+                        {importResult.validationSkipped} rows
+                      </strong>
                     </div>
                   )}
                   {importResult.failed > 0 && (
-                    <div>
-                      <span>Failed (Database Errors)</span>
-                      <strong>{importResult.failed} members</strong>
+                    <div className="flex justify-between">
+                      <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                        Database Errors:
+                      </span>
+                      <strong className={isDark ? "text-[#eb5757]" : "text-red-600"}>
+                        {importResult.failed} records
+                      </strong>
                     </div>
                   )}
                 </div>
-                <div className="modal-actions">
-                  <button className="btn btn-primary" onClick={closeCsvModal}>Done</button>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    className={`px-4 py-1.5 rounded-[6px] text-[12px] font-[510] shadow-sm ${
+                      isDark ? "bg-[#e4f222] text-[#08090a]" : "bg-indigo-600 text-white"
+                    }`}
+                    onClick={closeCsvModal}
+                  >
+                    Done
+                  </button>
                 </div>
               </div>
             ) : importing ? (
-              <div className="csv-progress-wrap">
-                <div className="csv-progress-bar">
-                  <div className="csv-progress-fill" style={{ width: `${importProgress}%` }}></div>
+              <div className="py-8 text-center space-y-3">
+                <div
+                  className={`w-full rounded-full h-2 border overflow-hidden ${
+                    isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-200 border-gray-300"
+                  }`}
+                >
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      isDark ? "bg-[#e4f222]" : "bg-indigo-600"
+                    }`}
+                    style={{ width: `${importProgress}%` }}
+                  />
                 </div>
-                <div className="csv-progress-text">
-                  <span>Uploading to database...</span>
+                <div
+                  className={`flex justify-between font-berkeley-mono text-[11px] ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-500"
+                  }`}
+                >
+                  <span>Writing records to Supabase...</span>
                   <span>{importProgress}%</span>
                 </div>
               </div>
             ) : parsedData ? (
-              <div>
-                <div className="csv-preview-title">Header Mapping Status</div>
-                <div className="csv-mapping-grid">
-                  <div className="csv-mapping-item">
-                    <span>Student ID *</span>
-                    <strong>
-                      {parsedData.mapping.st_id !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.st_id]}</span>
-                      ) : (
-                        <span className="badge badge-red">Missing</span>
-                      )}
-                    </strong>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`font-berkeley-mono text-[11px] uppercase tracking-wider ${
+                      isDark ? "text-[#8a8f98]" : "text-gray-500"
+                    }`}
+                  >
+                    Header Field Mapping
+                  </span>
+                  <span
+                    className={`font-berkeley-mono text-[11px] ${
+                      isDark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    {parsedData.validRows.length} valid / {parsedData.rows.length} total rows
+                  </span>
+                </div>
+
+                <div
+                  className={`grid grid-cols-2 gap-2 p-3 rounded-[6px] border font-berkeley-mono text-[11px] ${
+                    isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"
+                  }`}
+                >
+                  <div>
+                    <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                      Student ID:{" "}
+                    </span>
+                    {parsedData.mapping.st_id !== -1 ? (
+                      <span className={isDark ? "text-[#27a644]" : "text-emerald-600 font-semibold"}>
+                        Mapped
+                      </span>
+                    ) : (
+                      <span className={isDark ? "text-[#eb5757]" : "text-red-600 font-semibold"}>
+                        Missing *
+                      </span>
+                    )}
                   </div>
-                  <div className="csv-mapping-item">
-                    <span>Full Name *</span>
-                    <strong>
-                      {parsedData.mapping.name !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.name]}</span>
-                      ) : (
-                        <span className="badge badge-red">Missing</span>
-                      )}
-                    </strong>
+                  <div>
+                    <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                      Full Name:{" "}
+                    </span>
+                    {parsedData.mapping.name !== -1 ? (
+                      <span className={isDark ? "text-[#27a644]" : "text-emerald-600 font-semibold"}>
+                        Mapped
+                      </span>
+                    ) : (
+                      <span className={isDark ? "text-[#eb5757]" : "text-red-600 font-semibold"}>
+                        Missing *
+                      </span>
+                    )}
                   </div>
-                  <div className="csv-mapping-item">
-                    <span>Level</span>
-                    <strong>
-                      {parsedData.mapping.level !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.level]}</span>
-                      ) : (
-                        <span className="badge badge-gray">Not Mapped</span>
-                      )}
-                    </strong>
+                  <div>
+                    <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                      Level/Year:{" "}
+                    </span>
+                    {parsedData.mapping.level !== -1 ? (
+                      <span className={isDark ? "text-white" : "text-gray-900 font-medium"}>
+                        Mapped
+                      </span>
+                    ) : (
+                      <span className={isDark ? "text-[#62666d]" : "text-gray-400"}>Unset</span>
+                    )}
                   </div>
-                  <div className="csv-mapping-item">
-                    <span>Position</span>
-                    <strong>
-                      {parsedData.mapping.st_position !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.st_position]}</span>
-                      ) : (
-                        <span className="badge badge-gray">Not Mapped</span>
-                      )}
-                    </strong>
-                  </div>
-                  <div className="csv-mapping-item">
-                    <span>Member Function</span>
-                    <strong>
-                      {parsedData.mapping.member_function !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.member_function]}</span>
-                      ) : (
-                        <span className="badge badge-gray">Not Mapped</span>
-                      )}
-                    </strong>
-                  </div>
-                  <div className="csv-mapping-item">
-                    <span>Email</span>
-                    <strong>
-                      {parsedData.mapping.email !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.email]}</span>
-                      ) : (
-                        <span className="badge badge-gray">Not Mapped</span>
-                      )}
-                    </strong>
-                  </div>
-                  <div className="csv-mapping-item">
-                    <span>Mobile Number</span>
-                    <strong>
-                      {parsedData.mapping.mobile_number !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.mobile_number]}</span>
-                      ) : (
-                        <span className="badge badge-gray">Not Mapped</span>
-                      )}
-                    </strong>
-                  </div>
-                  <div className="csv-mapping-item">
-                    <span>LinkedIn URL</span>
-                    <strong>
-                      {parsedData.mapping.linkedin_url !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.linkedin_url]}</span>
-                      ) : (
-                        <span className="badge badge-gray">Not Mapped</span>
-                      )}
-                    </strong>
-                  </div>
-                  <div className="csv-mapping-item">
-                    <span>Photo URL</span>
-                    <strong>
-                      {parsedData.mapping.profile_image_url !== -1 ? (
-                        <span className="badge badge-purple">{parsedData.headers[parsedData.mapping.profile_image_url]}</span>
-                      ) : (
-                        <span className="badge badge-gray">Not Mapped</span>
-                      )}
-                    </strong>
+                  <div>
+                    <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>
+                      Position:{" "}
+                    </span>
+                    {parsedData.mapping.st_position !== -1 ? (
+                      <span className={isDark ? "text-white" : "text-gray-900 font-medium"}>
+                        Mapped
+                      </span>
+                    ) : (
+                      <span className={isDark ? "text-[#62666d]" : "text-gray-400"}>Unset</span>
+                    )}
                   </div>
                 </div>
 
-                {(parsedData.mapping.st_id === -1 || parsedData.mapping.name === -1) ? (
-                  <div className="alert alert-error">
-                    Missing required columns. Please upload a file containing headers for Student ID and Full Name.
+                {parsedData.mapping.st_id === -1 || parsedData.mapping.name === -1 ? (
+                  <div
+                    className={`p-3 border rounded-[6px] text-[12px] font-berkeley-mono ${
+                      isDark
+                        ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]"
+                        : "bg-red-50 border-red-200 text-red-700"
+                    }`}
+                  >
+                    Missing required columns. Please ensure your CSV includes headers for Student ID and Full Name.
                   </div>
                 ) : (
                   <>
-                    <div className="toggle-strategy">
-                      <span className="toggle-strategy-label">Duplicate Policy:</span>
-                      <div className="toggle-strategy-options">
+                    <div
+                      className={`flex items-center justify-between gap-2 p-2.5 rounded-[6px] border ${
+                        isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`font-berkeley-mono text-[11px] ${
+                          isDark ? "text-[#8a8f98]" : "text-gray-600"
+                        }`}
+                      >
+                        Duplicate Policy:
+                      </span>
+                      <div className="flex gap-1">
                         <button
                           type="button"
-                          className={`strategy-btn ${duplicateStrategy === "upsert" ? "active" : ""}`}
                           onClick={() => setDuplicateStrategy("upsert")}
+                          className={`px-2.5 py-1 rounded-[4px] font-berkeley-mono text-[10.5px] border ${
+                            duplicateStrategy === "upsert"
+                              ? isDark
+                                ? "bg-[#23252a] text-white border-[#383b3f]"
+                                : "bg-white text-indigo-700 border-indigo-300 shadow-sm font-semibold"
+                              : isDark
+                              ? "bg-[#0f1011] text-[#8a8f98] border-[#23252a]"
+                              : "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
                         >
-                          Update Details (Upsert)
+                          Upsert (Update)
                         </button>
                         <button
                           type="button"
-                          className={`strategy-btn ${duplicateStrategy === "ignore" ? "active" : ""}`}
                           onClick={() => setDuplicateStrategy("ignore")}
+                          className={`px-2.5 py-1 rounded-[4px] font-berkeley-mono text-[10.5px] border ${
+                            duplicateStrategy === "ignore"
+                              ? isDark
+                                ? "bg-[#23252a] text-white border-[#383b3f]"
+                                : "bg-white text-indigo-700 border-indigo-300 shadow-sm font-semibold"
+                              : isDark
+                              ? "bg-[#0f1011] text-[#8a8f98] border-[#23252a]"
+                              : "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
                         >
-                          Ignore Duplicates
+                          Skip Duplicates
                         </button>
                       </div>
                     </div>
 
                     {parsedData.errors.length > 0 && (
-                      <div className="csv-validation-box">
-                        <div className="csv-validation-title">⚠️ Row Validation Warnings</div>
+                      <div
+                        className={`p-3 border rounded-[6px] font-berkeley-mono text-[11px] max-h-28 overflow-y-auto space-y-1 ${
+                          isDark
+                            ? "bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]"
+                            : "bg-amber-50 border-amber-200 text-amber-700"
+                        }`}
+                      >
+                        <div className="font-[590]">Validation Warnings:</div>
                         {parsedData.errors.map((err, idx) => (
-                          <div key={idx} className="csv-validation-item">{err}</div>
+                          <div key={idx}>· {err}</div>
                         ))}
                       </div>
                     )}
-
-                    <div className="csv-preview-title">Preview (first 5 records)</div>
-                    <div className="table-wrap" style={{ marginBottom: "20px" }}>
-                      <table className="csv-preview-table" style={{ border: "none" }}>
-                        <thead>
-                          <tr>
-                            <th>Student ID</th>
-                            <th>Full Name</th>
-                            <th>Preferred Name</th>
-                            <th>Email</th>
-                            <th>Level</th>
-                            <th>Position</th>
-                            <th>Function</th>
-                            <th>Mobile</th>
-                            <th>LinkedIn</th>
-                            <th>Photo URL</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {parsedData.rows.slice(0, 5).map((row, idx) => {
-                            const st_id = parsedData.mapping.st_id !== -1 ? row[parsedData.mapping.st_id] : "";
-                            const name = parsedData.mapping.name !== -1 ? row[parsedData.mapping.name] : "";
-                            const preferred_name = parsedData.mapping.preferred_name !== -1 ? row[parsedData.mapping.preferred_name] : "";
-                            const email = parsedData.mapping.email !== -1 ? row[parsedData.mapping.email] : "";
-                            const level = parsedData.mapping.level !== -1 ? row[parsedData.mapping.level] : "";
-                            const position = parsedData.mapping.st_position !== -1 ? row[parsedData.mapping.st_position] : "";
-                            const memberFunction = parsedData.mapping.member_function !== -1 ? row[parsedData.mapping.member_function] : "";
-                            const mobile = parsedData.mapping.mobile_number !== -1 ? row[parsedData.mapping.mobile_number] : "";
-                            const linkedin = parsedData.mapping.linkedin_url !== -1 ? row[parsedData.mapping.linkedin_url] : "";
-                            const photo = parsedData.mapping.profile_image_url !== -1 ? row[parsedData.mapping.profile_image_url] : "";
-                            return (
-                              <tr key={idx}>
-                                <td className="mono">{st_id || <span className="text-red">Missing</span>}</td>
-                                <td><strong>{name || <span className="text-red">Missing</span>}</strong></td>
-                                <td>{preferred_name || "-"}</td>
-                                <td>{email || "-"}</td>
-                                <td>{level || "-"}</td>
-                                <td>{position || "-"}</td>
-                                <td>{memberFunction || "-"}</td>
-                                <td>{mobile || "-"}</td>
-                                <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={linkedin}>{linkedin || "-"}</td>
-                                <td style={{ maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={photo}>{photo || "-"}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
                   </>
                 )}
 
-                <div className="modal-actions">
-                  <button className="btn btn-ghost" onClick={() => setParsedData(null)}>Back</button>
+                <div
+                  className={`flex justify-end gap-2 pt-2 border-t ${
+                    isDark ? "border-[#23252a]" : "border-gray-200"
+                  }`}
+                >
                   <button
-                    className="btn btn-primary"
-                    disabled={parsedData.mapping.st_id === -1 || parsedData.mapping.name === -1 || parsedData.validRows.length === 0}
+                    className={`px-3.5 py-1.5 rounded-[6px] text-[12px] border transition-colors ${
+                      isDark
+                        ? "bg-[#161718] text-[#8a8f98] hover:text-white border-[#23252a]"
+                        : "bg-white text-gray-700 hover:text-gray-900 border-gray-300 shadow-sm"
+                    }`}
+                    onClick={() => setParsedData(null)}
+                  >
+                    Back
+                  </button>
+                  <button
+                    className={`px-4 py-1.5 rounded-[6px] text-[12px] font-[510] disabled:opacity-40 shadow-sm ${
+                      isDark
+                        ? "bg-[#e4f222] hover:brightness-105 text-[#08090a]"
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    }`}
+                    disabled={
+                      parsedData.mapping.st_id === -1 ||
+                      parsedData.mapping.name === -1 ||
+                      parsedData.validRows.length === 0
+                    }
                     onClick={handleImportSubmit}
                   >
                     Import {parsedData.validRows.length} Members
@@ -1351,10 +2299,21 @@ export default function Members({ isAdmin = false }) {
                 </div>
               </div>
             ) : (
-              <div>
+              <div className="space-y-4">
                 <div
-                  className={`csv-dropzone ${dragOver ? "dragover" : ""}`}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  className={`border-2 border-dashed rounded-[8px] p-8 text-center cursor-pointer transition-colors ${
+                    dragOver
+                      ? isDark
+                        ? "border-[#e4f222] bg-[#e4f222]/5"
+                        : "border-indigo-500 bg-indigo-50/50"
+                      : isDark
+                      ? "border-[#23252a] hover:border-[#383b3f] bg-[#161718]"
+                      : "border-gray-300 hover:border-gray-400 bg-gray-50/50"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
                   onDragLeave={() => setDragOver(false)}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -1376,20 +2335,47 @@ export default function Members({ isAdmin = false }) {
                       }
                     }}
                   />
-                  <div className="csv-dropzone-icon">📥</div>
-                  <div className="csv-dropzone-text">Drag & drop your CSV file here, or click to browse</div>
-                  <div className="csv-dropzone-sub">Supported columns: st_id, name, preferred_name, email, level, st_position, member_function, mobile_number, profile_image_url, linkedin_url</div>
+                  <div
+                    className={`w-10 h-10 rounded-[6px] border flex items-center justify-center mx-auto mb-2 ${
+                      isDark
+                        ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98]"
+                        : "bg-white border-gray-200 text-gray-500 shadow-sm"
+                    }`}
+                  >
+                    <Upload
+                      className={`w-5 h-5 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`}
+                    />
+                  </div>
+                  <div
+                    className={`text-[13px] font-[510] mb-1 ${
+                      isDark ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    Drag & drop CSV file here, or click to browse
+                  </div>
+                  <div
+                    className={`text-[11px] font-berkeley-mono ${
+                      isDark ? "text-[#62666d]" : "text-gray-500"
+                    }`}
+                  >
+                    Required: st_id, name. Optional: preferred_name, email, level, st_position, member_function, mobile_number, linkedin_url
+                  </div>
                 </div>
 
-                <div className="flex justify-between items-center" style={{ marginTop: "16px" }}>
-                  <span className="text-muted text-sm">Need a starter file?</span>
-                  <button className="btn btn-ghost btn-sm" onClick={downloadTemplate}>
-                    ⬇️ Download Template CSV
+                <div className="flex justify-between items-center text-[11px] font-berkeley-mono pt-1">
+                  <span className={isDark ? "text-[#62666d]" : "text-gray-500"}>
+                    Need reference format?
+                  </span>
+                  <button
+                    className={`underline transition-colors ${
+                      isDark
+                        ? "text-[#d0d6e0] hover:text-[#e4f222]"
+                        : "text-indigo-600 hover:text-indigo-700 font-medium"
+                    }`}
+                    onClick={downloadTemplate}
+                  >
+                    Download Template CSV
                   </button>
-                </div>
-
-                <div className="modal-actions">
-                  <button className="btn btn-ghost" onClick={closeCsvModal}>Cancel</button>
                 </div>
               </div>
             )}
@@ -1397,215 +2383,172 @@ export default function Members({ isAdmin = false }) {
         </div>
       )}
 
+      {/* ═══════════════════════════════════════════════
+          MODAL 3: Self-Edit Permissions
+         ═══════════════════════════════════════════════ */}
       {editSettingsModal && (
-        <div className="modal-overlay" style={{ zIndex: 110 }} onClick={e => e.target === e.currentTarget && setEditSettingsModal(false)}>
-          <div className="modal" style={{ maxWidth: "520px" }}>
-            <div className="modal-header">
-              <h2 className="modal-title">⚙️ Member Profile Self-Edit Permissions</h2>
-              <button className="modal-close" onClick={() => setEditSettingsModal(false)}>x</button>
+        <div
+          className={`fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto ${
+            isDark ? "bg-[#08090a]/80" : "bg-slate-900/40"
+          }`}
+          onClick={(e) => e.target === e.currentTarget && setEditSettingsModal(false)}
+        >
+          <div
+            className={`border rounded-[12px] w-full max-w-md p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto ${
+              isDark
+                ? "bg-[#0f1011] border-[#23252a] text-[#d0d6e0]"
+                : "bg-white border-gray-200 text-gray-800 shadow-xl"
+            }`}
+          >
+            <div
+              className={`flex justify-between items-center pb-3 border-b ${
+                isDark ? "border-[#23252a]" : "border-gray-200"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal
+                  className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`}
+                />
+                <h2
+                  className={`text-[15px] font-[590] ${
+                    isDark ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Member Self-Edit Permissions
+                </h2>
+              </div>
+              <button
+                onClick={() => setEditSettingsModal(false)}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition-colors ${
+                  isDark
+                    ? "hover:bg-[#161718] text-[#8a8f98] hover:text-white"
+                    : "hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <p className="text-muted" style={{ fontSize: "13px", marginBottom: "16px" }}>
-              Toggle switch buttons to allow or restrict members from editing their own profile fields.
+            <p
+              className={`text-[12px] leading-relaxed ${
+                isDark ? "text-[#8a8f98]" : "text-gray-600"
+              }`}
+            >
+              Configure which profile fields members are allowed to modify directly from their My Credentials page.
             </p>
 
-            {settingsMsg && <div className={`alert alert-${settingsMsg.type}`} style={{ marginBottom: "16px" }}>{settingsMsg.text}</div>}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--bg3)", padding: "16px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
-
-              {/* Field 1: Full Name */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ fontSize: "14px", display: "block" }}>Full Name</strong>
-                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit their own full name</span>
-                </div>
-                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
-                  <input
-                    type="checkbox"
-                    checked={editPermissions.name}
-                    disabled={savingSettings}
-                    onChange={e => togglePermission("name", e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span className={`slider round ${editPermissions.name ? "active" : ""}`} style={{
-                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: editPermissions.name ? "var(--accent)" : "#ccc",
-                    transition: ".3s", borderRadius: "24px"
-                  }}>
-                    <span style={{
-                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.name ? "24px" : "3px", bottom: "3px",
-                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
-                    }} />
-                  </span>
-                </label>
+            {settingsMsg && (
+              <div
+                className={`p-2.5 rounded-[6px] text-[11px] font-berkeley-mono border ${
+                  settingsMsg.type === "error"
+                    ? isDark
+                      ? "bg-[#eb5757]/10 text-[#eb5757] border-[#eb5757]/30"
+                      : "bg-red-50 text-red-700 border-red-200"
+                    : isDark
+                    ? "bg-[#27a644]/10 text-[#27a644] border-[#27a644]/30"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                }`}
+              >
+                {settingsMsg.text}
               </div>
+            )}
 
-              {/* Field 1b: Preferred Name */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ fontSize: "14px", display: "block" }}>Preferred Name</strong>
-                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit their calling / preferred name</span>
-                </div>
-                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
-                  <input
-                    type="checkbox"
-                    checked={editPermissions.preferred_name}
-                    disabled={savingSettings}
-                    onChange={e => togglePermission("preferred_name", e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span className={`slider round ${editPermissions.preferred_name ? "active" : ""}`} style={{
-                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: editPermissions.preferred_name ? "var(--accent)" : "#ccc",
-                    transition: ".3s", borderRadius: "24px"
-                  }}>
-                    <span style={{
-                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.preferred_name ? "24px" : "3px", bottom: "3px",
-                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
-                    }} />
-                  </span>
-                </label>
+            <div className="flex items-center justify-between pt-1">
+              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                Quick Actions:
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={savingSettings}
+                  onClick={() => toggleAllPermissions(true)}
+                  className={`text-[11px] font-berkeley-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                    isDark
+                      ? "border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#8a8f98] bg-[#161718]"
+                      : "border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-400 bg-white"
+                  }`}
+                >
+                  Enable All
+                </button>
+                <button
+                  type="button"
+                  disabled={savingSettings}
+                  onClick={() => toggleAllPermissions(false)}
+                  className={`text-[11px] font-berkeley-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                    isDark
+                      ? "border-[#23252a] text-[#8a8f98] hover:text-white hover:border-[#8a8f98] bg-[#161718]"
+                      : "border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 bg-white"
+                  }`}
+                >
+                  Disable All
+                </button>
               </div>
-
-              {/* Field 2: Photo */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ fontSize: "14px", display: "block" }}>Profile Photo</strong>
-                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to upload/change profile photo</span>
-                </div>
-                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
-                  <input
-                    type="checkbox"
-                    checked={editPermissions.photo}
-                    disabled={savingSettings}
-                    onChange={e => togglePermission("photo", e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span className={`slider round ${editPermissions.photo ? "active" : ""}`} style={{
-                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: editPermissions.photo ? "var(--accent)" : "#ccc",
-                    transition: ".3s", borderRadius: "24px"
-                  }}>
-                    <span style={{
-                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.photo ? "24px" : "3px", bottom: "3px",
-                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
-                    }} />
-                  </span>
-                </label>
-              </div>
-
-              {/* Field 3: WhatsApp Number */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ fontSize: "14px", display: "block" }}>WhatsApp / Mobile Number</strong>
-                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit their phone number</span>
-                </div>
-                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
-                  <input
-                    type="checkbox"
-                    checked={editPermissions.whatsapp}
-                    disabled={savingSettings}
-                    onChange={e => togglePermission("whatsapp", e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span className={`slider round ${editPermissions.whatsapp ? "active" : ""}`} style={{
-                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: editPermissions.whatsapp ? "var(--accent)" : "#ccc",
-                    transition: ".3s", borderRadius: "24px"
-                  }}>
-                    <span style={{
-                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.whatsapp ? "24px" : "3px", bottom: "3px",
-                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
-                    }} />
-                  </span>
-                </label>
-              </div>
-
-              {/* Field 4: LinkedIn Link */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ fontSize: "14px", display: "block" }}>LinkedIn Link</strong>
-                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to update LinkedIn profile link</span>
-                </div>
-                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
-                  <input
-                    type="checkbox"
-                    checked={editPermissions.linkedin}
-                    disabled={savingSettings}
-                    onChange={e => togglePermission("linkedin", e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span className={`slider round ${editPermissions.linkedin ? "active" : ""}`} style={{
-                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: editPermissions.linkedin ? "var(--accent)" : "#ccc",
-                    transition: ".3s", borderRadius: "24px"
-                  }}>
-                    <span style={{
-                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.linkedin ? "24px" : "3px", bottom: "3px",
-                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
-                    }} />
-                  </span>
-                </label>
-              </div>
-
-              {/* Field 5: Position */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <strong style={{ fontSize: "14px", display: "block" }}>Position</strong>
-                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit student position</span>
-                </div>
-                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
-                  <input
-                    type="checkbox"
-                    checked={editPermissions.position}
-                    disabled={savingSettings}
-                    onChange={e => togglePermission("position", e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span className={`slider round ${editPermissions.position ? "active" : ""}`} style={{
-                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: editPermissions.position ? "var(--accent)" : "#ccc",
-                    transition: ".3s", borderRadius: "24px"
-                  }}>
-                    <span style={{
-                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.position ? "24px" : "3px", bottom: "3px",
-                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
-                    }} />
-                  </span>
-                </label>
-              </div>
-
-              {/* Field 6: Function Name */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
-                <div>
-                  <strong style={{ fontSize: "14px", display: "block" }}>Function Name</strong>
-                  <span className="text-muted" style={{ fontSize: "12px" }}>Allow members to edit member function name</span>
-                </div>
-                <label className="toggle-switch" style={{ position: "relative", display: "inline-block", width: "46px", height: "24px" }}>
-                  <input
-                    type="checkbox"
-                    checked={editPermissions.function}
-                    disabled={savingSettings}
-                    onChange={e => togglePermission("function", e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span className={`slider round ${editPermissions.function ? "active" : ""}`} style={{
-                    position: "absolute", cursor: "pointer", top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: editPermissions.function ? "var(--accent)" : "#ccc",
-                    transition: ".3s", borderRadius: "24px"
-                  }}>
-                    <span style={{
-                      position: "absolute", content: '""', height: "18px", width: "18px", left: editPermissions.function ? "24px" : "3px", bottom: "3px",
-                      backgroundColor: "white", transition: ".3s", borderRadius: "50%"
-                    }} />
-                  </span>
-                </label>
-              </div>
-
             </div>
 
-            <div className="modal-actions" style={{ marginTop: "20px" }}>
-              <button className="btn btn-primary" onClick={() => setEditSettingsModal(false)}>
+            <div
+              className={`space-y-1 p-2 rounded-[8px] border ${
+                isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"
+              }`}
+            >
+              {[
+                { key: "name", label: "Full Name", desc: "Allow editing legal full name" },
+                { key: "preferred_name", label: "Preferred Name", desc: "Allow editing calling name" },
+                { key: "photo", label: "Profile Photo", desc: "Allow photo uploading/updating" },
+                { key: "whatsapp", label: "WhatsApp / Mobile", desc: "Allow editing mobile phone" },
+                { key: "linkedin", label: "LinkedIn URL", desc: "Allow linking professional profile" },
+                { key: "position", label: "Student Position", desc: "Allow editing society role/title" },
+                { key: "function", label: "Member Function", desc: "Allow editing team assignment" },
+              ].map((item) => (
+                <label
+                  key={item.key}
+                  className={`flex items-center justify-between p-2 rounded-[6px] transition-colors cursor-pointer border-b last:border-b-0 ${
+                    isDark 
+                      ? "border-[#23252a]/60 hover:bg-[#1f2125]" 
+                      : "border-gray-200 hover:bg-gray-100/70"
+                  }`}
+                >
+                  <div>
+                    <span
+                      className={`text-[12.5px] font-[510] block ${
+                        isDark ? "text-white" : "text-gray-900"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                    <span
+                      className={`text-[10.5px] block ${
+                        isDark ? "text-[#8a8f98]" : "text-gray-500"
+                      }`}
+                    >
+                      {item.desc}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!editPermissions[item.key]}
+                    disabled={savingSettings}
+                    onChange={(e) => togglePermission(item.key, e.target.checked)}
+                    className={`w-4 h-4 rounded cursor-pointer ${
+                      isDark ? "accent-[#e4f222]" : "accent-indigo-600"
+                    }`}
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div
+              className={`flex justify-end pt-2 border-t ${
+                isDark ? "border-[#23252a]" : "border-gray-200"
+              }`}
+            >
+              <button
+                className={`px-4 py-1.5 rounded-[6px] text-[12px] font-[510] shadow-sm ${
+                  isDark
+                    ? "bg-[#e4f222] text-[#08090a]"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                }`}
+                onClick={() => setEditSettingsModal(false)}
+              >
                 Done
               </button>
             </div>
@@ -1613,6 +2556,7 @@ export default function Members({ isAdmin = false }) {
         </div>
       )}
 
+      {/* ── Student Profile Modal ── */}
       <StudentProfileModal stId={profileTarget} onClose={() => setProfileTarget(null)} />
     </div>
   );

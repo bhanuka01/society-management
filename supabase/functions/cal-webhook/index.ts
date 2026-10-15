@@ -148,42 +148,52 @@ serve(async (req) => {
       const positionName = ocRecord?.oc_position || ocRecord?.functions?.function_name || 'Committee Member';
       const eventName = ocRecord?.events?.name || 'Society Event';
 
-      // 📧 Send Confirmation Email to Candidate A
+      // 📧 Send Confirmation and Notification Emails in parallel
+      const emailPromises: Promise<any>[] = [];
+
       if (candidateEmail) {
-        await supabase.functions.invoke('send-email', {
-          body: {
-            to: candidateEmail,
-            type: 'INTERVIEW_CONFIRMED',
-            subject: `Interview Scheduled: ${positionName} - ${eventName}`,
-            data: {
-              studentName: candidateName,
-              eventName: eventName,
-              ocPosition: positionName,
-              interviewDate: formattedDate,
-              interviewLink: meetingLink
+        emailPromises.push(
+          supabase.functions.invoke('send-email', {
+            body: {
+              to: candidateEmail,
+              type: 'INTERVIEW_CONFIRMED',
+              subject: `Interview Scheduled: ${positionName} - ${eventName}`,
+              data: {
+                studentName: candidateName,
+                eventName: eventName,
+                ocPosition: positionName,
+                interviewDate: formattedDate,
+                interviewLink: meetingLink
+              }
             }
-          }
-        });
+          })
+        );
       }
 
-      // 📧 Send Notification Email to Interviewer B
       if (interviewerEmail && interviewerEmail.toLowerCase() !== candidateEmail.toLowerCase()) {
-        await supabase.functions.invoke('send-email', {
-          body: {
-            to: interviewerEmail,
-            type: 'INTERVIEW_CONFIRMED',
-            subject: `📅 New Interview Booked: ${candidateName} (${positionName})`,
-            data: {
-              studentName: `Interviewer (Candidate: ${candidateName})`,
-              eventName: eventName,
-              ocPosition: positionName,
-              interviewDate: formattedDate,
-              interviewLink: meetingLink,
-              customMessage: `Candidate <strong>${candidateName}</strong> (${candidateEmail}) has booked their interview slot for <strong>${positionName}</strong>.`
+        emailPromises.push(
+          supabase.functions.invoke('send-email', {
+            body: {
+              to: interviewerEmail,
+              type: 'INTERVIEW_CONFIRMED',
+              subject: `📅 New Interview Booked: ${candidateName} (${positionName})`,
+              data: {
+                studentName: `Interviewer (Candidate: ${candidateName})`,
+                eventName: eventName,
+                ocPosition: positionName,
+                interviewDate: formattedDate,
+                interviewLink: meetingLink,
+                customMessage: `Candidate <strong>${candidateName}</strong> (${candidateEmail}) has booked their interview slot for <strong>${positionName}</strong>.`
+              }
             }
-          }
-        });
-        console.log(`Notification sent to Interviewer B: ${interviewerEmail}`);
+          }).then(() => {
+            console.log(`Notification sent to Interviewer B: ${interviewerEmail}`);
+          })
+        );
+      }
+
+      if (emailPromises.length > 0) {
+        await Promise.all(emailPromises);
       }
 
       return new Response(

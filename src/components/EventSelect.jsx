@@ -1,18 +1,48 @@
 import { useState, useRef, useEffect } from "react";
+import { Calendar, ChevronDown, Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function EventSelect({
   events = [],
   value = "",
   onChange,
   placeholder = "Search or select an event...",
-  style = {}
+  className = "",
+  style = {},
+  theme
 }) {
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    if (theme) return theme;
+    if (typeof document !== "undefined") {
+      return document.documentElement.classList.contains("dark") || 
+             document.documentElement.getAttribute("data-theme") === "dark" 
+             ? "dark" : "light";
+    }
+    return "dark";
+  });
+
+  useEffect(() => {
+    if (theme) setCurrentTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const observer = new MutationObserver(() => {
+      const isDocDark = document.documentElement.classList.contains("dark") || 
+                        document.documentElement.getAttribute("data-theme") === "dark";
+      setCurrentTheme(isDocDark ? "dark" : "light");
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const isDark = currentTheme === "dark";
+
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const dropdownRef = useRef(null);
 
-  const PAGE_SIZE = 5;
+  const PAGE_SIZE = 6;
   const selectedEvent = events.find(e => e.event_id === value);
 
   // Close when clicking outside
@@ -56,193 +86,165 @@ export default function EventSelect({
   return (
     <div
       ref={dropdownRef}
-      style={{
-        position: "relative",
-        width: "100%",
-        display: "inline-block",
-        userSelect: "none",
-        zIndex: isOpen ? 100 : 1,
-        ...style
-      }}
+      className={`relative w-full select-none font-inter-variable ${className}`}
+      style={{ zIndex: isOpen ? 100 : 1, ...style }}
     >
       {/* Selected Box / Control */}
-      <div
+      <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "10px 14px",
-          background: "var(--surface, #17171a)",
-          border: isOpen ? "1px solid var(--accent, #6366f1)" : "1px solid var(--border, #27272a)",
-          borderRadius: "var(--r, 8px)",
-          cursor: "pointer",
-          transition: "border-color 0.2s, box-shadow 0.2s",
-          boxShadow: isOpen ? "0 0 0 2px rgba(99, 102, 241, 0.2)" : "none",
-          gap: "10px"
-        }}
+        className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 border transition-all text-left rounded-[6px] outline-none ${
+          isDark
+            ? `bg-[#0f1011] hover:bg-[#161718] ${
+                isOpen
+                  ? "border-[#d0d6e0] shadow-[0_0_0_1px_rgba(208,214,224,0.3)]"
+                  : "border-[#23252a] hover:border-[#383b3f]"
+              }`
+            : `bg-white hover:bg-gray-50 ${
+                isOpen
+                  ? "border-indigo-500 ring-1 ring-indigo-500 shadow-sm"
+                  : "border-gray-200 hover:border-gray-300 shadow-xs"
+              }`
+        }`}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", flex: 1 }}>
-          <span style={{ fontSize: "16px", flexShrink: 0 }}>📅</span>
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className={`w-5 h-5 rounded-[4px] border flex items-center justify-center flex-shrink-0 ${
+            isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-100 border-gray-200"
+          }`}>
+            <Calendar className={`w-3 h-3 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`} />
+          </div>
           {selectedEvent ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              <span style={{ fontWeight: "600", color: "var(--text, #ffffff)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className={`text-[13px] font-[510] truncate tracking-[-0.011em] ${
+                isDark ? "text-[#ffffff]" : "text-gray-900"
+              }`}>
                 {selectedEvent.name}
               </span>
               {selectedEvent.date && (
-                <span className="badge badge-gray" style={{ fontSize: "11px", flexShrink: 0, padding: "2px 6px" }}>
+                <span className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-[4px] border font-berkeley-mono text-[10px] flex-shrink-0 ${
+                  isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-gray-100 border-gray-200 text-gray-600"
+                }`}>
                   {selectedEvent.date}
                 </span>
               )}
             </div>
           ) : (
-            <span className="text-muted" style={{ fontSize: "14px" }}>
-              {placeholder}
-            </span>
+            <span className={`text-[13px] truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>{placeholder}</span>
           )}
         </div>
-        <span style={{ fontSize: "12px", color: "var(--text3, #a1a1aa)", transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>
-          ▼
-        </span>
-      </div>
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform duration-150 flex-shrink-0 ${
+            isDark ? (isOpen ? "rotate-180 text-white" : "text-[#8a8f98]") : (isOpen ? "rotate-180 text-gray-900" : "text-gray-400")
+          }`}
+        />
+      </button>
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            right: 0,
-            zIndex: 99999,
-            background: "#18181b",
-            border: "1px solid var(--border, #3f3f46)",
-            borderRadius: "var(--r, 10px)",
-            boxShadow: "0 16px 36px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0,0,0,0.3)",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column"
-          }}
-        >
+        <div className={`absolute top-full left-0 right-0 mt-1 z-50 border rounded-[8px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100 ${
+          isDark 
+            ? "bg-[#0f1011] border-[#23252a] shadow-[0_16px_36px_rgba(0,0,0,0.6),0_4px_12px_rgba(0,0,0,0.4)]" 
+            : "bg-white border-gray-200 shadow-xl"
+        }`}>
           {/* Search Box */}
-          <div style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)", background: "var(--bg3)" }}>
-            <input
-              type="text"
-              placeholder="Type to filter events..."
-              value={search}
-              onChange={e => handleSearchChange(e.target.value)}
-              autoFocus
-              onClick={e => e.stopPropagation()}
-              style={{
-                width: "100%",
-                padding: "8px 10px",
-                fontSize: "13px",
-                border: "1px solid var(--border)",
-                borderRadius: "6px",
-                background: "var(--bg)",
-                color: "var(--text)",
-                outline: "none"
-              }}
-            />
+          <div className={`p-2 border-b ${isDark ? "border-[#23252a] bg-[#161718]/60" : "border-gray-200 bg-gray-50/70"}`}>
+            <div className="relative">
+              <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
+              <input
+                type="text"
+                placeholder="Search event name, ID, or date..."
+                value={search}
+                onChange={e => handleSearchChange(e.target.value)}
+                autoFocus
+                onClick={e => e.stopPropagation()}
+                className={`w-full pl-8 pr-2.5 py-1.5 border rounded-[6px] text-[12px] outline-none transition-colors ${
+                  isDark 
+                    ? "bg-[#08090a] border-[#23252a] focus:border-[#d0d6e0] text-white placeholder-[#62666d]" 
+                    : "bg-white border-gray-300 focus:border-indigo-500 text-gray-900 placeholder-gray-400"
+                }`}
+              />
+            </div>
           </div>
 
-          {/* Events List (5 items at a time) */}
-          <div
-            style={{
-              padding: "4px"
-            }}
-          >
+          {/* Events List */}
+          <div className={`p-1 max-h-64 overflow-y-auto divide-y ${isDark ? "divide-[#23252a]/40" : "divide-gray-100"}`}>
             {paginatedEvents.length === 0 ? (
-              <div style={{ padding: "16px", textAlign: "center", color: "var(--text3)", fontSize: "13px" }}>
-                No events found
+              <div className={`py-6 px-4 text-center text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                No matching events found
               </div>
             ) : (
               paginatedEvents.map(e => {
                 const isSelected = e.event_id === value;
                 return (
-                  <div
+                  <button
                     key={e.event_id}
+                    type="button"
                     onClick={() => handleSelect(e.event_id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "10px 12px",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      background: isSelected ? "var(--accent-glow, rgba(99,102,241,0.15))" : "transparent",
-                      color: isSelected ? "var(--accent)" : "var(--text)",
-                      fontWeight: isSelected ? "600" : "normal",
-                      transition: "background 0.15s",
-                      marginBottom: "2px"
-                    }}
-                    onMouseEnter={ev => {
-                      if (!isSelected) ev.currentTarget.style.background = "var(--bg3)";
-                    }}
-                    onMouseLeave={ev => {
-                      if (!isSelected) ev.currentTarget.style.background = "transparent";
-                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left rounded-[6px] transition-colors ${
+                      isSelected
+                        ? (isDark ? "bg-[#161718] text-white" : "bg-indigo-50 text-indigo-900 font-medium")
+                        : (isDark ? "hover:bg-[#161718]/60 text-[#d0d6e0]" : "hover:bg-gray-50 text-gray-700")
+                    }`}
                   >
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflow: "hidden" }}>
-                      <span style={{ fontSize: "14px", fontWeight: "600", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-[12.5px] font-[510] truncate ${isDark ? "text-white" : "text-gray-900"}`}>
                         {e.name}
-                      </span>
+                      </div>
+                      <div className={`text-[10px] font-berkeley-mono truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                        ID: {e.event_id}
+                      </div>
                     </div>
                     {e.date && (
-                      <span className="badge badge-gray" style={{ fontSize: "11px", marginLeft: "8px", flexShrink: 0 }}>
+                      <span className={`px-1.5 py-0.5 rounded-[4px] border font-berkeley-mono text-[10px] flex-shrink-0 ${
+                        isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-gray-100 border-gray-200 text-gray-600"
+                      }`}>
                         {e.date}
                       </span>
                     )}
-                  </div>
+                  </button>
                 );
               })
             )}
           </div>
 
-          {/* Footer with 5-by-5 pagination controls */}
-          <div
-            style={{
-              padding: "8px 12px",
-              fontSize: "12px",
-              color: "var(--text3)",
-              borderTop: "1px solid var(--border)",
-              background: "var(--bg3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "8px"
-            }}
-          >
+          {/* Footer with pagination */}
+          <div className={`px-3 py-2 text-[11px] font-berkeley-mono border-t flex items-center justify-between gap-2 ${
+            isDark ? "text-[#8a8f98] border-[#23252a] bg-[#161718]/40" : "text-gray-500 border-gray-200 bg-gray-50"
+          }`}>
             <span>
-              Showing {totalItems > 0 ? startIndex + 1 : 0}-{Math.min(startIndex + PAGE_SIZE, totalItems)} of {totalItems}
+              {totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + PAGE_SIZE, totalItems)} of {totalItems}
             </span>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div className="flex items-center gap-1">
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
                 disabled={currentPage <= 0}
                 onClick={(e) => {
                   e.stopPropagation();
                   setPage(p => Math.max(0, p - 1));
                 }}
-                style={{ padding: "2px 8px", fontSize: "11px", height: "auto" }}
+                className={`p-1 rounded-[4px] disabled:opacity-30 disabled:hover:bg-transparent transition-colors ${
+                  isDark ? "hover:bg-[#23252a] text-[#d0d6e0]" : "hover:bg-gray-200 text-gray-700"
+                }`}
+                title="Previous page"
               >
-                ◀ Prev
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
-              <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text)" }}>
+              <span className={`px-1 text-[11px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
                 {currentPage + 1}/{totalPages}
               </span>
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
                 disabled={currentPage >= totalPages - 1}
                 onClick={(e) => {
                   e.stopPropagation();
                   setPage(p => Math.min(totalPages - 1, p + 1));
                 }}
-                style={{ padding: "2px 8px", fontSize: "11px", height: "auto" }}
+                className={`p-1 rounded-[4px] disabled:opacity-30 disabled:hover:bg-transparent transition-colors ${
+                  isDark ? "hover:bg-[#23252a] text-[#d0d6e0]" : "hover:bg-gray-200 text-gray-700"
+                }`}
+                title="Next page"
               >
-                Next ▶
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

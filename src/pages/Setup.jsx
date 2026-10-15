@@ -285,6 +285,25 @@ export default function Setup() {
 -- copy its entire contents, paste in Supabase SQL Editor, and run.`}</div>
           </div>
         </div>
+
+        <div className="setup-step">
+          <div className="step-num">9</div>
+          <div className="step-content">
+            <h3>Enable Document Management (Cloudflare R2 + Postgres)</h3>
+            <p>To enable the document repository for event flyers, budget reports, permission letters, and guidance documents, run <code>supabase/sql/documents-setup.sql</code> in your Supabase SQL Editor. Then configure your Cloudflare R2 storage secrets in Supabase Edge Functions:</p>
+            <div className="sql-block" style={{marginTop:10}}>{`# 1. Run migration in Supabase SQL Editor:
+-- supabase/sql/documents-setup.sql
+
+# 2. Set Cloudflare R2 credentials in Supabase Edge Secrets:
+supabase secrets set R2_ACCOUNT_ID="your_cloudflare_account_id"
+supabase secrets set R2_ACCESS_KEY_ID="your_r2_access_key_id"
+supabase secrets set R2_SECRET_ACCESS_KEY="your_r2_secret_access_key"
+supabase secrets set R2_BUCKET_NAME="society-documents"
+
+# 3. Deploy the document storage Edge Function:
+supabase functions deploy document-storage`}</div>
+          </div>
+        </div>
       </div>
 
       <div className="card" style={{marginTop:16}}>

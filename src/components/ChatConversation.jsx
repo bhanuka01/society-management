@@ -1,40 +1,42 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Send,
+  Copy,
+  Check,
+  Download,
+  Terminal,
+  FileSpreadsheet,
+  CornerDownLeft,
+  Sparkles,
+  HelpCircle,
+} from "lucide-react";
+import AdssAiIcon from "./AdssAiIcon";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Default suggestion chips by user role
+   Role-Grounded Suggestion Cards with Category Metadata
 ───────────────────────────────────────────────────────────────────────────── */
 const STAFF_SUGGESTIONS = [
-  "How do I import members via CSV?",
-  "How do I generate a QR code for attendance?",
-  "How do I invite a new editor?",
-  "Can a member delete another member?",
+  { tag: "IMPORT", text: "How do I import members via CSV?" },
+  { tag: "ATTENDANCE", text: "How do I generate a QR code for attendance?" },
+  { tag: "ACCESS", text: "How do I invite an editor or manage permissions?" },
+  { tag: "DOCS", text: "How do I upload and restrict society documents?" },
 ];
 
 const MEMBER_SUGGESTIONS = [
-  "How do I register as a society member?",
-  "How do I apply for the Organizing Committee (OC)?",
-  "How do I request an appreciation letter?",
-  "How do I check in for event attendance?",
+  { tag: "REGISTRATION", text: "How do I register as an active society member?" },
+  { tag: "COMMITTEE", text: "How do I apply for the Organizing Committee (OC)?" },
+  { tag: "LETTERS", text: "How do I request an official appreciation letter?" },
+  { tag: "QR SCAN", text: "How do I check in for event attendance using QR?" },
 ];
+
+
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Quick-ask pills row (always available above the input bar) by user role
+   CSV Attendance Download Button (Linear Midnight Styled)
 ───────────────────────────────────────────────────────────────────────────── */
-const STAFF_QUICK_ASK_PILLS = [
-  "How do I import members?",
-  "How does QR attendance work?",
-  "How do I manage letter requests?",
-  "How do I invite an editor?",
-];
-
-const MEMBER_QUICK_ASK_PILLS = [
-  "How do I register?",
-  "How to apply for OC?",
-  "How to request a letter?",
-  "How to check in via QR?",
-];
-
 export function CsvDownloadButton({ filename = "event_attendance.csv", csvData }) {
+  const [downloaded, setDownloaded] = useState(false);
+
   const handleDownload = () => {
     const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -45,47 +47,79 @@ export function CsvDownloadButton({ filename = "event_attendance.csv", csvData }
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    setDownloaded(true);
+    setTimeout(() => setDownloaded(false), 2500);
   };
 
   return (
-    <div style={{ margin: "10px 0 6px" }}>
+    <div className="chat-csv-wrapper">
       <button
         type="button"
         onClick={handleDownload}
-        className="chat-csv-download-btn"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "8px 14px",
-          background: "var(--accent-dim, rgba(99, 102, 241, 0.15))",
-          border: "1px solid var(--accent, #6366f1)",
-          borderRadius: "var(--r, 8px)",
-          color: "var(--accent2, #818cf8)",
-          fontWeight: "600",
-          fontSize: "13px",
-          cursor: "pointer",
-          transition: "all 0.15s ease",
-        }}
+        className="chat-csv-btn"
+        title="Export CSV data"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
-          download
+        {downloaded ? (
+          <Check className="w-3.5 h-3.5 text-[#27a644]" />
+        ) : (
+          <FileSpreadsheet className="w-3.5 h-3.5 chat-csv-icon" />
+        )}
+        <span className="font-berkeley-mono text-[12px] tracking-tight">
+          {downloaded ? "CSV EXPORTED" : "DOWNLOAD ATTENDANCE CSV"}
         </span>
-        <span>Download Attendance CSV</span>
+        <Download className="w-3 h-3 chat-csv-download-icon ml-auto" />
       </button>
     </div>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Lightweight inline Markdown renderer — zero external dependencies.
-   Handles: **bold**, *italic*, `code`, ```code/csv``` blocks, and blank-line breaks.
+   Code Block Component with 1-click Copy
+───────────────────────────────────────────────────────────────────────────── */
+function CodeBlock({ code }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
+  return (
+    <div className="chat-codeblock">
+      <div className="chat-codeblock-header">
+        <div className="flex items-center gap-1.5 text-[11px] font-berkeley-mono chat-codeblock-label">
+          <Terminal className="w-3 h-3 chat-codeblock-term-icon" />
+          <span>SNIPPET</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="chat-copy-code-btn"
+          title="Copy code"
+        >
+          {copied ? <Check className="w-3 h-3 text-[#27a644]" /> : <Copy className="w-3 h-3" />}
+          <span className="text-[10px] font-berkeley-mono">{copied ? "COPIED" : "COPY"}</span>
+        </button>
+      </div>
+      <pre className="chat-codeblock-content">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Inline Markdown Renderer
 ───────────────────────────────────────────────────────────────────────────── */
 export function renderMdText(text) {
   if (!text) return null;
 
-  // Detect code blocks (including ```csv ... ```)
-  const codeBlockRx = /```(?:csv|text)?\n([\s\S]*?)\n```/g;
+  const codeBlockRx = /```(?:csv|text|json|sql|javascript|js)?\n([\s\S]*?)\n```/g;
   const blocks = [];
   let lastIndex = 0;
   let match;
@@ -125,33 +159,16 @@ export function renderMdText(text) {
           return <CsvDownloadButton key={`csv-${bIdx}`} csvData={block.content} />;
         }
         if (block.type === "code") {
-          return (
-            <pre
-              key={`code-${bIdx}`}
-              style={{
-                background: "var(--bg)",
-                border: "1px solid var(--border2)",
-                borderRadius: "6px",
-                padding: "8px 12px",
-                fontSize: "0.85em",
-                overflowX: "auto",
-                fontFamily: "var(--mono, monospace)",
-                margin: "8px 0",
-              }}
-            >
-              <code>{block.content}</code>
-            </pre>
-          );
+          return <CodeBlock key={`code-${bIdx}`} code={block.content} />;
         }
 
-        // Standard text line rendering
         const lines = block.content.split("\n");
         const elements = [];
 
         lines.forEach((line, li) => {
           if (li > 0) {
             if (line.trim() === "") {
-              elements.push(<div key={`gap-${li}`} style={{ height: "6px" }} />);
+              elements.push(<div key={`gap-${li}`} className="h-2" />);
               return;
             }
             elements.push(<br key={`br-${li}`} />);
@@ -163,21 +180,22 @@ export function renderMdText(text) {
           let tIdx = 0;
           while ((m = rx.exec(line)) !== null) {
             if (m[1] !== undefined) {
-              tokens.push(<strong key={`${bIdx}-${li}-b-${tIdx++}`}>{m[1]}</strong>);
+              tokens.push(
+                <strong key={`${bIdx}-${li}-b-${tIdx++}`} className="font-semibold chat-md-strong">
+                  {m[1]}
+                </strong>
+              );
             } else if (m[2] !== undefined) {
-              tokens.push(<em key={`${bIdx}-${li}-i-${tIdx++}`}>{m[2]}</em>);
+              tokens.push(
+                <em key={`${bIdx}-${li}-i-${tIdx++}`} className="italic chat-md-em">
+                  {m[2]}
+                </em>
+              );
             } else if (m[3] !== undefined) {
               tokens.push(
                 <code
                   key={`${bIdx}-${li}-c-${tIdx++}`}
-                  style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border2)",
-                    borderRadius: "4px",
-                    padding: "1px 5px",
-                    fontSize: "0.85em",
-                    fontFamily: "var(--mono, monospace)",
-                  }}
+                  className="chat-inline-code"
                 >
                   {m[3]}
                 </code>
@@ -196,8 +214,7 @@ export function renderMdText(text) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   ChatConversation — Presentational Chat Component
-   Used by both ChatWidget (compact=true) and AssistantPage (compact=false).
+   ChatConversation Component
 ───────────────────────────────────────────────────────────────────────────── */
 export default function ChatConversation({
   messages = [],
@@ -206,26 +223,20 @@ export default function ChatConversation({
   onInputChange,
   onSendMessage,
   role = "guest",
-  suggestions,
-  quickPills,
-  placeholder = "Ask about a feature…",
   compact = false,
   inputRef,
   className = "",
+  theme,
 }) {
   const bottomRef = useRef(null);
-
-  const isStaff = role === "admin" || role === "editor";
-  const effectiveSuggestions = suggestions || (isStaff ? STAFF_SUGGESTIONS : MEMBER_SUGGESTIONS);
-  const effectiveQuickPills = quickPills || (isStaff ? STAFF_QUICK_ASK_PILLS : MEMBER_QUICK_ASK_PILLS);
-  const emptySubText = isStaff
-    ? "Ask any question about member management, events, attendance, access roles, or society settings."
-    : "Ask any question about registration, event attendance, OC applications, letter requests, or your profile.";
-
-  // Client-side rate limit guard (2 second cooldown)
+  const [copiedId, setCopiedId] = useState(null);
   const [cooldown, setCooldown] = useState(false);
 
-  // Auto scroll to latest message
+  const isStaff = role === "admin" || role === "editor";
+  const suggestions = isStaff ? STAFF_SUGGESTIONS : MEMBER_SUGGESTIONS;
+
+
+  // Auto scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -234,11 +245,9 @@ export default function ChatConversation({
     const trimmed = textToSend.trim();
     if (!trimmed || loading || cooldown) return;
 
-    onSendMessage(trimmed);
-
-    // Trigger 2-second rate-limit guard
+    onSendMessage(trimmed, role);
     setCooldown(true);
-    setTimeout(() => setCooldown(false), 2000);
+    setTimeout(() => setCooldown(false), 1500);
   };
 
   const handleSubmit = (e) => {
@@ -246,77 +255,130 @@ export default function ChatConversation({
     handleSend(input);
   };
 
-  const handleSuggestion = (text) => {
-    handleSend(text);
+  const handleCopyMessage = async (msgId, text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(msgId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // fallback
+    }
   };
 
   const isBtnDisabled = loading || cooldown || !input.trim();
-  const effectivePlaceholder = cooldown
-    ? "Please wait a moment…"
-    : loading
-    ? "Thinking…"
-    : placeholder;
 
   return (
-    <div className={`chat-conversation ${compact ? "chat-conv--compact" : "chat-conv--full"} ${className}`}>
-      {/* Scrollable message log */}
+    <div
+      className={`chat-conversation ${compact ? "chat-conv--compact" : "chat-conv--full"} ${className}`}
+      data-theme={theme}
+    >
+      {/* Scrollable Message Feed */}
       <div className="chat-conv-messages" role="log" aria-live="polite" aria-label="Conversation History">
         {messages.length === 0 && !loading && (
           <div className="chat-conv-empty">
-            <div className="chat-conv-empty-icon">
-              <span className="material-symbols-outlined" style={{ fontSize: compact ? 32 : 44 }}>
-                auto_awesome
-              </span>
+            <div className="chat-conv-empty-icon-wrap">
+              <AdssAiIcon size={compact ? 36 : 48} animate variant="brand" />
             </div>
-            <p className="chat-conv-empty-title">ADSS Society AI Assistant</p>
-            <p className="chat-conv-empty-sub">
-              {emptySubText}
-            </p>
+
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <span className="chat-conv-telemetry-badge">
+                  ADSS TELEMETRY V2.6
+                </span>
+                <span className="chat-conv-grounded-badge">
+                  LIVE GROUNDING
+                </span>
+              </div>
+              <h2 className="chat-conv-empty-title">ADSS Portal Intelligence</h2>
+              <p className="chat-conv-empty-sub">
+                {isStaff
+                  ? "Instant precision answers regarding society operations, member directories, attendance analytics, and role governance."
+                  : "Instant precision answers regarding membership registration, event check-in, OC recruitment, and official letters."}
+              </p>
+            </div>
+
+            {/* Linear-Style Suggestion Cards */}
             <div className="chat-conv-chips">
-              {effectiveSuggestions.map((s) => (
+              {suggestions.map((s, idx) => (
                 <button
-                  key={s}
+                  key={idx}
                   type="button"
                   className="chat-conv-chip"
-                  onClick={() => handleSuggestion(s)}
+                  onClick={() => handleSend(s.text)}
                   disabled={loading || cooldown}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: 15, opacity: 0.7 }}>
-                    help_outline
-                  </span>
-                  <span>{s}</span>
+                  <span className="chat-conv-chip-tag">{s.tag}</span>
+                  <span className="chat-conv-chip-text">{s.text}</span>
+                  <CornerDownLeft className="w-3 h-3 chat-conv-chip-arrow ml-auto shrink-0" />
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div key={i} className={`chat-conv-msg chat-conv-msg--${msg.role}`}>
-            {msg.role === "assistant" && (
-              <span className="chat-conv-avatar" title="ADSS Assistant">
-                <span className="material-symbols-outlined" style={{ fontSize: compact ? 13 : 15 }}>
-                  auto_awesome
-                </span>
-              </span>
-            )}
-            <div className="chat-conv-bubble">
-              {msg.role === "assistant" ? renderMdText(msg.text) : msg.text}
-            </div>
-          </div>
-        ))}
+        {/* Message Log */}
+        {messages.map((msg, i) => {
+          const isUser = msg.role === "user";
+          const msgKey = msg.id || `msg-${i}`;
 
+          return (
+            <div
+              key={msgKey}
+              className={`chat-conv-msg-row ${isUser ? "chat-conv-msg-row--user" : "chat-conv-msg-row--assistant"}`}
+            >
+              {!isUser && (
+                <div className="chat-conv-avatar-wrap" title="ADSS Portal AI Assistant">
+                  <AdssAiIcon size={16} variant="brand" />
+                </div>
+              )}
+
+              <div className="chat-conv-msg-body">
+                <div className={`chat-conv-bubble ${isUser ? "chat-conv-bubble--user" : "chat-conv-bubble--assistant"}`}>
+                  {isUser ? msg.text : renderMdText(msg.text)}
+                </div>
+
+                {/* Micro Action Bar under Assistant Messages */}
+                {!isUser && (
+                  <div className="chat-conv-msg-meta">
+                    <span className="chat-conv-msg-time">{msg.timestamp || "ADSS INTEL"}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyMessage(msgKey, msg.text)}
+                      className="chat-conv-copy-action"
+                      title="Copy response"
+                    >
+                      {copiedId === msgKey ? (
+                        <>
+                          <Check className="w-3 h-3 text-[#27a644]" />
+                          <span className="text-[#27a644]">COPIED</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>COPY</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Active Thinking Indicator */}
         {loading && (
-          <div className="chat-conv-msg chat-conv-msg--assistant">
-            <span className="chat-conv-avatar">
-              <span className="material-symbols-outlined" style={{ fontSize: compact ? 13 : 15 }}>
-                auto_awesome
-              </span>
-            </span>
-            <div className="chat-conv-bubble chat-conv-typing">
-              <span />
-              <span />
-              <span />
+          <div className="chat-conv-msg-row chat-conv-msg-row--assistant">
+            <div className="chat-conv-avatar-wrap">
+              <AdssAiIcon size={16} animate variant="brand" />
+            </div>
+            <div className="chat-conv-msg-body">
+              <div className="chat-conv-bubble chat-conv-bubble--assistant chat-conv-thinking">
+                <div className="chat-pulse-node" />
+                <span className="font-berkeley-mono text-[11px] chat-thinking-text tracking-wider uppercase">
+                  Analyzing ADSS records…
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -324,54 +386,33 @@ export default function ChatConversation({
         <div ref={bottomRef} />
       </div>
 
-      {/* Suggested Quick Questions Row above Input */}
-      {messages.length > 0 && (
-        <div className="chat-conv-quick-row">
-          {effectiveQuickPills.map((q) => (
-            <button
-              key={q}
-              type="button"
-              className="chat-conv-quick-pill"
-              onClick={() => handleSuggestion(q)}
-              disabled={loading || cooldown}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Input bar */}
+      {/* Input Bar — Linear Midnight Precision */}
       <form className="chat-conv-input-bar" onSubmit={handleSubmit}>
-        <input
-          ref={inputRef}
-          className="chat-conv-input"
-          type="text"
-          placeholder={effectivePlaceholder}
-          value={input}
-          onChange={(e) => onInputChange(e.target.value)}
-          disabled={loading || cooldown}
-          autoComplete="off"
-          aria-label="Message to ADSS assistant"
-        />
-        <button
-          type="submit"
-          className="chat-conv-send-btn"
-          disabled={isBtnDisabled}
-          aria-label="Send message"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: compact ? 18 : 20 }}>
-            send
-          </span>
-        </button>
+        <div className="chat-conv-input-wrapper">
+          <input
+            ref={inputRef}
+            className="chat-conv-input"
+            type="text"
+            placeholder={cooldown ? "Rate limit throttle (1s)..." : loading ? "ADSS intelligence processing..." : "Ask ADSS Intelligence (e.g. attendance, OC, letters)..."}
+            value={input}
+            onChange={(e) => onInputChange(e.target.value)}
+            disabled={loading || cooldown}
+            autoComplete="off"
+            aria-label="Message to ADSS AI Assistant"
+          />
+          <button
+            type="submit"
+            className="chat-conv-send-btn"
+            disabled={isBtnDisabled}
+            aria-label="Send query"
+            title="Execute query (Enter)"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </form>
 
-      {/* Visible Disclaimer Footer */}
-      <div className="chat-conv-disclaimer">
-        AI assistant — may be inaccurate. Contact staff for official help.
-      </div>
-
-      {/* Scoped CSS styling */}
+      {/* Component Styles (Linear Midnight Tokens) */}
       <style>{`
         .chat-conversation {
           display: flex;
@@ -379,9 +420,10 @@ export default function ChatConversation({
           height: 100%;
           width: 100%;
           min-height: 0;
-          background: var(--bg2);
-          color: var(--text);
-          font-family: var(--sans);
+          background: #08090a;
+          color: #d0d6e0;
+          font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+          position: relative;
         }
 
         .chat-conv-messages {
@@ -390,63 +432,72 @@ export default function ChatConversation({
           padding: 16px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 14px;
           scroll-behavior: smooth;
         }
 
         .chat-conv--full .chat-conv-messages {
-          padding: 24px 28px;
-          gap: 16px;
+          padding: 24px 32px;
+          gap: 20px;
         }
 
-        /* Empty state */
+        /* Empty State */
         .chat-conv-empty {
           display: flex;
           flex-direction: column;
           align-items: center;
-          text-align: center;
-          gap: 10px;
-          padding: 20px 10px;
+          gap: 12px;
           margin: auto 0;
+          padding: 16px 8px;
         }
+
         .chat-conv--full .chat-conv-empty {
-          max-width: 640px;
+          max-width: 680px;
           margin: auto;
-          padding: 40px 20px;
+          padding: 40px 16px;
         }
-        .chat-conv-empty-icon {
-          color: var(--accent2);
-          background: var(--accent-dim);
-          border: 1px solid var(--accent-glow);
-          width: 56px;
-          height: 56px;
-          border-radius: 50%;
+
+        .chat-conv-empty-icon-wrap {
+          width: 60px;
+          height: 60px;
+          border-radius: 12px;
+          background: #0f1011;
+          border: 1px solid #23252a;
+          box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px 0px, rgb(35, 37, 42) 0px 0px 0px 1px inset;
           display: flex;
           align-items: center;
           justify-content: center;
           margin-bottom: 4px;
         }
-        .chat-conv--full .chat-conv-empty-icon {
-          width: 72px;
-          height: 72px;
+
+        .chat-conv--full .chat-conv-empty-icon-wrap {
+          width: 76px;
+          height: 76px;
         }
+
         .chat-conv-empty-title {
-          font-size: 15px;
-          font-weight: 700;
-          color: var(--text);
+          font-size: 17px;
+          font-weight: 510;
+          color: #ffffff;
+          letter-spacing: -0.012em;
           margin: 0;
         }
+
         .chat-conv--full .chat-conv-empty-title {
-          font-size: 20px;
+          font-size: 22px;
         }
+
         .chat-conv-empty-sub {
-          font-size: 12px;
-          color: var(--text2);
-          margin: 0;
+          font-size: 13px;
+          color: #8a8f98;
+          max-width: 420px;
+          margin: 6px auto 0;
           line-height: 1.5;
         }
+
         .chat-conv--full .chat-conv-empty-sub {
           font-size: 14px;
+          max-width: 560px;
         }
 
         .chat-conv-chips {
@@ -454,233 +505,659 @@ export default function ChatConversation({
           flex-direction: column;
           gap: 8px;
           width: 100%;
-          margin-top: 8px;
+          margin-top: 10px;
         }
+
         .chat-conv--full .chat-conv-chips {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          grid-template-columns: repeat(2, 1fr);
           gap: 10px;
-          margin-top: 16px;
+          margin-top: 20px;
         }
+
         .chat-conv-chip {
-          background: var(--bg3);
-          border: 1px solid var(--border2);
-          border-radius: var(--r);
-          padding: 10px 14px;
-          font-size: 12.5px;
-          color: var(--text);
+          background: #0f1011;
+          border: 1px solid #23252a;
+          border-radius: 6px;
+          padding: 9px 12px;
+          color: #d0d6e0;
           cursor: pointer;
-          text-align: left;
-          line-height: 1.4;
           display: flex;
           align-items: center;
-          gap: 8px;
-          transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
-          font-family: var(--sans);
+          gap: 10px;
+          text-align: left;
+          transition: background 0.15s, border-color 0.15s, transform 0.12s;
         }
-        .chat-conv--full .chat-conv-chip {
-          font-size: 13.5px;
-          padding: 12px 16px;
-          border-radius: var(--r2);
-        }
+
         .chat-conv-chip:hover:not(:disabled) {
-          background: var(--accent-dim);
-          border-color: var(--accent);
-          color: var(--accent2);
+          background: #161718;
+          border-color: #383b3f;
           transform: translateY(-1px);
         }
-        .chat-conv-chip:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* Quick ask pills row */
-        .chat-conv-quick-row {
-          display: flex;
-          gap: 6px;
-          padding: 6px 12px;
-          overflow-x: auto;
-          scrollbar-width: none;
-          background: var(--bg3);
-          border-top: 1px solid var(--border);
+        .chat-conv-chip:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .chat-conv-chip-tag {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          color: #8a8f98;
+          background: #161718;
+          border: 1px solid #23252a;
+          padding: 1px 5px;
+          border-radius: 4px;
           flex-shrink: 0;
         }
-        .chat-conv-quick-row::-webkit-scrollbar { display: none; }
-        .chat-conv-quick-pill {
-          background: var(--surface2);
-          border: 1px solid var(--border2);
-          border-radius: 12px;
-          padding: 4px 10px;
-          font-size: 11px;
-          color: var(--text2);
-          white-space: nowrap;
-          cursor: pointer;
-          transition: background 0.15s, color 0.15s, border-color 0.15s;
-        }
-        .chat-conv-quick-pill:hover:not(:disabled) {
-          background: var(--accent-dim);
-          border-color: var(--accent);
-          color: var(--accent2);
-        }
-        .chat-conv-quick-pill:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* Messages */
-        .chat-conv-msg {
+        .chat-conv-chip-text {
+          font-size: 12.5px;
+          color: #d0d6e0;
+          line-height: 1.35;
+          flex: 1;
+        }
+
+        /* Message Rows */
+        .chat-conv-msg-row {
           display: flex;
-          align-items: flex-end;
-          gap: 8px;
-          max-width: 88%;
-          animation: chat-conv-fadein 0.18s ease;
+          gap: 10px;
+          max-width: 90%;
+          animation: chat-fadein 0.18s ease;
         }
-        .chat-conv--full .chat-conv-msg {
-          max-width: 80%;
-          gap: 12px;
+
+        .chat-conv--full .chat-conv-msg-row {
+          max-width: 82%;
+          gap: 14px;
         }
-        @keyframes chat-conv-fadein {
+
+        @keyframes chat-fadein {
           from { opacity: 0; transform: translateY(4px); }
-          to   { opacity: 1; transform: translateY(0); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        .chat-conv-msg--user {
+
+        .chat-conv-msg-row--user {
           align-self: flex-end;
           flex-direction: row-reverse;
         }
-        .chat-conv-msg--assistant {
+
+        .chat-conv-msg-row--assistant {
           align-self: flex-start;
         }
 
-        .chat-conv-avatar {
+        .chat-conv-avatar-wrap {
           width: 26px;
           height: 26px;
-          border-radius: 50%;
-          background: var(--accent-dim);
-          border: 1px solid var(--accent-glow);
-          color: var(--accent2);
+          border-radius: 6px;
+          background: #0f1011;
+          border: 1px solid #23252a;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
-          margin-bottom: 2px;
+          margin-top: 2px;
         }
-        .chat-conv--full .chat-conv-avatar {
+
+        .chat-conv--full .chat-conv-avatar-wrap {
           width: 32px;
           height: 32px;
         }
 
+        .chat-conv-msg-body {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+
         .chat-conv-bubble {
           padding: 10px 14px;
-          border-radius: 14px;
-          font-size: 13px;
-          line-height: 1.55;
+          font-size: 13.5px;
+          line-height: 1.6;
           word-break: break-word;
-          white-space: pre-wrap;
+          border-radius: 6px;
         }
+
         .chat-conv--full .chat-conv-bubble {
           padding: 14px 18px;
           font-size: 14.5px;
-          border-radius: 16px;
-        }
-        .chat-conv-msg--user .chat-conv-bubble {
-          background: var(--accent);
-          color: #ffffff;
-          border-bottom-right-radius: 4px;
-        }
-        .chat-conv-msg--assistant .chat-conv-bubble {
-          background: var(--bg3);
-          color: var(--text);
-          border: 1px solid var(--border);
-          border-bottom-left-radius: 4px;
+          border-radius: 8px;
         }
 
-        /* Typing indicator */
-        .chat-conv-typing {
+        .chat-conv-bubble--user {
+          background: #161718;
+          border: 1px solid #23252a;
+          color: #ffffff;
+        }
+
+        .chat-conv-bubble--assistant {
+          background: #0f1011;
+          border: 1px solid #23252a;
+          color: #d0d6e0;
+          box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 12px 0px inset;
+        }
+
+        .chat-conv-msg-meta {
           display: flex;
           align-items: center;
-          gap: 5px;
-          padding: 14px 18px;
-        }
-        .chat-conv-typing span {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: var(--text3);
-          animation: chat-conv-bounce 1.2s infinite ease-in-out;
-        }
-        .chat-conv-typing span:nth-child(2) { animation-delay: 0.2s; }
-        .chat-conv-typing span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes chat-conv-bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-          30%            { transform: translateY(-5px); opacity: 1; }
+          gap: 12px;
+          padding-left: 2px;
         }
 
-        /* Input bar */
-        .chat-conv-input-bar {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 16px;
-          border-top: 1px solid var(--border);
-          background: var(--bg2);
-          flex-shrink: 0;
+        .chat-conv-msg-time {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          color: #62666d;
         }
-        .chat-conv--full .chat-conv-input-bar {
-          padding: 14px 24px;
-        }
-        .chat-conv-input {
-          flex: 1;
-          background: var(--bg3);
-          border: 1px solid var(--border2);
-          border-radius: 24px;
-          padding: 9px 16px;
-          font-size: 13.5px;
-          color: var(--text);
-          font-family: var(--sans);
-          outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
-          min-width: 0;
-        }
-        .chat-conv--full .chat-conv-input {
-          font-size: 14.5px;
-          padding: 12px 20px;
-          border-radius: 28px;
-        }
-        .chat-conv-input::placeholder { color: var(--text3); }
-        .chat-conv-input:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-dim);
-        }
-        .chat-conv-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .chat-conv-send-btn {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: var(--accent);
-          color: #ffffff;
+        .chat-conv-copy-action {
+          background: none;
           border: none;
           cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          color: #8a8f98;
+          padding: 2px 4px;
+          border-radius: 4px;
+          transition: color 0.15s, background 0.15s;
+        }
+
+        .chat-conv-copy-action:hover {
+          color: #ffffff;
+          background: #161718;
+        }
+
+        /* Thinking State */
+        .chat-conv-thinking {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 14px;
+        }
+
+        .chat-pulse-node {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #e4f222;
+          box-shadow: 0 0 8px rgba(228, 242, 34, 0.6);
+          animation: chat-pulse 1s infinite alternate ease-in-out;
+        }
+
+        @keyframes chat-pulse {
+          from { transform: scale(0.85); opacity: 0.6; }
+          to { transform: scale(1.15); opacity: 1; }
+        }
+
+        /* Code & CSV */
+        .chat-inline-code {
+          background: #161718;
+          border: 1px solid #23252a;
+          color: #e5e5e6;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          padding: 1px 4px;
+          border-radius: 4px;
+        }
+
+        .chat-codeblock {
+          background: #08090a;
+          border: 1px solid #23252a;
+          border-radius: 6px;
+          margin: 8px 0;
+          overflow: hidden;
+        }
+
+        .chat-codeblock-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #0f1011;
+          border-bottom: 1px solid #23252a;
+          padding: 4px 10px;
+        }
+
+        .chat-copy-code-btn {
+          background: none;
+          border: none;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          color: #8a8f98;
+          cursor: pointer;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .chat-copy-code-btn:hover {
+          background: #161718;
+          color: #ffffff;
+        }
+
+        .chat-codeblock-content {
+          padding: 10px 12px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #e5e5e6;
+          overflow-x: auto;
+          margin: 0;
+        }
+
+        .chat-csv-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: #0f1011;
+          border: 1px solid #23252a;
+          border-radius: 6px;
+          padding: 8px 12px;
+          color: #ffffff;
+          cursor: pointer;
+          margin: 6px 0;
+          width: 100%;
+          transition: background 0.15s, border-color 0.15s;
+        }
+
+        .chat-csv-btn:hover {
+          background: #161718;
+          border-color: #383b3f;
+        }
+
+        /* Input Bar */
+        .chat-conv-input-bar {
+          padding: 12px 14px;
+          background: #0f1011;
+          border-top: 1px solid #23252a;
+          flex-shrink: 0;
+        }
+
+        .chat-conv--full .chat-conv-input-bar {
+          padding: 16px 24px;
+        }
+
+        .chat-conv-input-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #161718;
+          border: 1px solid #23252a;
+          border-radius: 6px;
+          padding: 4px 6px 4px 12px;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .chat-conv-input-wrapper:focus-within {
+          border-color: #383b3f;
+          box-shadow: 0 0 0 1px #383b3f;
+        }
+
+        .chat-conv-input {
+          flex: 1;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: #ffffff;
+          font-size: 13.5px;
+          font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+          min-width: 0;
+        }
+
+        .chat-conv-input::placeholder {
+          color: #8a8f98;
+        }
+
+        /* Primary Action Button — The Acid Lime Flashlight */
+        .chat-conv-send-btn {
+          background: #e4f222;
+          color: #08090a;
+          border: none;
+          border-radius: 6px;
+          width: 32px;
+          height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
+          cursor: pointer;
           flex-shrink: 0;
-          transition: background 0.15s, transform 0.12s, opacity 0.15s;
+          transition: opacity 0.15s, transform 0.12s;
         }
-        .chat-conv--full .chat-conv-send-btn {
-          width: 44px;
-          height: 44px;
-        }
-        .chat-conv-send-btn:hover:not(:disabled) {
-          background: var(--accent2);
-          transform: scale(1.05);
-        }
-        .chat-conv-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        /* Disclaimer footer */
-        .chat-conv-disclaimer {
-          font-size: 10.5px;
-          color: var(--text3);
-          text-align: center;
-          padding: 4px 12px 8px;
-          background: var(--bg2);
-          line-height: 1.3;
-          flex-shrink: 0;
+        .chat-conv-send-btn:hover:not(:disabled) {
+          opacity: 0.92;
+          transform: scale(1.04);
         }
+
+        .chat-conv-send-btn:disabled {
+          background: #23252a;
+          color: #62666d;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        /* Base Themeable Token Styles */
+        .chat-csv-icon {
+          color: #e4f222;
+        }
+
+        .chat-csv-download-icon {
+          color: #8a8f98;
+        }
+
+        .chat-codeblock-label {
+          color: #8a8f98;
+        }
+
+        .chat-codeblock-term-icon {
+          color: #e4f222;
+        }
+
+        .chat-md-strong {
+          color: #ffffff;
+        }
+
+        .chat-md-em {
+          color: #d0d6e0;
+        }
+
+        .chat-conv-telemetry-badge {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: #8a8f98;
+          background: #161718;
+          border: 1px solid #23252a;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .chat-conv-grounded-badge {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          text-transform: uppercase;
+          color: #e4f222;
+          background: rgba(228, 242, 34, 0.1);
+          border: 1px solid rgba(228, 242, 34, 0.2);
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .chat-conv-chip-arrow {
+          color: #62666d;
+          transition: color 0.15s;
+        }
+
+        .chat-conv-chip:hover .chat-conv-chip-arrow {
+          color: #e4f222;
+        }
+
+        .chat-thinking-text {
+          color: #8a8f98;
+        }
+
+        .chat-quick-label {
+          color: #62666d;
+        }
+
+        .chat-disclaimer-text {
+          color: #8a8f98;
+        }
+
+        /* ─── Light Mode Theme Support ─── */
+        [data-theme='light'] .chat-conversation,
+        .chat-conversation[data-theme='light'] {
+          background: #ffffff;
+          color: #18181b;
+        }
+
+        [data-theme='light'] .chat-conv-empty-icon-wrap,
+        .chat-conversation[data-theme='light'] .chat-conv-empty-icon-wrap {
+          background: #18181b;
+          border-color: #27272a;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+
+        [data-theme='light'] .chat-conv-empty-title,
+        .chat-conversation[data-theme='light'] .chat-conv-empty-title {
+          color: #09090b;
+        }
+
+        [data-theme='light'] .chat-conv-empty-sub,
+        .chat-conversation[data-theme='light'] .chat-conv-empty-sub {
+          color: #52525b;
+        }
+
+        [data-theme='light'] .chat-conv-telemetry-badge,
+        .chat-conversation[data-theme='light'] .chat-conv-telemetry-badge {
+          color: #52525b;
+          background: #f4f4f5;
+          border-color: #e4e4e7;
+        }
+
+        [data-theme='light'] .chat-conv-grounded-badge,
+        .chat-conversation[data-theme='light'] .chat-conv-grounded-badge {
+          color: #854d0e;
+          background: #fef9c3;
+          border-color: #fde047;
+          font-weight: 500;
+        }
+
+        [data-theme='light'] .chat-conv-chip,
+        .chat-conversation[data-theme='light'] .chat-conv-chip {
+          background: #fafafa;
+          border-color: #e4e4e7;
+          color: #18181b;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+        }
+
+        [data-theme='light'] .chat-conv-chip:hover:not(:disabled),
+        .chat-conversation[data-theme='light'] .chat-conv-chip:hover:not(:disabled) {
+          background: #f4f4f5;
+          border-color: #d4d4d8;
+        }
+
+        [data-theme='light'] .chat-conv-chip-tag,
+        .chat-conversation[data-theme='light'] .chat-conv-chip-tag {
+          color: #52525b;
+          background: #f4f4f5;
+          border-color: #e4e4e7;
+        }
+
+        [data-theme='light'] .chat-conv-chip-text,
+        .chat-conversation[data-theme='light'] .chat-conv-chip-text {
+          color: #18181b;
+        }
+
+        [data-theme='light'] .chat-conv-chip-arrow,
+        .chat-conversation[data-theme='light'] .chat-conv-chip-arrow {
+          color: #a1a1aa;
+        }
+
+        [data-theme='light'] .chat-conv-chip:hover:not(:disabled) .chat-conv-chip-arrow,
+        .chat-conversation[data-theme='light'] .chat-conv-chip:hover:not(:disabled) .chat-conv-chip-arrow {
+          color: #09090b;
+        }
+
+        [data-theme='light'] .chat-conv-avatar-wrap,
+        .chat-conversation[data-theme='light'] .chat-conv-avatar-wrap {
+          background: #18181b;
+          border-color: #27272a;
+        }
+
+        [data-theme='light'] .chat-conv-bubble--user,
+        .chat-conversation[data-theme='light'] .chat-conv-bubble--user {
+          background: #09090b;
+          border-color: #09090b;
+          color: #ffffff;
+        }
+
+        [data-theme='light'] .chat-conv-bubble--assistant,
+        .chat-conversation[data-theme='light'] .chat-conv-bubble--assistant {
+          background: #f8fafc;
+          border-color: #e2e8f0;
+          color: #0f172a;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme='light'] .chat-md-strong,
+        .chat-conversation[data-theme='light'] .chat-md-strong {
+          color: #09090b;
+        }
+
+        [data-theme='light'] .chat-md-em,
+        .chat-conversation[data-theme='light'] .chat-md-em {
+          color: #334155;
+        }
+
+        [data-theme='light'] .chat-inline-code,
+        .chat-conversation[data-theme='light'] .chat-inline-code {
+          background: #f1f5f9;
+          border-color: #e2e8f0;
+          color: #0f172a;
+        }
+
+        [data-theme='light'] .chat-codeblock,
+        .chat-conversation[data-theme='light'] .chat-codeblock {
+          background: #f8fafc;
+          border-color: #e2e8f0;
+        }
+
+        [data-theme='light'] .chat-codeblock-header,
+        .chat-conversation[data-theme='light'] .chat-codeblock-header {
+          background: #f1f5f9;
+          border-bottom-color: #e2e8f0;
+        }
+
+        [data-theme='light'] .chat-codeblock-label,
+        .chat-conversation[data-theme='light'] .chat-codeblock-label {
+          color: #64748b;
+        }
+
+        [data-theme='light'] .chat-codeblock-term-icon,
+        .chat-conversation[data-theme='light'] .chat-codeblock-term-icon {
+          color: #0284c7;
+        }
+
+        [data-theme='light'] .chat-copy-code-btn,
+        .chat-conversation[data-theme='light'] .chat-copy-code-btn {
+          color: #64748b;
+        }
+
+        [data-theme='light'] .chat-copy-code-btn:hover,
+        .chat-conversation[data-theme='light'] .chat-copy-code-btn:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+
+        [data-theme='light'] .chat-codeblock-content,
+        .chat-conversation[data-theme='light'] .chat-codeblock-content {
+          color: #0f172a;
+        }
+
+        [data-theme='light'] .chat-csv-btn,
+        .chat-conversation[data-theme='light'] .chat-csv-btn {
+          background: #ffffff;
+          border-color: #e4e4e7;
+          color: #09090b;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme='light'] .chat-csv-btn:hover,
+        .chat-conversation[data-theme='light'] .chat-csv-btn:hover {
+          background: #f4f4f5;
+          border-color: #d4d4d8;
+        }
+
+        [data-theme='light'] .chat-csv-icon,
+        .chat-conversation[data-theme='light'] .chat-csv-icon {
+          color: #16a34a;
+        }
+
+        [data-theme='light'] .chat-csv-download-icon,
+        .chat-conversation[data-theme='light'] .chat-csv-download-icon {
+          color: #71717a;
+        }
+
+        [data-theme='light'] .chat-conv-msg-time,
+        .chat-conversation[data-theme='light'] .chat-conv-msg-time {
+          color: #71717a;
+        }
+
+        [data-theme='light'] .chat-conv-copy-action,
+        .chat-conversation[data-theme='light'] .chat-conv-copy-action {
+          color: #71717a;
+        }
+
+        [data-theme='light'] .chat-conv-copy-action:hover,
+        .chat-conversation[data-theme='light'] .chat-conv-copy-action:hover {
+          color: #09090b;
+          background: #f4f4f5;
+        }
+
+        [data-theme='light'] .chat-pulse-node,
+        .chat-conversation[data-theme='light'] .chat-pulse-node {
+          background: #ca8a04;
+          box-shadow: 0 0 8px rgba(202, 138, 4, 0.5);
+        }
+
+        [data-theme='light'] .chat-thinking-text,
+        .chat-conversation[data-theme='light'] .chat-thinking-text {
+          color: #71717a;
+        }
+
+
+
+        [data-theme='light'] .chat-conv-input-bar,
+        .chat-conversation[data-theme='light'] .chat-conv-input-bar {
+          background: #ffffff;
+          border-top-color: #e4e4e7;
+        }
+
+        [data-theme='light'] .chat-conv-input-wrapper,
+        .chat-conversation[data-theme='light'] .chat-conv-input-wrapper {
+          background: #f4f4f5;
+          border-color: #e4e4e7;
+        }
+
+        [data-theme='light'] .chat-conv-input-wrapper:focus-within,
+        .chat-conversation[data-theme='light'] .chat-conv-input-wrapper:focus-within {
+          border-color: #09090b;
+          box-shadow: 0 0 0 1px #09090b;
+          background: #ffffff;
+        }
+
+        [data-theme='light'] .chat-conv-input,
+        .chat-conversation[data-theme='light'] .chat-conv-input {
+          color: #09090b;
+        }
+
+        [data-theme='light'] .chat-conv-input::placeholder,
+        .chat-conversation[data-theme='light'] .chat-conv-input::placeholder {
+          color: #71717a;
+        }
+
+        [data-theme='light'] .chat-conv-send-btn,
+        .chat-conversation[data-theme='light'] .chat-conv-send-btn {
+          background: #09090b;
+          color: #ffffff;
+        }
+
+        [data-theme='light'] .chat-conv-send-btn:hover:not(:disabled),
+        .chat-conversation[data-theme='light'] .chat-conv-send-btn:hover:not(:disabled) {
+          background: #27272a;
+          opacity: 1;
+        }
+
+        [data-theme='light'] .chat-conv-send-btn:disabled,
+        .chat-conversation[data-theme='light'] .chat-conv-send-btn:disabled {
+          background: #e4e4e7;
+          color: #a1a1aa;
+        }
+
       `}</style>
     </div>
   );

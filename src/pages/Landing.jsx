@@ -1,8 +1,17 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { Sun, Moon } from "lucide-react";
 import { supabase } from "../supabaseClient";
+import MinimalFooter from "../components/MinimalFooter";
 
-export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, onRegisterClick, regEnabled = true, aiEnabled = true }) {
-  const glowRef = useRef(null);
+export default function Landing({
+  theme = "dark",
+  onThemeToggle,
+  onLoginClick,
+  onRegisterClick,
+  regEnabled = true,
+  aiEnabled = true,
+}) {
+  const isDark = theme === "dark";
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
 
@@ -10,13 +19,29 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
     const fetchEvents = async () => {
       try {
         const todayStr = new Date().toISOString().split("T")[0];
-        const { data, error } = await supabase
+
+        // 1. Query upcoming public events (date >= today)
+        let { data, error } = await supabase
           .from("events")
-          .select("event_id, name, date, time, flyer_url, description")
+          .select("event_id, name, date, time, flyer_url, description, is_public")
           .or("is_public.is.null,is_public.eq.true")
           .gte("date", todayStr)
           .order("date", { ascending: true })
           .limit(3);
+
+        // 2. If no future public events, retrieve the latest real public events from the database
+        if (!error && (!data || data.length === 0)) {
+          const recentRes = await supabase
+            .from("events")
+            .select("event_id, name, date, time, flyer_url, description, is_public")
+            .or("is_public.is.null,is_public.eq.true")
+            .order("date", { ascending: false })
+            .limit(3);
+
+          if (!recentRes.error && recentRes.data) {
+            data = recentRes.data;
+          }
+        }
 
         if (!error && data) {
           setUpcomingEvents(data);
@@ -30,40 +55,6 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
     fetchEvents();
   }, []);
 
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (glowRef.current) {
-        const x = (e.clientX / window.innerWidth) * 100;
-        const y = (e.clientY / window.innerHeight) * 100;
-        glowRef.current.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(99, 102, 241, 0.09) 0%, transparent 40%)`;
-      }
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-
-    // Intersection Observer for fade-in animations
-    const observerOptions = { threshold: 0.1 };
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("opacity-100", "translate-y-0");
-          entry.target.classList.remove("opacity-0", "translate-y-10");
-        }
-      });
-    }, observerOptions);
-
-    const sections = document.querySelectorAll(".animate-section");
-    sections.forEach(section => {
-      section.classList.add("transition-all", "duration-1000", "opacity-0", "translate-y-10");
-      observer.observe(section);
-    });
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      sections.forEach(section => observer.unobserve(section));
-    };
-  }, []);
-
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
     if (element) {
@@ -71,422 +62,812 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
     }
   };
 
-  return (
-    <div className={`landing-page ${theme === "light" ? "landing-light" : ""} bg-[#0c0c0e] text-[#e5e5ea] min-h-screen font-body-md overflow-x-hidden selection:bg-white/20 selection:text-white`}>
-      <style>{`
-        .glass-card {
-          background: rgba(24, 24, 28, 0.6);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .glass-card:hover {
-          transform: translateY(-6px) scale(1.01);
-          border-color: rgba(255, 255, 255, 0.2);
-          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
-        }
-        .hero-glow {
-          background: radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
-        }
-        @media (max-width: 767px) {
-          .desktop-nav { display: none !important; }
-        }
-        @media (min-width: 768px) {
-          .mobile-nav { display: none !important; }
-        }
-        @media (max-width: 640px) {
-          .hero-buttons-wrapper {
-            flex-direction: column !important;
-            width: 100% !important;
-          }
-          .hero-buttons-wrapper > button {
-            width: 100% !important;
-          }
-        }
-        @media (min-width: 641px) {
-          .hero-buttons-wrapper {
-            flex-direction: row !important;
-          }
-          .hero-buttons-wrapper > button {
-            width: auto !important;
-          }
-        }
-      `}</style>
+  const handleLogin = () => {
+    if (onLoginClick) {
+      onLoginClick();
+    } else {
+      window.history.pushState({}, "", "/login");
+      window.dispatchEvent(new Event("popstate"));
+    }
+  };
 
-      {/* TopNavBar */}
-      <nav className="fixed top-0 w-full z-50 flex items-center px-6 md:px-12 py-4 bg-[#0c0c0e]/85 backdrop-blur-xl border-b border-white/10">
-        
-        {/* Desktop Layout */}
-        <div className="desktop-nav justify-between items-center w-full flex">
-          <div className="flex items-center gap-3">
-            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} />
-            <span className="font-headline-md text-2xl font-bold text-on-surface">ADSS Ruhuna</span>
+  const handleRegister = () => {
+    if (onRegisterClick) {
+      onRegisterClick();
+    } else {
+      window.history.pushState({}, "", "/register");
+      window.dispatchEvent(new Event("popstate"));
+    }
+  };
+
+  return (
+    <div
+      className={`linear-landing min-h-screen font-inter-variable relative overflow-x-hidden transition-colors duration-200 ${
+        isDark
+          ? "bg-[#08090a] text-[#d0d6e0] selection:bg-[#e4f222] selection:text-[#08090a]"
+          : "landing-light bg-white text-[#3f3f46] selection:bg-[#6366f1] selection:text-white"
+      }`}
+    >
+      {/* ── Fixed Top Navigation Bar ────────────────────────────────────────── */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-200 ${
+          isDark
+            ? "bg-[#08090a]/85 border-b border-[#23252a]"
+            : "bg-white/85 border-b border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
+        }`}
+      >
+        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
+          {/* Brand Logo */}
+          <div
+            className="flex items-center gap-3 cursor-pointer"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            <div
+              className={`w-7 h-7 rounded-[6px] flex items-center justify-center p-1 transition-colors ${
+                isDark
+                  ? "bg-[#161718] border border-[#23252a]"
+                  : "bg-gray-100 border border-gray-200"
+              }`}
+            >
+              <img
+                alt="ADSS Logo"
+                className="w-full h-full object-contain"
+                src={`${import.meta.env.BASE_URL}${isDark ? "logo_trans_light.png" : "logo_trans_dark.png"}`}
+              />
+            </div>
+            <span
+              className={`text-[15px] font-[510] tracking-[-0.015em] flex items-center gap-2 transition-colors ${
+                isDark ? "text-white" : "text-[#09090b]"
+              }`}
+            >
+              ADSS Ruhuna
+            </span>
           </div>
-          <div className="flex items-center gap-8">
+
+          {/* Center Nav Items */}
+          <nav
+            className={`hidden md:flex items-center gap-6 text-[13px] ${
+              isDark ? "text-[#8a8f98]" : "text-gray-600"
+            }`}
+          >
             <button
-              onClick={() => scrollToSection(upcomingEvents.length > 0 ? "upcoming-events" : "features")}
-              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
+              onClick={() => scrollToSection("features")}
+              className={`transition-colors py-1 cursor-pointer font-[400] ${
+                isDark ? "hover:text-[#ffffff]" : "hover:text-gray-900"
+              }`}
+            >
+              What We Do
+            </button>
+            <button
+              onClick={() => scrollToSection("events")}
+              className={`transition-colors py-1 cursor-pointer font-[400] ${
+                isDark ? "hover:text-[#ffffff]" : "hover:text-gray-900"
+              }`}
             >
               Events
             </button>
-            <button
-              onClick={() => scrollToSection("cta")}
-              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
-            >
-              Membership
-            </button>
-            <button
-              onClick={() => scrollToSection("features")}
-              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
-            >
-              Insights
-            </button>
-            <button
-              onClick={() => scrollToSection("footer")}
-              className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer"
-            >
-              Contact
-            </button>
             {aiEnabled && (
               <button
                 onClick={() => {
                   window.history.pushState({}, "", "/assistant");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className="font-body-md text-zinc-400 hover:text-white transition-colors duration-300 cursor-pointer flex items-center gap-1.5"
+                className={`transition-colors py-1 cursor-pointer flex items-center gap-1.5 font-[400] ${
+                  isDark ? "hover:text-[#ffffff]" : "hover:text-gray-900"
+                }`}
               >
-                <span className="material-symbols-outlined text-lg text-zinc-300">auto_awesome</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#6366f1]"></span>
                 <span>AI Assistant</span>
               </button>
             )}
-          </div>
-          <div className="flex items-center gap-3">
             <button
-              type="button"
-              className="px-3.5 py-1.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/15 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-              onClick={onThemeToggle}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              onClick={() => scrollToSection("footer")}
+              className={`transition-colors py-1 cursor-pointer font-[400] ${
+                isDark ? "hover:text-[#ffffff]" : "hover:text-gray-900"
+              }`}
             >
-              <span className="material-symbols-outlined text-sm">
-                {theme === "dark" ? "light_mode" : "dark_mode"}
-              </span>
-              <span>{theme === "dark" ? "Light" : "Dark"}</span>
+              Contact
             </button>
-            <button
-              onClick={onLoginClick}
-              className="bg-[#e4e4e7] text-[#09090b] px-6 py-2.5 rounded-full font-bold text-body-md hover:bg-white active:scale-95 transition-all shadow-sm"
-            >
-              Join Society
-            </button>
-          </div>
-        </div>
+          </nav>
 
-        {/* Mobile Layout */}
-        <div className="mobile-nav justify-between items-center w-full flex">
-          {/* Logo on the left */}
-          <div className="flex items-center">
-            <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} />
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {aiEnabled && (
+          {/* Right Action Controls */}
+          <div className="flex items-center gap-2.5">
+            {/* Theme Toggle Button */}
+            {onThemeToggle && (
               <button
-                onClick={() => {
-                  window.history.pushState({}, "", "/assistant");
-                  window.dispatchEvent(new Event("popstate"));
-                }}
-                className="bg-white/10 border border-white/20 text-white p-2 rounded-full active:scale-95 transition-all flex items-center justify-center"
-                title="AI Assistant"
+                type="button"
+                onClick={onThemeToggle}
+                className={`w-8 h-8 rounded-[6px] flex items-center justify-center transition-all cursor-pointer ${
+                  isDark
+                    ? "bg-[#161718] border border-[#23252a] text-[#8a8f98] hover:text-white hover:border-[#383b3f]"
+                    : "bg-gray-100 border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300"
+                }`}
+                title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label="Toggle theme"
               >
-                <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                {isDark ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-gray-700" />
+                )}
               </button>
             )}
-          </div>
-          <button
-            onClick={onLoginClick}
-            className="bg-[#e4e4e7] text-[#09090b] px-5 py-2 rounded-full font-bold text-sm active:scale-95 transition-all shadow-sm"
-          >
-            Join Society
-          </button>
 
-          {/* Theme Switch (icon-only, circular) on the right */}
-          <button
-            type="button"
-            className={`w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-all border ${
-              theme === "dark" 
-                ? "bg-white/10 hover:bg-white/20 text-white border-white/10" 
-                : "bg-black/5 hover:bg-black/10 text-gray-800 border-black/10"
-            }`}
-            onClick={onThemeToggle}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            <span className="material-symbols-outlined text-xl leading-none">
-              {theme === "dark" ? "light_mode" : "dark_mode"}
-            </span>
-          </button>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <header className="relative min-h-screen flex items-center justify-center pt-24 overflow-hidden">
-        <div ref={glowRef} className="absolute inset-0 z-0 hero-glow transition-all duration-300"></div>
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff22 1px, transparent 1px)", backgroundSize: "40px 40px" }}></div>
-        <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 bg-white/5 backdrop-blur-md mb-8 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-zinc-300 animate-pulse"></span>
-            <span className="text-xs font-semibold uppercase tracking-widest text-zinc-400">New Academic Session 2024/25</span>
-          </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold mb-6 tracking-tight leading-tight">
-            Where Data Meets <br /><span className="text-[#e4e4e7]">Decision-Making</span>
-          </h1>
-          <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Explore how data-driven insights guide smarter business, financial, and risk-based decisions within the University of Ruhuna's premier tech society.
-          </p>
-          <div 
-            className="hero-buttons-wrapper flex flex-col md:flex-row items-center justify-center gap-4 w-full max-w-3xl mx-auto"
-            style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '16px' }}
-          >
             <button
-              onClick={onLoginClick}
-              className="px-7 py-3.5 bg-[#e4e4e7] text-[#09090b] rounded-xl font-bold text-base flex items-center justify-center gap-2 hover:bg-white transition-all shadow-[0_4px_20px_rgba(255,255,255,0.1)] active:scale-95 cursor-pointer"
+              onClick={handleLogin}
+              className={`text-[13px] px-3.5 py-1.5 rounded-[6px] font-[510] transition-colors cursor-pointer ${
+                isDark
+                  ? "linear-btn-ghost"
+                  : "border border-gray-300 bg-transparent text-gray-700 hover:text-gray-900 hover:border-gray-400 hover:bg-gray-100"
+              }`}
             >
-              Login Society <span className="material-symbols-outlined text-lg">arrow_forward</span>
+              Log in
             </button>
-            {regEnabled && (
-              <button
-                onClick={onRegisterClick}
-                className="px-7 py-3.5 bg-transparent border border-white/20 text-white rounded-xl font-bold text-base hover:bg-white/5 transition-all cursor-pointer"
-              >
-                Join Membership
-              </button>
-            )}
-            {aiEnabled && (
-              <button
-                onClick={() => {
-                  window.history.pushState({}, "", "/assistant");
-                  window.dispatchEvent(new Event("popstate"));
-                }}
-                className="px-6 py-3.5 bg-white/10 border border-white/20 text-[#e4e4e7] rounded-xl font-bold text-base flex items-center justify-center gap-2 hover:bg-white/15 transition-all cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-lg text-zinc-300">auto_awesome</span> Ask AI Assistant
-              </button>
-            )}
-          </div>
-        </div>
 
-        {/* Floating Dashboard Preview (Cinematic Utility) */}
-        <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-full max-w-5xl px-4 hidden lg:block opacity-40 hover:opacity-85 transition-opacity duration-700">
-          <div className="glass-card rounded-t-3xl p-6 border-b-0">
-            <div className="flex items-center gap-4 mb-6 opacity-40">
-              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <div className="h-2 w-48 bg-white/10 rounded-full ml-4"></div>
-            </div>
-            <div className="grid grid-cols-3 gap-6 h-48">
-              <div className="rounded-xl bg-white/5 border border-white/5"></div>
-              <div className="col-span-2 rounded-xl bg-white/5 border border-white/5"></div>
-            </div>
+            <button
+              onClick={regEnabled ? handleRegister : handleLogin}
+              className={`text-[13px] px-4 py-1.5 rounded-[9999px] font-[510] transition-all cursor-pointer ${
+                isDark
+                  ? "linear-btn-pill-white"
+                  : "bg-[#09090b] text-white hover:bg-black shadow-sm"
+              }`}
+            >
+              {regEnabled ? "Join Society" : "Member Portal"}
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Upcoming Events Section */}
-      {upcomingEvents.length > 0 && (
-        <section id="upcoming-events" className="animate-section py-20 bg-[#0c0c0e] border-y border-white/10 relative">
-          <div className="container mx-auto px-6 max-w-6xl">
-            <div className="text-center mb-16">
-              <span className="text-zinc-300 uppercase tracking-widest text-xs font-bold bg-white/10 border border-white/15 px-3 py-1 rounded-full">Stay Connected</span>
-              <h2 className="text-3xl md:text-5xl font-bold mt-3 mb-4">Upcoming Events</h2>
-              <p className="text-zinc-400 text-base md:text-lg max-w-xl mx-auto">Register for our upcoming workshops, guest lectures, and hackathons.</p>
+      {/* ── Main Hero Section ────────────────────────────────────────────────── */}
+      <section className="relative pt-28 pb-16 md:pt-36 md:pb-20 max-w-[1200px] mx-auto px-6 text-center">
+        {/* Subtle background glow */}
+        <div
+          className={`absolute inset-0 pointer-events-none ${
+            isDark ? "opacity-[0.03]" : "opacity-[0.04]"
+          }`}
+          style={{
+            backgroundImage: isDark
+              ? "radial-gradient(#ffffff 1px, transparent 1px)"
+              : "radial-gradient(#000000 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+
+        <div className="max-w-[760px] mx-auto relative z-10">
+          {/* Status Badge */}
+          <div
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-[9999px] text-[12px] font-berkeley-mono mb-6 transition-colors ${
+              isDark
+                ? "bg-[#0f1011] border border-[#23252a] text-[#8a8f98]"
+                : "bg-gray-100 border border-gray-200 text-gray-600"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full animate-pulse ${
+                isDark ? "bg-[#27a644]" : "bg-[#16a34a]"
+              }`}
+            ></span>
+            <span className={isDark ? "text-[#d0d6e0]" : "text-gray-900 font-medium"}>
+              Actuarial & Data Science Society
+            </span>
+            <span className={isDark ? "text-[#383b3f]" : "text-gray-300"}>•</span>
+            <span className={isDark ? "text-[#8a8f98]" : "text-gray-600"}>
+              University of Ruhuna
+            </span>
+          </div>
+
+          {/* Primary Headline in plain, simple English */}
+          <h1
+            className={`text-[38px] sm:text-[50px] lg:text-[60px] font-[510] tracking-[-0.022em] leading-[1.1] mb-5 transition-colors ${
+              isDark ? "text-white" : "text-[#09090b]"
+            }`}
+          >
+            The all-in-one portal for society members and events.
+          </h1>
+
+          {/* Subtext in simple words */}
+          <p
+            className={`text-[16px] sm:text-[17px] font-[400] leading-[1.6] max-w-[600px] mx-auto mb-8 transition-colors ${
+              isDark ? "text-[#8a8f98]" : "text-gray-600"
+            }`}
+          >
+            Manage your society membership, register for workshops with quick QR check-in, request official certificates, and stay updated with the latest announcements.
+          </p>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={regEnabled ? handleRegister : handleLogin}
+              className={`px-5 py-2.5 rounded-[6px] font-[510] text-[14px] flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                isDark
+                  ? "linear-btn-primary"
+                  : "bg-[#09090b] text-white hover:bg-black shadow-sm"
+              }`}
+            >
+              <span>{regEnabled ? "Join Society" : "Member Login"}</span>
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </button>
+
+            <button
+              onClick={() => scrollToSection("events")}
+              className={`py-[10px] px-4 text-[14px] rounded-[6px] font-[400] flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                isDark
+                  ? "linear-btn-ghost"
+                  : "border border-gray-300 bg-white text-gray-700 hover:text-gray-900 hover:bg-gray-50 hover:border-gray-400 shadow-xs"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">calendar_month</span>
+              <span>View Events</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Feature Cards: What the System Does (Short & Quick) ─────────────── */}
+      <section
+        id="features"
+        className={`py-12 border-t transition-colors duration-200 ${
+          isDark
+            ? "border-[#23252a] bg-[#08090a]"
+            : "border-gray-200 bg-[#f9fafb]"
+        }`}
+      >
+        <div className="max-w-[1200px] mx-auto px-6">
+          <div className="text-center max-w-[560px] mx-auto mb-10">
+            <span
+              className={`text-[12px] font-berkeley-mono uppercase tracking-wider block mb-2 ${
+                isDark ? "text-[#8a8f98]" : "text-gray-500"
+              }`}
+            >
+              SOCIETY MANAGEMENT SYSTEM
+            </span>
+            <h2
+              className={`text-[28px] sm:text-[34px] font-[510] tracking-[-0.02em] ${
+                isDark ? "text-white" : "text-[#09090b]"
+              }`}
+            >
+              Everything you need in one place
+            </h2>
+            <p
+              className={`text-[14px] mt-2 ${
+                isDark ? "text-[#8a8f98]" : "text-gray-600"
+              }`}
+            >
+              Simple tools built to support student activities, workshops, and smooth society operations.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* Card 1: Event Registration & QR Check-in */}
+            <div
+              className={`p-5 rounded-[12px] border transition-all flex flex-col justify-between ${
+                isDark
+                  ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f]"
+                  : "bg-white border-gray-200 hover:border-gray-300 shadow-xs hover:shadow-md"
+              }`}
+            >
+              <div>
+                <div
+                  className={`w-10 h-10 rounded-[8px] flex items-center justify-center mb-4 transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border border-[#23252a] text-[#e4f222]"
+                      : "bg-amber-50 border border-amber-200 text-amber-600"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
+                </div>
+                <h3
+                  className={`text-[16px] font-[510] mb-1.5 ${
+                    isDark ? "text-white" : "text-[#09090b]"
+                  }`}
+                >
+                  Event Registration & QR Pass
+                </h3>
+                <p
+                  className={`text-[13px] leading-relaxed ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Browse upcoming workshops and seminars. Register online and get your personal QR pass for quick event entry.
+                </p>
+              </div>
+              <div
+                className={`mt-4 pt-3 border-t text-[12px] font-berkeley-mono flex items-center gap-1.5 ${
+                  isDark
+                    ? "border-[#161718] text-[#27a644]"
+                    : "border-gray-100 text-[#16a34a]"
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isDark ? "bg-[#27a644]" : "bg-[#16a34a]"
+                  }`}
+                ></span>
+                Fast contactless check-in
+              </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {upcomingEvents.map(ev => {
-                const formattedDate = new Date(ev.date).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                  weekday: "short"
-                });
 
-                return (
-                  <div key={ev.event_id} className="glass-card rounded-3xl overflow-hidden flex flex-col justify-between group h-full">
-                    <div>
-                      {/* Flyer / Header */}
-                      {ev.flyer_url ? (
-                        <div className="h-48 overflow-hidden relative">
-                          <img 
-                            src={ev.flyer_url} 
-                            alt={ev.name} 
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-[#18181b] to-transparent opacity-60"></div>
-                        </div>
-                      ) : (
-                        <div className="h-48 bg-white/5 flex items-center justify-center text-white/20 relative">
-                          <span className="material-symbols-outlined text-5xl">event</span>
-                        </div>
-                      )}
+            {/* Card 2: Member Profiles */}
+            <div
+              className={`p-5 rounded-[12px] border transition-all flex flex-col justify-between ${
+                isDark
+                  ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f]"
+                  : "bg-white border-gray-200 hover:border-gray-300 shadow-xs hover:shadow-md"
+              }`}
+            >
+              <div>
+                <div
+                  className={`w-10 h-10 rounded-[8px] flex items-center justify-center mb-4 transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border border-[#23252a] text-[#6366f1]"
+                      : "bg-indigo-50 border border-indigo-200 text-[#4f46e5]"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]">badge</span>
+                </div>
+                <h3
+                  className={`text-[16px] font-[510] mb-1.5 ${
+                    isDark ? "text-white" : "text-[#09090b]"
+                  }`}
+                >
+                  Member Profiles & Directory
+                </h3>
+                <p
+                  className={`text-[13px] leading-relaxed ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Create your member profile, verify your student status, and stay connected with fellow members across all years.
+                </p>
+              </div>
+              <div
+                className={`mt-4 pt-3 border-t text-[12px] font-berkeley-mono flex items-center gap-1.5 ${
+                  isDark
+                    ? "border-[#161718] text-[#8a8f98]"
+                    : "border-gray-100 text-gray-600"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#6366f1]"></span>
+                Active student community
+              </div>
+            </div>
 
-                      <div className="p-6">
-                        {/* Date badge */}
-                        <div className="flex items-center gap-2 text-xs text-zinc-400 font-semibold mb-3">
-                          <span className="material-symbols-outlined text-sm">calendar_month</span>
-                          {formattedDate}
-                        </div>
-                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#e4e4e7] transition-colors">{ev.name}</h3>
-                        <p className="text-sm text-zinc-400 line-clamp-2 leading-relaxed mb-4">
-                          {ev.description || "Join us for this actuarial and data science event. Click register to see full details and form."}
-                        </p>
-                      </div>
-                    </div>
+            {/* Card 3: Letter & Certificate Requests */}
+            <div
+              className={`p-5 rounded-[12px] border transition-all flex flex-col justify-between ${
+                isDark
+                  ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f]"
+                  : "bg-white border-gray-200 hover:border-gray-300 shadow-xs hover:shadow-md"
+              }`}
+            >
+              <div>
+                <div
+                  className={`w-10 h-10 rounded-[8px] flex items-center justify-center mb-4 transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border border-[#23252a] text-[#02b8cc]"
+                      : "bg-sky-50 border border-sky-200 text-[#0284c7]"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]">description</span>
+                </div>
+                <h3
+                  className={`text-[16px] font-[510] mb-1.5 ${
+                    isDark ? "text-white" : "text-[#09090b]"
+                  }`}
+                >
+                  Letters & Certificates
+                </h3>
+                <p
+                  className={`text-[13px] leading-relaxed ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Easily request official society membership letters and event participation certificates right through your portal.
+                </p>
+              </div>
+              <div
+                className={`mt-4 pt-3 border-t text-[12px] font-berkeley-mono flex items-center gap-1.5 ${
+                  isDark
+                    ? "border-[#161718] text-[#02b8cc]"
+                    : "border-gray-100 text-[#0284c7]"
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isDark ? "bg-[#02b8cc]" : "bg-[#0284c7]"
+                  }`}
+                ></span>
+                Online request & download
+              </div>
+            </div>
 
-                    <div className="p-6 pt-0">
-                      <button
-                        onClick={() => {
-                          const eventUrl = `/event?id=${ev.event_id}`;
-                          window.history.pushState({ path: eventUrl }, "", eventUrl);
-                          window.dispatchEvent(new Event("popstate"));
-                        }}
-                        className="w-full py-3 bg-white/10 text-white border border-white/20 rounded-xl font-bold text-sm hover:bg-white/20 active:scale-95 transition-all text-center flex items-center justify-center gap-2"
+            {/* Card 4: Notices & AI Assistant */}
+            <div
+              className={`p-5 rounded-[12px] border transition-all flex flex-col justify-between ${
+                isDark
+                  ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f]"
+                  : "bg-white border-gray-200 hover:border-gray-300 shadow-xs hover:shadow-md"
+              }`}
+            >
+              <div>
+                <div
+                  className={`w-10 h-10 rounded-[8px] flex items-center justify-center mb-4 transition-colors ${
+                    isDark
+                      ? "bg-[#161718] border border-[#23252a] text-[#8b5cf6]"
+                      : "bg-purple-50 border border-purple-200 text-[#7c3aed]"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]">notifications_active</span>
+                </div>
+                <h3
+                  className={`text-[16px] font-[510] mb-1.5 ${
+                    isDark ? "text-white" : "text-[#09090b]"
+                  }`}
+                >
+                  Notices & AI Assistant
+                </h3>
+                <p
+                  className={`text-[13px] leading-relaxed ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}
+                >
+                  Never miss an important society notice or update. Ask questions to our built-in AI assistant at any time.
+                </p>
+              </div>
+              <div
+                className={`mt-4 pt-3 border-t text-[12px] font-berkeley-mono flex items-center gap-1.5 ${
+                  isDark
+                    ? "border-[#161718] text-[#8b5cf6]"
+                    : "border-gray-100 text-[#7c3aed]"
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isDark ? "bg-[#8b5cf6]" : "bg-[#7c3aed]"
+                  }`}
+                ></span>
+                Real-time society updates
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Society Events Section (Color Flyers!) ──────────────────────────── */}
+      <section
+        id="events"
+        className={`py-16 max-w-[1200px] mx-auto px-6 border-t transition-colors duration-200 ${
+          isDark ? "border-[#23252a]" : "border-gray-200"
+        }`}
+      >
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+          <div>
+            <span
+              className={`text-[12px] font-berkeley-mono uppercase tracking-wider block mb-2 ${
+                isDark ? "text-[#8a8f98]" : "text-gray-500"
+              }`}
+            >
+              PUBLIC WORKSHOPS & SESSIONS
+            </span>
+            <h2
+              className={`text-[28px] sm:text-[36px] font-[510] tracking-[-0.02em] ${
+                isDark ? "text-white" : "text-[#09090b]"
+              }`}
+            >
+              Society Events
+            </h2>
+          </div>
+          <p
+            className={`text-[14px] max-w-[380px] ${
+              isDark ? "text-[#8a8f98]" : "text-gray-600"
+            }`}
+          >
+            Join public workshops, seminars, and networking sessions organized by the Actuarial & Data Science Society.
+          </p>
+        </div>
+
+        {loadingEvents ? (
+          <div
+            className={`p-10 text-center font-berkeley-mono text-[13px] rounded-[12px] border ${
+              isDark
+                ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98]"
+                : "bg-white border-gray-200 text-gray-500 shadow-xs"
+            }`}
+          >
+            Loading society events...
+          </div>
+        ) : upcomingEvents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {upcomingEvents.map((ev) => {
+              const formattedDate = new Date(ev.date).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+              const todayStr = new Date().toISOString().split("T")[0];
+              const isFuture = ev.date >= todayStr;
+
+              return (
+                <div
+                  key={ev.event_id}
+                  className={`rounded-[12px] border overflow-hidden flex flex-col justify-between transition-all group ${
+                    isDark
+                      ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f]"
+                      : "bg-white border-gray-200 hover:border-gray-300 shadow-xs hover:shadow-md"
+                  }`}
+                >
+                  <div>
+                    {/* Full Color Event Flyer (NO grayscale!) */}
+                    {ev.flyer_url ? (
+                      <div
+                        className={`h-48 overflow-hidden relative border-b ${
+                          isDark
+                            ? "border-[#23252a] bg-[#161718]"
+                            : "border-gray-200 bg-gray-100"
+                        }`}
                       >
-                        Register & View Details <span className="material-symbols-outlined text-xs">arrow_forward</span>
-                      </button>
+                        <img
+                          src={ev.flyer_url}
+                          alt={ev.name}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className={`h-48 border-b flex flex-col items-center justify-center p-6 text-center ${
+                          isDark
+                            ? "bg-gradient-to-br from-[#161718] to-[#0f1011] border-[#23252a]"
+                            : "bg-gradient-to-br from-gray-100 to-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-[6px] flex items-center justify-center mb-2.5 ${
+                            isDark
+                              ? "bg-[#08090a] border border-[#23252a] text-[#d0d6e0]"
+                              : "bg-white border border-gray-200 text-gray-700 shadow-xs"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[20px]">calendar_today</span>
+                        </div>
+                        <span
+                          className={`font-berkeley-mono text-[11px] tracking-wider uppercase ${
+                            isDark ? "text-[#8a8f98]" : "text-gray-500"
+                          }`}
+                        >
+                          {ev.date}
+                        </span>
+                      </div>
+                    )}
+                    <div className="p-5">
+                      <div
+                        className={`flex items-center justify-between text-[11px] font-berkeley-mono mb-2.5 ${
+                          isDark ? "text-[#8a8f98]" : "text-gray-500"
+                        }`}
+                      >
+                        <span>{formattedDate}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-[4px] border ${
+                            isDark
+                              ? `bg-[#161718] border-[#23252a] ${
+                                  isFuture ? "text-[#27a644]" : "text-[#8a8f98]"
+                                }`
+                              : `bg-gray-100 border-gray-200 ${
+                                  isFuture ? "text-[#16a34a] font-medium" : "text-gray-600"
+                                }`
+                          }`}
+                        >
+                          {isFuture ? "Open Registration" : "Past Event"}
+                        </span>
+                      </div>
+                      <h3
+                        className={`text-[17px] font-[510] tracking-[-0.012em] mb-2 transition-colors ${
+                          isDark
+                            ? "text-white group-hover:text-white"
+                            : "text-[#09090b] group-hover:text-[#4f46e5]"
+                        }`}
+                      >
+                        {ev.name}
+                      </h3>
+                      <p
+                        className={`text-[13px] line-clamp-2 leading-relaxed font-[400] ${
+                          isDark ? "text-[#8a8f98]" : "text-gray-600"
+                        }`}
+                      >
+                        {ev.description || "Public event organized by the Actuarial & Data Science Society."}
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
 
-      {/* Features Bento Grid */}
-      <section id="features" className="animate-section py-24 bg-[#0c0c0e] transition-all duration-1000">
-        <div className="container mx-auto px-6 max-w-6xl">
-          <div className="text-center mb-20">
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">Society Management Intelligence</h2>
-            <p className="text-zinc-400 text-base md:text-lg max-w-xl mx-auto">Advanced tools for organizing events, managing members, and tracking progress.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-            {/* Large Card */}
-            <div className="md:col-span-8 glass-card rounded-3xl p-10 flex flex-col justify-between group">
-              <div>
-                <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">event_available</span>
-                <h3 className="text-2xl md:text-3xl font-bold mb-4">Event Excellence</h3>
-                <p className="text-zinc-400 text-base">Seamless management and real-time attendance tracking for all society workshops and seminars.</p>
-              </div>
-              <div className="mt-12 flex gap-4">
-                <div className="h-12 w-full bg-white/5 rounded-lg border border-white/5 group-hover:border-white/20 transition-all"></div>
-                <div className="h-12 w-12 bg-white/10 rounded-lg flex items-center justify-center text-zinc-200 flex-shrink-0">
-                  <span className="material-symbols-outlined">analytics</span>
+                  <div className="p-5 pt-0">
+                    <button
+                      onClick={() => {
+                        const eventUrl = `/event?id=${ev.event_id}`;
+                        window.history.pushState({ path: eventUrl }, "", eventUrl);
+                        window.dispatchEvent(new Event("popstate"));
+                      }}
+                      className={`w-full text-[13px] py-2 flex items-center justify-center gap-1.5 rounded-[6px] font-[510] transition-colors cursor-pointer ${
+                        isDark
+                          ? "linear-btn-ghost"
+                          : "border border-gray-300 bg-white text-gray-700 hover:text-gray-900 hover:bg-gray-50 hover:border-gray-400 shadow-xs"
+                      }`}
+                    >
+                      <span>{isFuture ? "Register & View Details" : "View Event Details"}</span>
+                      <span className="font-berkeley-mono text-[12px]">→</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </div>
-            {/* Tall Card */}
-            <div className="md:col-span-4 glass-card rounded-3xl p-10 flex flex-col group justify-between">
-              <div>
-                <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">groups</span>
-                <h3 className="text-2xl md:text-3xl font-bold mb-4">Member Intelligence</h3>
-                <p className="text-zinc-400 text-base mb-8">Deep profiles and performance tracking for our community of future actuaries.</p>
-              </div>
-              <div className="flex flex-col gap-3">
-                <div className="h-4 w-full bg-white/10 rounded-full"></div>
-                <div className="h-4 w-2/3 bg-white/10 rounded-full"></div>
-                <div className="h-4 w-5/6 bg-white/10 rounded-full"></div>
-              </div>
-            </div>
-            {/* Bottom Cards */}
-            <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">query_stats</span>
-              <h3 className="text-2xl font-bold mb-4">Attendance Insights</h3>
-              <p className="text-zinc-400 text-base">Data-driven analysis of member engagement and participation across all activities.</p>
-            </div>
-            <div className="md:col-span-6 glass-card rounded-3xl p-10 group">
-              <span className="material-symbols-outlined text-4xl text-zinc-300 mb-6">checklist_rtl</span>
-              <h3 className="text-2xl font-bold mb-4">Task Orchestration</h3>
-              <p className="text-zinc-400 text-base">Efficient coordination of society goals, board tasks, and academic projects.</p>
-            </div>
+              );
+            })}
           </div>
-        </div>
+        ) : (
+          <div
+            className={`rounded-[12px] border p-10 text-center ${
+              isDark
+                ? "bg-[#0f1011] border-[#23252a]"
+                : "bg-white border-gray-200 shadow-xs"
+            }`}
+          >
+            <div
+              className={`w-10 h-10 rounded-[6px] flex items-center justify-center mx-auto mb-3 ${
+                isDark
+                  ? "bg-[#161718] border border-[#23252a] text-[#8a8f98]"
+                  : "bg-gray-100 border border-gray-200 text-gray-500"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px]">event_busy</span>
+            </div>
+            <h4
+              className={`text-[16px] font-[510] mb-1 ${
+                isDark ? "text-white" : "text-[#09090b]"
+              }`}
+            >
+              No Public Events Right Now
+            </h4>
+            <p
+              className={`text-[13px] max-w-[360px] mx-auto ${
+                isDark ? "text-[#8a8f98]" : "text-gray-600"
+              }`}
+            >
+              Please check back soon for upcoming workshops or log in to view internal member sessions.
+            </p>
+          </div>
+        )}
       </section>
 
-      {/* Bold CTA Section */}
-      <section id="cta" className="animate-section py-24 transition-all duration-1000">
-        <div className="container mx-auto px-6 max-w-5xl">
-          <div className="relative bg-[#18181b] rounded-[48px] p-12 md:p-24 overflow-hidden text-center border border-white/5">
-            {/* Background Decoration */}
-            <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] bg-white/5 blur-[120px] rounded-full pointer-events-none"></div>
-            <div className="absolute -bottom-1/2 -left-1/4 w-[600px] h-[600px] bg-white/5 blur-[120px] rounded-full pointer-events-none"></div>
-            <div className="relative z-10 max-w-3xl mx-auto">
-              <h2 className="text-4xl md:text-6xl font-bold mb-8">Join the Future of Data Science</h2>
-              <p className="text-lg text-zinc-400 mb-12 leading-relaxed">Become a part of the most influential society at the Faculty of Science, University of Ruhuna. Connect with peers, learn from experts, and shape your career.</p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                {regEnabled ? (
-                  <button
-                    onClick={onRegisterClick}
-                    className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-bold text-lg hover:bg-white/95 transition-all transform hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
-                  >
-                    Register Today
-                  </button>
-                ) : (
-                  <button
-                    onClick={onLoginClick}
-                    className="w-full sm:w-auto px-10 py-5 bg-white text-black rounded-2xl font-bold text-lg hover:bg-white/95 transition-all transform hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
-                  >
-                    Login to Portal
-                  </button>
-                )}
+      {/* ── Closing Call to Action (Short & Friendly) ───────────────────────── */}
+      <section className="py-14 max-w-[1200px] mx-auto px-6">
+        <div
+          className={`rounded-[12px] border p-8 md:p-12 text-center relative overflow-hidden transition-all ${
+            isDark
+              ? "bg-[#0f1011] border-[#23252a]"
+              : "bg-gradient-to-b from-gray-50 to-white border-gray-200 shadow-xs"
+          }`}
+        >
+          <div className="relative z-10 max-w-[560px] mx-auto space-y-4">
+            <h2
+              className={`text-[28px] sm:text-[34px] font-[510] tracking-[-0.02em] ${
+                isDark ? "text-white" : "text-[#09090b]"
+              }`}
+            >
+              Join the Society Today
+            </h2>
+            <p
+              className={`text-[14px] leading-relaxed ${
+                isDark ? "text-[#8a8f98]" : "text-gray-600"
+              }`}
+            >
+              Connect with fellow students, participate in workshops and competitions, and build valuable skills in actuarial science and data science.
+            </p>
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+              {regEnabled ? (
                 <button
-                  onClick={() => scrollToSection("footer")}
-                  className="w-full sm:w-auto px-10 py-5 bg-transparent border border-white/20 text-white rounded-2xl font-bold text-lg hover:bg-white/5 transition-all"
+                  onClick={handleRegister}
+                  className={`px-5 py-2 rounded-[6px] font-[510] text-[14px] flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    isDark
+                      ? "linear-btn-primary"
+                      : "bg-[#09090b] text-white hover:bg-black shadow-sm"
+                  }`}
                 >
-                  Talk to Us
+                  <span>Register for Membership</span>
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                 </button>
-              </div>
+              ) : (
+                <button
+                  onClick={handleLogin}
+                  className={`px-5 py-2 rounded-[6px] font-[510] text-[14px] flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    isDark
+                      ? "linear-btn-primary"
+                      : "bg-[#09090b] text-white hover:bg-black shadow-sm"
+                  }`}
+                >
+                  <span>Login to Portal</span>
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </button>
+              )}
+              <button
+                onClick={handleLogin}
+                className={`py-[10px] px-4 text-[13px] rounded-[6px] font-[510] transition-colors cursor-pointer ${
+                  isDark
+                    ? "linear-btn-ghost"
+                    : "border border-gray-300 bg-white text-gray-700 hover:text-gray-900 hover:bg-gray-100 hover:border-gray-400"
+                }`}
+              >
+                Member Login
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer id="footer" className="bg-[#09090b] border-t border-white/5">
-        <div className="w-full py-16 px-6 md:px-12 max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
-          <div className="max-w-md">
-            <div className="flex items-center gap-3 mb-6">
-              <img alt="ADSS Logo" className="h-10 w-auto" src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} />
-              <span className="text-2xl font-bold text-white">ADSS Ruhuna</span>
+      {/* ── Clean, Compact Footer ───────────────────────────────────────────── */}
+      <footer
+        id="footer"
+        className={`border-t py-10 transition-colors duration-200 ${
+          isDark
+            ? "border-[#23252a] bg-[#08090a]"
+            : "border-gray-200 bg-white"
+        }`}
+      >
+        <div className="max-w-[1200px] mx-auto px-6">
+          <div
+            className={`flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b ${
+              isDark ? "border-[#23252a]" : "border-gray-200"
+            }`}
+          >
+            {/* Brand column */}
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-6 h-6 rounded-[4px] flex items-center justify-center p-1 transition-colors ${
+                  isDark
+                    ? "bg-[#161718] border border-[#23252a]"
+                    : "bg-gray-100 border border-gray-200"
+                }`}
+              >
+                <img
+                  alt="ADSS Logo"
+                  className="w-full h-full object-contain"
+                  src={`${import.meta.env.BASE_URL}${isDark ? "logo_trans_light.png" : "logo_trans_dark.png"}`}
+                />
+              </div>
+              <span
+                className={`text-[14px] font-[510] ${
+                  isDark ? "text-white" : "text-[#09090b]"
+                }`}
+              >
+                Actuarial & Data Science Society
+              </span>
             </div>
-            <p className="text-[#94A3B8] text-base mb-8 leading-relaxed">Empowering the next generation of Actuaries and Data Scientists at the University of Ruhuna through education, research, and industry engagement.</p>
-            <div className="flex gap-4">
-              <a className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/5 hover:border-white transition-all text-[#94A3B8] hover:text-white" href="https://www.facebook.com/adssruhuna" target="_blank" rel="noreferrer">
-                <span className="material-symbols-outlined text-lg">face_nod</span>
-              </a>
-              <a className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/5 hover:border-white transition-all text-[#94A3B8] hover:text-white" href="https://www.linkedin.com/company/actuarial-data-science-society-university-of-ruhuna/" target="_blank" rel="noreferrer">
-                <span className="material-symbols-outlined text-lg">group</span>
-              </a>
-              <a className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/5 hover:border-white transition-all text-[#94A3B8] hover:text-white" href="mailto:bhanukadilshan2002@gmail.com">
-                <span className="material-symbols-outlined text-lg">mail</span>
-              </a>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-12">
-            <div className="flex flex-col gap-4">
-              <h4 className="text-white font-bold mb-2">Explore</h4>
-              <button onClick={() => scrollToSection("features")} className="text-[#94A3B8] hover:text-white transition-colors text-left">Student Activities</button>
-              <button onClick={() => scrollToSection("features")} className="text-[#94A3B8] hover:text-white transition-colors text-left">Upcoming Events</button>
-              <button onClick={onLoginClick} className="text-[#94A3B8] hover:text-white transition-colors text-left">Committee</button>
-              <button onClick={onLoginClick} className="text-[#94A3B8] hover:text-white transition-colors text-left">Insights</button>
-            </div>
-            <div className="flex flex-col gap-4">
-              <h4 className="text-white font-bold mb-2">Resources</h4>
+
+            {/* Quick Links */}
+            <div
+              className={`flex flex-wrap items-center gap-6 text-[13px] ${
+                isDark ? "text-[#8a8f98]" : "text-gray-600"
+              }`}
+            >
+              <button
+                onClick={() => scrollToSection("events")}
+                className={`transition-colors cursor-pointer ${
+                  isDark ? "hover:text-white" : "hover:text-gray-900"
+                }`}
+              >
+                Events
+              </button>
+              <button
+                onClick={handleLogin}
+                className={`transition-colors cursor-pointer ${
+                  isDark ? "hover:text-white" : "hover:text-gray-900"
+                }`}
+              >
+                Member Portal
+              </button>
               <button
                 onClick={() => {
                   window.history.pushState({}, "", "/privacy");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className="text-[#94A3B8] hover:text-white transition-colors text-left cursor-pointer"
+                className={`transition-colors cursor-pointer ${
+                  isDark ? "hover:text-white" : "hover:text-gray-900"
+                }`}
               >
                 Privacy Policy
               </button>
@@ -495,19 +876,72 @@ export default function Landing({ theme = "dark", onThemeToggle, onLoginClick, o
                   window.history.pushState({}, "", "/terms");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className="text-[#94A3B8] hover:text-white transition-colors text-left cursor-pointer"
+                className={`transition-colors cursor-pointer ${
+                  isDark ? "hover:text-white" : "hover:text-gray-900"
+                }`}
               >
-                Terms of Service
+                Terms
               </button>
-              <a className="text-[#94A3B8] hover:text-white transition-colors" href="https://www.ruh.ac.lk/" target="_blank" rel="noreferrer">University of Ruhuna</a>
-              <a className="text-[#94A3B8] hover:text-white transition-colors" href="https://www.sci.ruh.ac.lk/" target="_blank" rel="noreferrer">Faculty of Science</a>
+            </div>
+
+            {/* Social Icons */}
+            <div className="flex items-center gap-3">
+              <a
+                href="https://www.facebook.com/adssruhuna"
+                target="_blank"
+                rel="noreferrer"
+                className={`w-8 h-8 rounded-[6px] border flex items-center justify-center transition-colors ${
+                  isDark
+                    ? "border-[#23252a] bg-[#0f1011] text-[#8a8f98] hover:text-white hover:border-[#383b3f]"
+                    : "border-gray-200 bg-gray-50 text-gray-600 hover:text-gray-900 hover:border-gray-300 hover:bg-gray-100"
+                }`}
+                title="Facebook"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+                </svg>
+              </a>
+              <a
+                href="https://www.linkedin.com/company/actuarial-data-science-society-university-of-ruhuna/"
+                target="_blank"
+                rel="noreferrer"
+                className={`w-8 h-8 rounded-[6px] border flex items-center justify-center transition-colors ${
+                  isDark
+                    ? "border-[#23252a] bg-[#0f1011] text-[#8a8f98] hover:text-white hover:border-[#383b3f]"
+                    : "border-gray-200 bg-gray-50 text-gray-600 hover:text-gray-900 hover:border-gray-300 hover:bg-gray-100"
+                }`}
+                title="LinkedIn"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.2V10.9H6.46M7.83 6.45c-.89 0-1.61.72-1.61 1.61s.72 1.61 1.61 1.61a1.61 1.61 0 0 0 0-3.22z" />
+                </svg>
+              </a>
+              <a
+                href="mailto:bhanukadilshan2002@gmail.com"
+                className={`w-8 h-8 rounded-[6px] border flex items-center justify-center transition-colors ${
+                  isDark
+                    ? "border-[#23252a] bg-[#0f1011] text-[#8a8f98] hover:text-white hover:border-[#383b3f]"
+                    : "border-gray-200 bg-gray-50 text-gray-600 hover:text-gray-900 hover:border-gray-300 hover:bg-gray-100"
+                }`}
+                title="Email"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect width="20" height="16" x="2" y="4" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+              </a>
             </div>
           </div>
-        </div>
-        <div className="border-t border-white/5 py-8">
-          <div className="max-w-6xl mx-auto px-6 text-center md:text-left text-[#94A3B8] text-sm">
-            © 2026 Actuarial & Data Science Society, University of Ruhuna. Built for the future of analytics.
+
+          <div
+            className={`pt-6 text-center text-[12px] font-berkeley-mono ${
+              isDark ? "text-[#62666d]" : "text-gray-500"
+            }`}
+          >
+            © {new Date().getFullYear()} ADSS Ruhuna. All rights reserved.
           </div>
+
+          <MinimalFooter session={null} isDark={isDark} className="pt-4" />
         </div>
       </footer>
     </div>

@@ -1,46 +1,109 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "../supabaseClient";
+import {
+  Search,
+  Send,
+  Radio,
+  Shield,
+  User,
+  Clock,
+  Check,
+  CheckCheck,
+  Copy,
+  RefreshCw,
+  X,
+  ArrowLeft,
+  Filter,
+  MessageSquare,
+  AlertCircle,
+  Sparkles,
+  ChevronRight
+} from "lucide-react";
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Linear Design Tokens & Status Configurations
+───────────────────────────────────────────────────────────────────────────── */
 const STATUS_CONFIG = {
-  pending:     { label: "Pending",     color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.3)",  icon: "⏳" },
-  "in-progress": { label: "In Progress", color: "#3b82f6", bg: "rgba(59,130,246,0.15)", border: "rgba(59,130,246,0.3)", icon: "🔄" },
-  done:        { label: "Done",        color: "#22c55e", bg: "rgba(34,197,94,0.15)",   border: "rgba(34,197,94,0.3)",   icon: "✅" },
+  pending: {
+    label: "Pending",
+    icon: Clock,
+    color: "#f59e0b",
+    bg: "rgba(245, 158, 11, 0.08)",
+    border: "rgba(245, 158, 11, 0.25)",
+  },
+  "in-progress": {
+    label: "In Progress",
+    icon: RefreshCw,
+    color: "#818cf8",
+    bg: "rgba(99, 102, 241, 0.08)",
+    border: "rgba(99, 102, 241, 0.25)",
+  },
+  done: {
+    label: "Resolved",
+    icon: Check,
+    color: "#27a644",
+    bg: "rgba(39, 166, 68, 0.08)",
+    border: "rgba(39, 166, 68, 0.25)",
+  },
 };
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, size = "sm" }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+  const Icon = cfg.icon;
+  const isMini = size === "xs";
+
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap"
-      style={{ color: cfg.color, backgroundColor: cfg.bg, borderColor: cfg.border }}>
-      {cfg.icon} {cfg.label}
+    <span
+      className={`inline-flex items-center gap-1 font-berkeley-mono uppercase tracking-wider rounded-[4px] border ${
+        isMini ? "text-[9px] px-1.5 py-0.2" : "text-[10px] px-2 py-0.5"
+      }`}
+      style={{
+        color: cfg.color,
+        backgroundColor: cfg.bg,
+        borderColor: cfg.border,
+      }}
+    >
+      <Icon className={isMini ? "w-2.5 h-2.5" : "w-3 h-3"} />
+      <span>{cfg.label}</span>
     </span>
   );
 }
 
-function StatusButtons({ status, onChangeStatus }) {
+function StatusButtons({ status, onChangeStatus, compact = false }) {
   return (
-    <div className="flex gap-1.5 mt-1.5 flex-wrap">
-      {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-        <button
-          key={key}
-          onClick={(e) => { e.stopPropagation(); onChangeStatus(key); }}
-          className={`text-[10px] font-medium px-2.5 py-0.5 rounded-full border transition-all ${status === key ? "bg-opacity-100 text-white" : "bg-transparent"}`}
-          style={{
-            borderColor: cfg.color,
-            backgroundColor: status === key ? cfg.color : "transparent",
-            color: status === key ? "#ffffff" : cfg.color,
-          }}
-        >
-          {cfg.icon} {cfg.label}
-        </button>
-      ))}
+    <div className={`flex items-center gap-1 ${compact ? "flex-wrap" : "mt-1.5 flex-wrap"}`}>
+      {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+        const Icon = cfg.icon;
+        const active = status === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChangeStatus(key);
+            }}
+            className={`font-berkeley-mono text-[10px] px-2 py-0.5 rounded-[4px] border transition-all flex items-center gap-1 ${
+              active
+                ? "bg-[#23252a] text-white border-[#383b3f] shadow-sm"
+                : "bg-[#08090a] text-[#8a8f98] border-[#23252a] hover:border-[#383b3f] hover:text-[#d0d6e0]"
+            }`}
+          >
+            <Icon className="w-2.5 h-2.5" style={{ color: cfg.color }} />
+            <span>{cfg.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 const getInitials = (name) => {
   if (!name) return "??";
-  const cleanName = name.replace(/^🛡️\s*/, '').replace(/\s*\([^)]*\)$/, '').trim();
+  const cleanName = name
+    .replace(/^🛡️\s*/, "")
+    .replace(/\s*\([^)]*\)$/, "")
+    .trim();
   const parts = cleanName.split(/\s+/);
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -89,11 +152,13 @@ const formatDateDivider = (timestamp) => {
     weekday: "short",
     month: "short",
     day: "numeric",
-    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
   });
 };
 
-/* ─────────────────── Message Popup Detail Modal ─────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Linear Message Detail & Status Resolution Modal
+───────────────────────────────────────────────────────────────────────────── */
 function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus }) {
   const [replyText, setReplyText] = useState("");
   const isReceiver = msg.receiver_st_id === session.stId;
@@ -107,55 +172,87 @@ function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus 
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+    <div
+      className="fixed inset-0 z-50 bg-[#08090a]/80 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div 
-        className="bg-[#121216] border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
-        onClick={e => e.stopPropagation()}
+      <div
+        className="bg-[#0f1011] border border-[#23252a] rounded-[12px] p-5 w-full max-w-md shadow-2xl space-y-4 font-inter-variable text-[#d0d6e0]"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start border-b border-[#23252a] pb-3">
           <div>
-            <div className="font-bold text-base text-white">
-              {isMine ? "You" : msg.sender?.name || msg.sender_st_id}
+            <div className="flex items-center gap-2">
+              <span className="font-[510] text-[15px] text-[#ffffff]">
+                {isMine ? "You" : msg.sender?.name || msg.sender_st_id}
+              </span>
+              {msg.sender_st_id && (
+                <span className="font-berkeley-mono text-[11px] text-[#8a8f98] bg-[#161718] border border-[#23252a] px-1.5 py-0.5 rounded-[4px]">
+                  {msg.sender_st_id}
+                </span>
+              )}
             </div>
-            <div className="text-xs text-zinc-400 mt-0.5">
+            <div className="font-berkeley-mono text-[11px] text-[#62666d] mt-1">
               {new Date(msg.created_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-              {" • "}
+              {" · "}
               {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white p-1 rounded-lg">✕</button>
+          <button
+            onClick={onClose}
+            className="text-[#8a8f98] hover:text-white p-1 rounded-[4px] hover:bg-[#161718] transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className={`p-4 rounded-xl text-sm leading-relaxed border ${isMine ? "bg-indigo-600 text-white border-indigo-500" : "bg-[#1c1c24] text-zinc-200 border-zinc-800"}`}>
+        {/* Message Content */}
+        <div className="p-3.5 rounded-[8px] text-[13.5px] leading-relaxed bg-[#161718] border border-[#23252a] text-[#ffffff] whitespace-pre-wrap font-sans">
           {msg.content}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <StatusBadge status={msg.status || "pending"} />
-          {isReceiver && (
-            <StatusButtons status={msg.status || "pending"} onChangeStatus={(s) => { onChangeStatus(msg.id, s); onClose(); }} />
+        {/* Status Control */}
+        <div className="p-3 rounded-[6px] bg-[#08090a] border border-[#23252a] space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-berkeley-mono text-[#8a8f98] uppercase tracking-wider">
+              Query Resolution
+            </span>
+            <StatusBadge status={msg.status || "pending"} />
+          </div>
+          {(isReceiver || isAdmin) && (
+            <div className="pt-1">
+              <span className="text-[11px] text-[#8a8f98] block mb-1">Update Status:</span>
+              <StatusButtons
+                status={msg.status || "pending"}
+                onChangeStatus={(s) => {
+                  onChangeStatus(msg.id, s);
+                  onClose();
+                }}
+              />
+            </div>
           )}
         </div>
 
-        <div className="flex gap-2 pt-2">
+        {/* Reply Composer */}
+        <div className="flex gap-2 pt-1">
           <input
             autoFocus
             type="text"
             value={replyText}
-            onChange={e => setReplyText(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
-            placeholder="Type a reply..."
-            className="flex-1 bg-[#1a1a22] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            onChange={(e) => setReplyText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSend();
+            }}
+            placeholder="Type a follow-up reply..."
+            className="flex-1 bg-[#161718] border border-[#23252a] rounded-[6px] px-3 py-2 text-[13px] text-white placeholder-[#62666d] focus:outline-none focus:border-[#d0d6e0] transition-colors"
           />
           <button
             onClick={handleSend}
             disabled={!replyText.trim()}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50"
+            className="bg-[#e4f222] hover:brightness-105 text-[#08090a] font-[510] rounded-[6px] px-3.5 py-2 text-[12px] transition-all disabled:opacity-40 flex items-center gap-1.5 flex-shrink-0"
           >
-            Send
+            <Send className="w-3.5 h-3.5" />
+            <span>Reply</span>
           </button>
         </div>
       </div>
@@ -163,11 +260,14 @@ function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus 
   );
 }
 
-/* ─────────────────── Main Messages Page Component ─────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Main Messages Component — Linear Midnight Precision Style
+───────────────────────────────────────────────────────────────────────────── */
 export default function Messages({ isAdmin, session }) {
   const [channels, setChannels] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'broadcast' | 'staff' | 'members' | 'pending'
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingChannels, setLoadingChannels] = useState(true);
@@ -180,6 +280,10 @@ export default function Messages({ isAdmin, session }) {
   const [pendingCounts, setPendingCounts] = useState({});
   const [hasMoreMsgs, setHasMoreMsgs] = useState(false);
   const [loadingMoreMsgs, setLoadingMoreMsgs] = useState(false);
+  const [copiedStId, setCopiedStId] = useState(false);
+  const [chatSearch, setChatSearch] = useState("");
+  const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
+  const [msgStatusFilter, setMsgStatusFilter] = useState("all"); // 'all' | 'pending' | 'done'
 
   const oldestMsgRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -190,7 +294,7 @@ export default function Messages({ isAdmin, session }) {
   pageRef.current = page;
 
   useEffect(() => {
-    const h = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    const h = setTimeout(() => setDebouncedSearch(searchQuery), 250);
     return () => clearTimeout(h);
   }, [searchQuery]);
 
@@ -245,66 +349,79 @@ export default function Messages({ isAdmin, session }) {
 
     let loadedChannels = [];
 
-    if (!debouncedSearch || "📢 announcements (all)".includes(debouncedSearch.toLowerCase())) {
-      loadedChannels.push({ 
-        id: "broadcast", 
-        name: "📢 Announcements (All)", 
+    // 1. Broadcast Channel (always present)
+    if (!debouncedSearch || "📢 society announcements (all)".includes(debouncedSearch.toLowerCase())) {
+      loadedChannels.push({
+        id: "broadcast",
+        name: "Society Announcements",
+        type: "broadcast",
         isBroadcast: true,
         lastTime: broadcastTime,
-        lastSnippet: broadcastSnippet
+        lastSnippet: broadcastSnippet,
       });
     }
 
+    // 2. Members or Staff Channels
     let list = [];
     if (isAdmin) {
+      // Staff/Admin sees society members
       let query = supabase.from("members").select("st_id, name, profile_image_url");
       if (debouncedSearch) query = query.ilike("name", `%${debouncedSearch}%`);
       const { data: members, error } = await query;
       if (!error && members) {
-        list = members.map(m => ({ 
-          id: m.st_id, 
-          name: `${m.name}`, 
+        list = members.map((m) => ({
+          id: m.st_id,
+          name: m.name,
           st_id: m.st_id,
+          type: "member",
           avatar: m.profile_image_url,
           isBroadcast: false,
           lastTime: lastMessageTimeMap[m.st_id] || 0,
-          lastSnippet: lastMessageContentMap[m.st_id] || ""
+          lastSnippet: lastMessageContentMap[m.st_id] || "",
         }));
       }
     } else {
-      let query = supabase.from("profiles").select("st_id, full_name, role, members(profile_image_url)").in("role", ["admin", "editor"]).not("st_id", "is", null);
+      // Member sees Committee / Staff
+      let query = supabase
+        .from("profiles")
+        .select("st_id, full_name, role, members(profile_image_url)")
+        .in("role", ["admin", "editor"])
+        .not("st_id", "is", null);
+
       if (debouncedSearch) query = query.ilike("full_name", `%${debouncedSearch}%`);
       const { data: staffProfiles, error } = await query;
       if (!error && staffProfiles) {
-        const uniqueStaff = [];
         const seenIds = new Set();
+        const uniqueStaff = [];
         for (const s of staffProfiles) {
-          if (!seenIds.has(s.st_id)) { 
-            seenIds.add(s.st_id); 
-            uniqueStaff.push(s); 
+          if (!seenIds.has(s.st_id)) {
+            seenIds.add(s.st_id);
+            uniqueStaff.push(s);
           }
         }
-        list = uniqueStaff.map(s => ({ 
-          id: s.st_id, 
-          name: `🛡️ ${s.full_name}`, 
+        list = uniqueStaff.map((s) => ({
+          id: s.st_id,
+          name: s.full_name,
+          st_id: s.st_id,
           roleTag: s.role,
+          type: "staff",
           avatar: s.members?.profile_image_url,
           isBroadcast: false,
           lastTime: lastMessageTimeMap[s.st_id] || 0,
-          lastSnippet: lastMessageContentMap[s.st_id] || ""
+          lastSnippet: lastMessageContentMap[s.st_id] || "",
         }));
       }
     }
 
     loadedChannels = [...loadedChannels, ...list];
     loadedChannels.sort((a, b) => {
-      const tA = a.id === "broadcast" ? broadcastTime : (lastMessageTimeMap[a.id] || 0);
-      const tB = b.id === "broadcast" ? broadcastTime : (lastMessageTimeMap[b.id] || 0);
+      const tA = a.id === "broadcast" ? broadcastTime : lastMessageTimeMap[a.id] || 0;
+      const tB = b.id === "broadcast" ? broadcastTime : lastMessageTimeMap[b.id] || 0;
       if (tA !== tB) return tB - tA;
       return a.name.localeCompare(b.name);
     });
 
-    const PAGE_SIZE = 6;
+    const PAGE_SIZE = 12;
     const end = (pageNum + 1) * PAGE_SIZE;
     setAllChannels(loadedChannels);
     setChannels(loadedChannels.slice(0, end));
@@ -329,13 +446,13 @@ export default function Messages({ isAdmin, session }) {
   const handleLoadMore = () => {
     const nextPage = page + 1;
     setPage(nextPage);
-    const PAGE_SIZE = 6;
+    const PAGE_SIZE = 12;
     const end = (nextPage + 1) * PAGE_SIZE;
     setChannels(allChannels.slice(0, end));
     setHasMore(end < allChannels.length);
   };
 
-  const MSG_PAGE = 15;
+  const MSG_PAGE = 25;
 
   const buildMsgQuery = () => {
     let q = supabase
@@ -347,7 +464,7 @@ export default function Messages({ isAdmin, session }) {
     } else {
       q = q.or(
         `and(sender_st_id.eq.${session.stId},receiver_st_id.eq.${selectedChannel}),` +
-        `and(sender_st_id.eq.${selectedChannel},receiver_st_id.eq.${session.stId})`
+          `and(sender_st_id.eq.${selectedChannel},receiver_st_id.eq.${session.stId})`
       );
     }
     return q;
@@ -370,7 +487,7 @@ export default function Messages({ isAdmin, session }) {
       const listEl = msgListRef.current;
       const prevScrollHeight = listEl ? listEl.scrollHeight : 0;
 
-      setMessages(prev => [...older, ...prev]);
+      setMessages((prev) => [...older, ...prev]);
 
       requestAnimationFrame(() => {
         if (listEl) {
@@ -406,34 +523,44 @@ export default function Messages({ isAdmin, session }) {
     const channelName = `messages-${selectedChannel}-${session.stId}`;
     const subscription = supabase
       .channel(channelName)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, payload => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const newMsg = payload.new;
         let belongs = false;
         if (selectedChannel === "broadcast" && newMsg.receiver_st_id === null) belongs = true;
         else if (
           selectedChannel !== "broadcast" &&
           ((newMsg.sender_st_id === session.stId && newMsg.receiver_st_id === selectedChannel) ||
-           (newMsg.sender_st_id === selectedChannel && newMsg.receiver_st_id === session.stId))
-        ) belongs = true;
+            (newMsg.sender_st_id === selectedChannel && newMsg.receiver_st_id === session.stId))
+        )
+          belongs = true;
 
         if (belongs) {
-          supabase.from("members").select("name").eq("st_id", newMsg.sender_st_id).maybeSingle().then(({ data }) => {
-            if (isMounted) {
-              setMessages(prev => [...prev, { ...newMsg, sender: data || { name: newMsg.sender_st_id } }]);
-              scrollToBottom();
-            }
-          });
+          supabase
+            .from("members")
+            .select("name")
+            .eq("st_id", newMsg.sender_st_id)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (isMounted) {
+                setMessages((prev) => [...prev, { ...newMsg, sender: data || { name: newMsg.sender_st_id } }]);
+                scrollToBottom();
+              }
+            });
         }
 
-        if (newMsg.sender_st_id === session.stId || newMsg.receiver_st_id === session.stId || newMsg.receiver_st_id === null) {
+        if (
+          newMsg.sender_st_id === session.stId ||
+          newMsg.receiver_st_id === session.stId ||
+          newMsg.receiver_st_id === null
+        ) {
           fetchChannelsRef.current?.(pageRef.current, false);
           fetchPendingCounts();
         }
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, payload => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (payload) => {
         const updated = payload.new;
         if (isMounted) {
-          setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, status: updated.status } : m));
+          setMessages((prev) => (prev.map((m) => (m.id === updated.id ? { ...m, status: updated.status } : m))));
           fetchPendingCounts();
         }
       })
@@ -454,7 +581,7 @@ export default function Messages({ isAdmin, session }) {
     const text = overrideText ?? newMessage;
     if (!text.trim() || !session.stId) return;
     if (!isAdmin && selectedChannel === "broadcast") {
-      alert("Only staff can send broadcast messages.");
+      alert("Only society staff can broadcast announcements.");
       return;
     }
 
@@ -468,44 +595,79 @@ export default function Messages({ isAdmin, session }) {
     if (!overrideText) setNewMessage("");
 
     const { error } = await supabase.from("messages").insert([payload]);
-    if (error) alert("Failed to send message: " + error.message);
-    else {
+    if (error) {
+      alert("Failed to send message: " + error.message);
+    } else {
       fetchChannels(page, false);
       fetchPendingCounts();
     }
   };
 
   const handleChangeStatus = async (msgId, newStatus) => {
-    const { data, error } = await supabase
-      .from("messages")
-      .update({ status: newStatus })
-      .eq("id", msgId)
-      .select();
+    const { error } = await supabase.from("messages").update({ status: newStatus }).eq("id", msgId);
 
     if (error) {
       alert("Status update failed: " + error.message);
     } else {
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: newStatus } : m));
+      setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, status: newStatus } : m)));
       fetchPendingCounts();
     }
   };
 
-  const activeChannelObj = channels.find(c => c.id === selectedChannel);
+  const handleCopyStId = (stId) => {
+    if (!stId) return;
+    navigator.clipboard.writeText(stId);
+    setCopiedStId(true);
+    setTimeout(() => setCopiedStId(false), 1800);
+  };
+
+  const activeChannelObj = allChannels.find((c) => c.id === selectedChannel);
+
+  // Filter channels according to category tabs
+  const filteredChannels = useMemo(() => {
+    return channels.filter((ch) => {
+      if (activeTab === "broadcast") return ch.isBroadcast;
+      if (activeTab === "staff") return ch.type === "staff";
+      if (activeTab === "members") return ch.type === "member";
+      if (activeTab === "pending") return (pendingCounts[ch.id] || 0) > 0;
+      return true;
+    });
+  }, [channels, activeTab, pendingCounts]);
+
+  const totalPendingQueries = useMemo(() => {
+    return Object.values(pendingCounts).reduce((acc, curr) => acc + curr, 0);
+  }, [pendingCounts]);
+
+  // Filter messages in chat view if user searches or selects status
+  const visibleMessages = useMemo(() => {
+    return messages.filter((m) => {
+      if (msgStatusFilter !== "all" && m.status !== msgStatusFilter) return false;
+      if (chatSearch.trim() && !m.content.toLowerCase().includes(chatSearch.toLowerCase().trim())) {
+        return false;
+      }
+      return true;
+    });
+  }, [messages, msgStatusFilter, chatSearch]);
 
   if (!session.stId) {
     return (
-      <div className="w-full max-w-container-max mx-auto px-6 py-20 text-center">
-        <div className="glass-card p-10 max-w-md mx-auto">
-          <span className="material-symbols-outlined text-4xl text-zinc-500 mb-2">lock</span>
-          <p className="text-zinc-300 font-medium">You must be linked to a Student ID to use messaging.</p>
+      <div className="min-h-screen bg-[#08090a] text-[#d0d6e0] font-inter-variable flex items-center justify-center p-6">
+        <div className="bg-[#0f1011] border border-[#23252a] rounded-[12px] p-8 max-w-md text-center shadow-xl space-y-3">
+          <div className="w-12 h-12 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center mx-auto text-[#8a8f98]">
+            <AlertCircle className="w-6 h-6 text-[#f59e0b]" />
+          </div>
+          <h2 className="text-[17px] font-[590] text-white">Student ID Required</h2>
+          <p className="text-[13px] text-[#8a8f98] leading-relaxed">
+            Your account must be linked with an active Student ID to access the society messaging system.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-container-max mx-auto px-2 sm:px-4 py-4 text-zinc-300">
-      {/* ── Popup Modal ── */}
+    <div className="min-h-screen bg-[#08090a] text-[#d0d6e0] font-inter-variable pb-12 selection:bg-[#e4f222]/20 selection:text-white">
+      {/* ── Detail Modal ── */}
       {popupMsg && (
         <MessagePopup
           msg={popupMsg}
@@ -513,276 +675,544 @@ export default function Messages({ isAdmin, session }) {
           isAdmin={isAdmin}
           onClose={() => setPopupMsg(null)}
           onReply={(text) => handleSendMessage(null, text)}
-          onChangeStatus={(id, s) => { handleChangeStatus(id, s); setPopupMsg(null); }}
+          onChangeStatus={(id, s) => {
+            handleChangeStatus(id, s);
+            setPopupMsg(null);
+          }}
         />
       )}
 
-      {/* Main Split Pane Messaging Container */}
-      <div className={`flex rounded-2xl border border-zinc-800 bg-[#121216] overflow-hidden h-[calc(100vh-140px)] min-h-[500px] shadow-2xl ${mobileView === "chat" ? "mobile-view-chat" : "mobile-view-list"}`}>
-        
-        {/* ─── Left Sidebar: Thread List ─── */}
-        <aside className={`w-full md:w-80 lg:w-84 bg-[#121216] border-r border-zinc-800 flex flex-col shrink-0 ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
-          {/* Sidebar Header */}
-          <div className="p-4 border-b border-zinc-800 shrink-0">
-            <h2 className="text-lg font-bold text-white mb-3">Messages</h2>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-2.5 text-zinc-500 text-[18px]">search</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search chats"
-                className="w-full bg-[#1a1a22] border border-zinc-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-              />
+      {/* ── Top Header / Telemetry Bar ── */}
+      <div className="border-b border-[#23252a] bg-[#0c0c0e]/95 backdrop-blur-md sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-4 h-4 text-[#e4f222]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-[15px] sm:text-[16px] font-[590] tracking-[-0.018em] text-[#ffffff]">
+                  Direct & Broadcast Comms
+                </h1>
+                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-[4px] bg-[#161718] border border-[#23252a] font-berkeley-mono text-[10px] text-[#8a8f98]">
+                  {allChannels.length} channels
+                </span>
+                {totalPendingQueries > 0 && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#f59e0b]/10 border border-[#f59e0b]/30 font-berkeley-mono text-[10px] text-[#f59e0b]">
+                    <Clock className="w-2.5 h-2.5" />
+                    {totalPendingQueries} pending
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Thread List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/40">
-            {channels.map(ch => {
-              const pending = ch.isBroadcast ? 0 : (pendingCounts[ch.id] || 0);
-              const isSelected = selectedChannel === ch.id;
-
-              return (
-                <div
-                  key={ch.id}
-                  onClick={() => { setSelectedChannel(ch.id); setMobileView("chat"); }}
-                  className={`flex items-start gap-3 p-3.5 cursor-pointer border-l-2 transition-all ${
-                    isSelected 
-                      ? "bg-[#1c1c24] border-indigo-500" 
-                      : "border-transparent hover:bg-[#181820]"
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div className="relative w-10 h-10 rounded-full shrink-0 bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-xs font-bold text-zinc-200">
-                    {ch.isBroadcast ? (
-                      <span className="material-symbols-outlined text-amber-400 text-lg">campaign</span>
-                    ) : ch.avatar ? (
-                      <img src={ch.avatar} alt="" className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                      getInitials(ch.name)
-                    )}
-                    {!ch.isBroadcast && (
-                      <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#121216] rounded-full"></div>
-                    )}
-                  </div>
-
-                  {/* Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline mb-0.5">
-                      <h3 className={`text-xs font-semibold truncate ${isSelected ? "text-white" : "text-zinc-200"}`}>
-                        {ch.name}
-                      </h3>
-                      {ch.lastTime > 0 && (
-                        <span className={`text-[10px] whitespace-nowrap ml-1 ${isSelected ? "text-indigo-400 font-medium" : "text-zinc-500"}`}>
-                          {formatSidebarTime(ch.lastTime)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-zinc-400 truncate">
-                      {ch.lastSnippet || (ch.isBroadcast ? "Public Announcements" : "Click to view conversation")}
-                    </p>
-                  </div>
-
-                  {/* Pending Badge */}
-                  {pending > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 shadow-sm">
-                      {pending}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-
-            {loadingChannels ? (
-              <div className="p-8 text-center">
-                <div className="w-6 h-6 border-2 border-zinc-600 border-t-white rounded-full animate-spin mx-auto"></div>
-              </div>
-            ) : hasMore && (
-              <div className="p-3 text-center">
-                <button
-                  onClick={handleLoadMore}
-                  className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium rounded-xl transition-colors"
-                >
-                  Load More
-                </button>
-              </div>
-            )}
-
-            {!loadingChannels && channels.length === 0 && (
-              <div className="p-8 text-center text-zinc-500 text-xs">
-                No conversations found.
-              </div>
-            )}
+          {/* Top Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                fetchChannels(0, false);
+                fetchPendingCounts();
+              }}
+              title="Refresh messages"
+              className="p-1.5 rounded-[6px] bg-[#161718] border border-[#23252a] text-[#8a8f98] hover:text-white hover:border-[#383b3f] transition-all"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-[#161718] border border-[#23252a] font-berkeley-mono text-[11px] text-[#8a8f98]">
+              <span className="text-[#62666d]">ST_ID:</span>
+              <span className="text-[#d0d6e0]">{session.stId}</span>
+            </div>
           </div>
-        </aside>
+        </div>
+      </div>
 
-        {/* ─── Right Main Chat Area ─── */}
-        <section className={`flex-1 flex flex-col bg-[#0c0c10] min-w-0 ${mobileView === "list" ? "hidden md:flex" : "flex"}`}>
-          {/* Chat Header */}
-          <div className="h-16 px-6 border-b border-zinc-800 flex items-center justify-between shrink-0 bg-[#121216]/95 backdrop-blur z-10">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setMobileView("list")}
-                className="md:hidden p-1 text-zinc-400 hover:text-white rounded-lg"
-              >
-                <span className="material-symbols-outlined">arrow_back</span>
-              </button>
-              
-              <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-xs font-bold text-zinc-200 overflow-hidden">
-                {activeChannelObj?.isBroadcast ? (
-                  <span className="material-symbols-outlined text-amber-400 text-xl">campaign</span>
-                ) : activeChannelObj?.avatar ? (
-                  <img src={activeChannelObj.avatar} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  getInitials(activeChannelObj?.name || "?")
+      {/* ── Main Messaging Workspace Split Pane ── */}
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 py-4">
+        <div
+          className={`flex rounded-[12px] border border-[#23252a] bg-[#0f1011] overflow-hidden h-[calc(100vh-140px)] min-h-[580px] shadow-2xl ${
+            mobileView === "chat" ? "mobile-view-chat" : "mobile-view-list"
+          }`}
+        >
+          {/* ═══════════════════════════════════════════════
+              LEFT COLUMN: Channel & Thread Navigation
+             ═══════════════════════════════════════════════ */}
+          <aside
+            className={`w-full md:w-80 lg:w-92 bg-[#0f1011] border-r border-[#23252a] flex flex-col shrink-0 ${
+              mobileView === "chat" ? "hidden md:flex" : "flex"
+            }`}
+          >
+            {/* Thread Header & Search */}
+            <div className="p-3.5 border-b border-[#23252a] space-y-2.5 shrink-0 bg-[#0f1011]">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-berkeley-mono uppercase tracking-wider text-[#8a8f98]">
+                  Conversations
+                </span>
+                <span className="text-[11px] font-berkeley-mono text-[#62666d]">
+                  {filteredChannels.length} active
+                </span>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 text-[#62666d] w-3.5 h-3.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name..."
+                  className="w-full bg-[#161718] border border-[#23252a] rounded-[6px] pl-8 pr-7 py-1.5 text-[12px] text-white placeholder-[#62666d] focus:outline-none focus:border-[#d0d6e0] transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-2 text-[#62666d] hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
 
-              <div>
-                <h2 className="text-sm font-bold text-white leading-tight">
-                  {activeChannelObj?.name || "Select a conversation"}
-                </h2>
-                <p className="text-[11px] text-emerald-400 font-medium font-mono flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
-                  {activeChannelObj?.isBroadcast ? "Public Announcements" : (activeChannelObj?.st_id || activeChannelObj?.id || "")}
-                </p>
+              {/* Segmented Filter Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none pt-0.5">
+                {[
+                  { id: "all", label: "All" },
+                  { id: "broadcast", label: "📢 Broadcast" },
+                  ...(isAdmin
+                    ? [{ id: "members", label: "👥 Members" }]
+                    : [{ id: "staff", label: "🛡️ Staff" }]),
+                  {
+                    id: "pending",
+                    label: totalPendingQueries > 0 ? `⏳ Pending (${totalPendingQueries})` : "⏳ Pending",
+                  },
+                ].map((tab) => {
+                  const active = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`font-berkeley-mono text-[10px] px-2 py-1 rounded-[4px] border whitespace-nowrap transition-colors flex items-center gap-1 ${
+                        active
+                          ? "bg-[#23252a] text-white border-[#383b3f]"
+                          : "bg-[#161718] text-[#8a8f98] border-[#23252a] hover:border-[#383b3f] hover:text-white"
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="flex items-center gap-1 text-zinc-400">
-              <button className="p-2 hover:bg-white/5 hover:text-white rounded-full transition-colors">
-                <span className="material-symbols-outlined text-xl">call</span>
-              </button>
-              <button className="p-2 hover:bg-white/5 hover:text-white rounded-full transition-colors">
-                <span className="material-symbols-outlined text-xl">videocam</span>
-              </button>
-              <button className="p-2 hover:bg-white/5 hover:text-white rounded-full transition-colors">
-                <span className="material-symbols-outlined text-xl">more_vert</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Message History Container */}
-          <div ref={msgListRef} className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
-            {/* Load Older Messages Button */}
-            {hasMoreMsgs && (
-              <div className="text-center pb-2">
-                <button
-                  onClick={handleLoadMoreMsgs}
-                  disabled={loadingMoreMsgs}
-                  className="text-xs font-semibold px-4 py-1.5 rounded-full border border-zinc-800 bg-[#16161c] text-zinc-400 hover:text-white transition-all disabled:opacity-50"
-                >
-                  {loadingMoreMsgs ? "Loading…" : "⬆ Load older messages"}
-                </button>
-              </div>
-            )}
-
-            {messages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-zinc-500">
-                <span className="material-symbols-outlined text-4xl mb-2 text-zinc-600">chat_bubble_outline</span>
-                <p className="text-sm">No messages yet. Start the conversation!</p>
-              </div>
-            ) : (
-              messages.map((msg, index) => {
-                const isMine = msg.sender_st_id === session.stId;
-                const isReceiver = msg.receiver_st_id === session.stId;
-
-                const currentDateStr = new Date(msg.created_at).toDateString();
-                const prevDateStr = index > 0 ? new Date(messages[index - 1].created_at).toDateString() : null;
-                const showDateDivider = currentDateStr !== prevDateStr;
+            {/* Thread List */}
+            <div className="flex-1 overflow-y-auto divide-y divide-[#23252a]/50">
+              {filteredChannels.map((ch) => {
+                const pending = ch.isBroadcast ? 0 : pendingCounts[ch.id] || 0;
+                const isSelected = selectedChannel === ch.id;
 
                 return (
-                  <div key={msg.id} className="flex flex-col gap-3">
-                    {showDateDivider && (
-                      <div className="text-center my-2">
-                        <span className="text-[10px] font-semibold text-zinc-400 bg-zinc-800/80 px-3 py-1 rounded-full border border-zinc-700/50 uppercase tracking-wider">
-                          {formatDateDivider(msg.created_at)}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className={`flex items-end gap-2.5 max-w-[85%] sm:max-w-[75%] ${isMine ? "self-end flex-row-reverse" : "self-start"}`}>
-                      {!isMine && (
-                        <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-[10px] font-bold text-zinc-300 flex-shrink-0 mb-4">
-                          {getInitials(msg.sender?.name || msg.sender_st_id)}
-                        </div>
+                  <div
+                    key={ch.id}
+                    onClick={() => {
+                      setSelectedChannel(ch.id);
+                      setMobileView("chat");
+                    }}
+                    className={`flex items-start gap-3 p-3 cursor-pointer border-l-2 transition-all group ${
+                      isSelected
+                        ? "bg-[#161718] border-[#e4f222]"
+                        : "border-transparent hover:bg-[#161718]/50"
+                    }`}
+                  >
+                    {/* Linear Precision Avatar (NO fake green online dot) */}
+                    <div className="w-8 h-8 rounded-[6px] shrink-0 bg-[#161718] border border-[#23252a] flex items-center justify-center text-[11px] font-berkeley-mono font-[510] text-[#d0d6e0] overflow-hidden">
+                      {ch.isBroadcast ? (
+                        <Radio className="w-4 h-4 text-[#e4f222]" />
+                      ) : ch.avatar ? (
+                        <img src={ch.avatar} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        getInitials(ch.name)
                       )}
+                    </div>
 
-                      <div className={`flex flex-col gap-1 ${isMine ? "items-end" : "items-start"}`}>
-                        {/* Message Bubble */}
-                        <div
-                          onClick={() => setPopupMsg(msg)}
-                          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed cursor-pointer transition-all border ${
-                            isMine 
-                              ? "bg-indigo-600 text-white border-indigo-500 rounded-br-xs shadow-md" 
-                              : "bg-[#1c1c24] text-zinc-200 border-zinc-800 rounded-bl-xs hover:border-zinc-700"
-                          }`}
-                        >
-                          <p>{msg.content}</p>
+                    {/* Channel Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline mb-0.5">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <h3
+                            className={`text-[12.5px] font-[510] truncate ${
+                              isSelected ? "text-white" : "text-[#d0d6e0]"
+                            }`}
+                          >
+                            {ch.name}
+                          </h3>
+                          {ch.isBroadcast ? (
+                            <span className="font-berkeley-mono text-[9px] px-1 py-0.2 rounded-[3px] bg-[#e4f222]/10 border border-[#e4f222]/30 text-[#e4f222]">
+                              PUBLIC
+                            </span>
+                          ) : ch.roleTag ? (
+                            <span className="font-berkeley-mono text-[9px] px-1 py-0.2 rounded-[3px] bg-[#6366f1]/10 border border-[#6366f1]/30 text-[#818cf8] uppercase">
+                              {ch.roleTag}
+                            </span>
+                          ) : null}
                         </div>
 
-                        {/* Timestamp & Status */}
-                        <div className={`flex items-center gap-1.5 text-[10px] text-zinc-500 px-1 ${isMine ? "flex-row-reverse" : ""}`}>
-                          <span>
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {ch.lastTime > 0 && (
+                          <span className="font-berkeley-mono text-[10px] text-[#62666d] whitespace-nowrap ml-1">
+                            {formatSidebarTime(ch.lastTime)}
                           </span>
-                          {isMine && (
-                            <span className="material-symbols-outlined text-[14px] text-indigo-400">done_all</span>
-                          )}
-                          {selectedChannel !== "broadcast" && (
-                            <StatusBadge status={msg.status || "pending"} />
-                          )}
-                        </div>
+                        )}
+                      </div>
 
-                        {/* Inline Status Toggle for Receiver */}
-                        {isReceiver && selectedChannel !== "broadcast" && (
-                          <StatusButtons
-                            status={msg.status || "pending"}
-                            onChangeStatus={(s) => handleChangeStatus(msg.id, s)}
-                          />
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-[11.5px] text-[#8a8f98] truncate leading-tight">
+                          {ch.lastSnippet ||
+                            (ch.isBroadcast ? "Public broadcast channel" : ch.st_id || "Direct conversation")}
+                        </p>
+
+                        {/* Pending Indicator Badge */}
+                        {pending > 0 && (
+                          <span className="h-4 px-1.5 rounded-[4px] bg-[#e4f222] text-[#08090a] font-berkeley-mono text-[10px] font-[590] flex items-center justify-center flex-shrink-0 shadow-sm">
+                            {pending}
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
                 );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              })}
 
-          {/* Bottom Message Input Bar */}
-          <div className="p-4 bg-[#121216] border-t border-zinc-800 shrink-0">
-            {(!isAdmin && selectedChannel === "broadcast") ? (
-              <div className="text-center p-3 text-xs text-zinc-500 bg-[#16161c] rounded-xl border border-zinc-800">
-                Only staff members can post broadcast announcements.
-              </div>
-            ) : (
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-[#1a1a22] border border-zinc-800 rounded-xl p-2 focus-within:border-indigo-500 transition-colors">
-                <button type="button" className="p-2 text-zinc-400 hover:text-indigo-400 transition-colors flex-shrink-0">
-                  <span className="material-symbols-outlined text-xl">attach_file</span>
+              {loadingChannels ? (
+                <div className="p-8 text-center">
+                  <div className="w-5 h-5 border-2 border-[#23252a] border-t-[#e4f222] rounded-full animate-spin mx-auto"></div>
+                  <span className="text-[11px] font-berkeley-mono text-[#62666d] mt-2 block">
+                    Loading threads...
+                  </span>
+                </div>
+              ) : hasMore && (
+                <div className="p-2.5 text-center">
+                  <button
+                    onClick={handleLoadMore}
+                    className="w-full py-1.5 bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white font-berkeley-mono text-[11px] rounded-[6px] border border-[#23252a] transition-colors"
+                  >
+                    Load More Channels
+                  </button>
+                </div>
+              )}
+
+              {!loadingChannels && filteredChannels.length === 0 && (
+                <div className="p-8 text-center text-[#62666d] font-berkeley-mono text-[11px]">
+                  No matching conversations found.
+                </div>
+              )}
+            </div>
+          </aside>
+
+          {/* ═══════════════════════════════════════════════
+              RIGHT COLUMN: Main Chat & Message Stream Area
+             ═══════════════════════════════════════════════ */}
+          <section
+            className={`flex-1 flex flex-col bg-[#08090a] min-w-0 ${
+              mobileView === "list" ? "hidden md:flex" : "flex"
+            }`}
+          >
+            {/* ── Chat Header (Precision Instrument bar, no call/video buttons) ── */}
+            <div className="h-14 px-4 sm:px-5 border-b border-[#23252a] flex items-center justify-between shrink-0 bg-[#0f1011] z-10">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => setMobileView("list")}
+                  className="md:hidden p-1 text-[#8a8f98] hover:text-white rounded-[4px] hover:bg-[#161718]"
+                >
+                  <ArrowLeft className="w-4 h-4" />
                 </button>
+
+                <div className="w-8 h-8 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[11px] font-berkeley-mono font-[510] text-[#d0d6e0] overflow-hidden flex-shrink-0">
+                  {activeChannelObj?.isBroadcast ? (
+                    <Radio className="w-4 h-4 text-[#e4f222]" />
+                  ) : activeChannelObj?.avatar ? (
+                    <img src={activeChannelObj.avatar} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    getInitials(activeChannelObj?.name || "?")
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-[13.5px] font-[510] text-white truncate">
+                      {activeChannelObj?.name || "Select a thread"}
+                    </h2>
+                    {activeChannelObj?.isBroadcast ? (
+                      <span className="font-berkeley-mono text-[9px] px-1 py-0.2 rounded-[3px] bg-[#e4f222]/10 border border-[#e4f222]/30 text-[#e4f222]">
+                        ANNOUNCEMENTS
+                      </span>
+                    ) : activeChannelObj?.roleTag ? (
+                      <span className="font-berkeley-mono text-[9px] px-1 py-0.2 rounded-[3px] bg-[#6366f1]/10 border border-[#6366f1]/30 text-[#818cf8] uppercase">
+                        {activeChannelObj.roleTag}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[11px] font-berkeley-mono text-[#8a8f98]">
+                    {activeChannelObj?.isBroadcast ? (
+                      <span>All Society Members & Staff</span>
+                    ) : (
+                      <>
+                        <span className="text-[#62666d]">ST_ID:</span>
+                        <span className="text-[#d0d6e0]">
+                          {activeChannelObj?.st_id || activeChannelObj?.id || ""}
+                        </span>
+                        {activeChannelObj?.st_id && (
+                          <button
+                            onClick={() => handleCopyStId(activeChannelObj.st_id)}
+                            title="Copy Student ID"
+                            className="text-[#62666d] hover:text-[#e4f222] transition-colors inline-flex items-center gap-0.5"
+                          >
+                            {copiedStId ? (
+                              <Check className="w-2.5 h-2.5 text-[#27a644]" />
+                            ) : (
+                              <Copy className="w-2.5 h-2.5" />
+                            )}
+                            <span className="text-[9px]">{copiedStId ? "Copied" : "Copy"}</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Functional Utilities in Place of Call/Video Buttons */}
+              <div className="flex items-center gap-1 text-[#8a8f98]">
+                {/* Search In Chat Toggle */}
+                <button
+                  onClick={() => setIsChatSearchOpen((v) => !v)}
+                  title="Search in this conversation"
+                  className={`p-1.5 rounded-[6px] border transition-colors ${
+                    isChatSearchOpen
+                      ? "bg-[#23252a] text-white border-[#383b3f]"
+                      : "bg-[#161718] text-[#8a8f98] border-[#23252a] hover:text-white"
+                  }`}
+                >
+                  <Search className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Filter by status dropdown/pill */}
+                {!activeChannelObj?.isBroadcast && (
+                  <div className="flex items-center p-0.5 rounded-[6px] bg-[#161718] border border-[#23252a]">
+                    <button
+                      onClick={() => setMsgStatusFilter("all")}
+                      className={`px-2 py-0.5 rounded-[4px] font-berkeley-mono text-[10px] transition-colors ${
+                        msgStatusFilter === "all" ? "bg-[#23252a] text-white" : "text-[#8a8f98] hover:text-white"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setMsgStatusFilter("pending")}
+                      className={`px-2 py-0.5 rounded-[4px] font-berkeley-mono text-[10px] transition-colors ${
+                        msgStatusFilter === "pending"
+                          ? "bg-[#23252a] text-[#f59e0b]"
+                          : "text-[#8a8f98] hover:text-white"
+                      }`}
+                    >
+                      Pending
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* In-Chat Search Bar Dropdown */}
+            {isChatSearchOpen && (
+              <div className="px-4 py-2 bg-[#161718] border-b border-[#23252a] flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-[#62666d]" />
                 <input
                   type="text"
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  className="w-full bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none px-2"
+                  value={chatSearch}
+                  onChange={(e) => setChatSearch(e.target.value)}
+                  placeholder="Filter messages in this conversation..."
+                  className="flex-1 bg-transparent text-[12px] text-white placeholder-[#62666d] focus:outline-none"
                 />
-                <button type="button" className="p-2 text-zinc-400 hover:text-indigo-400 transition-colors flex-shrink-0">
-                  <span className="material-symbols-outlined text-xl">mood</span>
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newMessage.trim()}
-                  className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-40 flex-shrink-0 flex items-center justify-center"
-                >
-                  <span className="material-symbols-outlined text-lg">send</span>
-                </button>
-              </form>
+                {chatSearch && (
+                  <button onClick={() => setChatSearch("")} className="text-[#62666d] hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             )}
-          </div>
-        </section>
+
+            {/* ── Message History Stream Container ── */}
+            <div ref={msgListRef} className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3">
+              {/* Load Older Messages */}
+              {hasMoreMsgs && (
+                <div className="text-center pb-2">
+                  <button
+                    onClick={handleLoadMoreMsgs}
+                    disabled={loadingMoreMsgs}
+                    className="font-berkeley-mono text-[11px] px-3.5 py-1 rounded-[6px] border border-[#23252a] bg-[#0f1011] text-[#8a8f98] hover:text-white hover:border-[#383b3f] transition-all disabled:opacity-50"
+                  >
+                    {loadingMoreMsgs ? "Loading older messages..." : "↑ Load older messages"}
+                  </button>
+                </div>
+              )}
+
+              {visibleMessages.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-[#62666d] space-y-2">
+                  <div className="w-10 h-10 rounded-[6px] bg-[#0f1011] border border-[#23252a] flex items-center justify-center text-[#8a8f98]">
+                    <MessageSquare className="w-5 h-5 text-[#62666d]" />
+                  </div>
+                  <p className="text-[13px] text-[#8a8f98]">
+                    {chatSearch ? "No messages matching search." : "No messages yet in this thread."}
+                  </p>
+                  <p className="text-[11px] font-berkeley-mono text-[#62666d]">
+                    Send a query or dispatch a note to start.
+                  </p>
+                </div>
+              ) : (
+                visibleMessages.map((msg, index) => {
+                  const isMine = msg.sender_st_id === session.stId;
+                  const isReceiver = msg.receiver_st_id === session.stId;
+
+                  const currentDateStr = new Date(msg.created_at).toDateString();
+                  const prevDateStr =
+                    index > 0 ? new Date(visibleMessages[index - 1].created_at).toDateString() : null;
+                  const showDateDivider = currentDateStr !== prevDateStr;
+
+                  return (
+                    <div key={msg.id} className="flex flex-col gap-2.5">
+                      {/* Date Separator */}
+                      {showDateDivider && (
+                        <div className="relative flex items-center justify-center my-3">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-[#23252a]" />
+                          </div>
+                          <span className="relative font-berkeley-mono text-[10px] text-[#62666d] bg-[#08090a] px-2.5 py-0.5 rounded-[4px] border border-[#23252a] uppercase tracking-wider">
+                            {formatDateDivider(msg.created_at)}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Bubble Row */}
+                      <div
+                        className={`flex items-end gap-2 max-w-[90%] sm:max-w-[78%] ${
+                          isMine ? "self-end flex-row-reverse" : "self-start"
+                        }`}
+                      >
+                        {!isMine && (
+                          <div className="w-7 h-7 rounded-[4px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[10px] font-berkeley-mono font-[510] text-[#8a8f98] flex-shrink-0 mb-1">
+                            {getInitials(msg.sender?.name || msg.sender_st_id)}
+                          </div>
+                        )}
+
+                        <div className={`flex flex-col gap-1 ${isMine ? "items-end" : "items-start"}`}>
+                          {/* Sender name for received broadcast messages */}
+                          {!isMine && selectedChannel === "broadcast" && (
+                            <span className="text-[11px] font-[510] text-[#8a8f98] px-1">
+                              {msg.sender?.name || msg.sender_st_id}
+                            </span>
+                          )}
+
+                          {/* Bubble Container */}
+                          <div
+                            onClick={() => setPopupMsg(msg)}
+                            className={`px-3.5 py-2.5 rounded-[8px] text-[13px] leading-relaxed cursor-pointer transition-all border ${
+                              isMine
+                                ? "bg-[#161718] text-[#ffffff] border-[#383b3f] hover:border-[#8a8f98]"
+                                : selectedChannel === "broadcast"
+                                ? "bg-[#0f1011] text-[#ffffff] border-[#e4f222]/30 hover:border-[#e4f222]"
+                                : "bg-[#0f1011] text-[#d0d6e0] border-[#23252a] hover:border-[#383b3f]"
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
+                          </div>
+
+                          {/* Metadata row: Berkeley Mono time, tick, and status */}
+                          <div
+                            className={`flex items-center gap-1.5 font-berkeley-mono text-[10px] text-[#62666d] px-1 ${
+                              isMine ? "flex-row-reverse" : ""
+                            }`}
+                          >
+                            <span>
+                              {new Date(msg.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+
+                            {isMine && <CheckCheck className="w-3 h-3 text-[#27a644]" />}
+
+                            {selectedChannel !== "broadcast" && (
+                              <StatusBadge status={msg.status || "pending"} size="xs" />
+                            )}
+                          </div>
+
+                          {/* Quick 1-Click Status Controls for Receiver or Staff */}
+                          {selectedChannel !== "broadcast" && (isReceiver || isAdmin) && (
+                            <div className="pt-0.5">
+                              <StatusButtons
+                                status={msg.status || "pending"}
+                                onChangeStatus={(s) => handleChangeStatus(msg.id, s)}
+                                compact={true}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* ── Bottom Input & Composer (Linear Style with Acid Lime CTA) ── */}
+            <div className="p-3 sm:p-4 bg-[#0f1011] border-t border-[#23252a] shrink-0">
+              {!isAdmin && selectedChannel === "broadcast" ? (
+                <div className="text-center p-3 text-[12px] text-[#8a8f98] bg-[#161718] rounded-[6px] border border-[#23252a] font-berkeley-mono">
+                  📢 Society announcements channel is read-only for members. Only staff can dispatch public notices.
+                </div>
+              ) : (
+                <form
+                  onSubmit={handleSendMessage}
+                  className="bg-[#161718] border border-[#23252a] rounded-[6px] p-2 focus-within:border-[#d0d6e0] transition-colors space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder={
+                        selectedChannel === "broadcast"
+                          ? "Broadcast a public announcement to all members..."
+                          : `Message ${activeChannelObj?.name || "recipient"}...`
+                      }
+                      className="w-full bg-transparent text-[13px] text-white placeholder-[#62666d] focus:outline-none px-1"
+                    />
+
+                    {/* Primary Action Button (Acid Lime #e4f222) per DESIGN.md */}
+                    <button
+                      type="submit"
+                      disabled={!newMessage.trim()}
+                      className="h-8 px-3.5 bg-[#e4f222] hover:brightness-105 text-[#08090a] font-[510] tracking-[-0.011em] text-[12px] rounded-[6px] transition-all disabled:opacity-40 flex items-center gap-1.5 flex-shrink-0"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Send</span>
+                    </button>
+                  </div>
+
+                  {/* Micro Hint in Berkeley Mono */}
+                  <div className="flex items-center justify-between text-[10px] font-berkeley-mono text-[#62666d] px-1 border-t border-[#23252a]/60 pt-1.5">
+                    <span>Press ↵ Enter to send</span>
+                    <span>
+                      {selectedChannel === "broadcast"
+                        ? "Public Broadcast Mode"
+                        : "Encrypted Direct Channel"}
+                    </span>
+                  </div>
+                </form>
+              )}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

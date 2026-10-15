@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import EventSelect from "../components/EventSelect";
 import DatePicker from "../components/DatePicker";
+import { StudentNameLink } from "../components/StudentProfileContext";
 
 const EMPTY_FORM = { st_id: "", task_name: "", deadline: "" };
 
@@ -27,7 +28,7 @@ export default function Tasks({ isAdmin = false, session }) {
     }
 
     setLoading(true);
-    let query = supabase.from("events").select("*, members!oc_st_id(name)");
+    let query = supabase.from("events").select("event_id, name, date, oc_st_id, members!oc_st_id(name)");
 
     if (!isAdmin && session?.stId) {
       const { data: memberOc } = await supabase
@@ -79,7 +80,7 @@ export default function Tasks({ isAdmin = false, session }) {
 
     let tasksQuery = supabase
       .from("tasks")
-      .select("*, members(name)")
+      .select("id, event_id, st_id, task_name, deadline, status, created_at, members(name)")
       .eq("event_id", eventId);
 
     if (!canManage && session?.stId) {
@@ -227,8 +228,18 @@ export default function Tasks({ isAdmin = false, session }) {
             <div className="card-header">
               <span className="card-title">Select Event</span>
               {selectedEventInfo && (
-                <span className="badge badge-purple">
-                  OC President: {selectedEventInfo.members?.name || selectedEventInfo.oc_st_id || "Unassigned"}
+                <span className="badge badge-purple inline-flex items-center gap-1.5">
+                  <span>OC President:</span>
+                  {selectedEventInfo.oc_st_id ? (
+                    <StudentNameLink
+                      stId={selectedEventInfo.oc_st_id}
+                      name={selectedEventInfo.members?.name || selectedEventInfo.oc_st_id}
+                      size="sm"
+                      showIcon={false}
+                    />
+                  ) : (
+                    <span>Unassigned</span>
+                  )}
                 </span>
               )}
             </div>
@@ -308,10 +319,11 @@ export default function Tasks({ isAdmin = false, session }) {
                             </span>
                           </td>
                           <td>
-                            <strong className="mono">{t.st_id}</strong>
-                            <div style={{ fontSize: "12px", color: "var(--text2)" }}>
-                              {t.members?.name || "Unknown Member"}
-                            </div>
+                            <StudentNameLink
+                              stId={t.st_id}
+                              name={t.members?.name || "Unknown Member"}
+                              subtext={t.st_id}
+                            />
                           </td>
                           <td className="mono">{t.deadline || "No deadline"}</td>
                           <td>

@@ -563,6 +563,70 @@ const AVAILABLE_TOOLS: ToolDefinition[] = [
       };
     },
   },
+  {
+    name: 'search_society_documents',
+    description: "Searches the society document repository for files, flyers, budget reports, permission letters, and guidance documents. Members can see member-accessible documents; staff can see all documents including officer-restricted ones.",
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        query: {
+          type: 'STRING',
+          description: 'Search keyword (e.g., budget, flyer, handbook, permission, AGM, constitution).'
+        },
+        category: {
+          type: 'STRING',
+          description: 'Optional category filter: Events, Budgets, Permissions, Guidance'
+        }
+      },
+      required: [],
+    },
+    minRole: 'guest',
+    execute: async (params, context) => {
+      if (!context.supabase) {
+        return { error: 'Database connection unavailable.' };
+      }
+      const isStaff = ROLE_HIERARCHY[context.role] >= ROLE_HIERARCHY['editor'];
+      let query = context.supabase
+        .from('documents')
+        .select('id, name, file_name, file_type, file_size, category, visibility, description, created_at')
+        .order('created_at', { ascending: false });
+
+      if (!isStaff) {
+        query = query.eq('visibility', 'public_to_members');
+      }
+
+      if (params.category) {
+        query = query.eq('category', params.category);
+      }
+
+      if (params.query) {
+        const q = (params.query || '').trim().replace(/[^a-zA-Z0-9\s_-]/g, '');
+        if (q) {
+          query = query.or(`name.ilike.%${q}%,file_name.ilike.%${q}%,description.ilike.%${q}%`);
+        }
+      }
+
+      query = query.limit(10);
+      const { data, error } = await query;
+      if (error) {
+        return { error: `Failed to query documents: ${error.message}` };
+      }
+
+      return {
+        count: data?.length || 0,
+        documents: (data || []).map((d: any) => ({
+          name: d.name,
+          file_name: d.file_name,
+          category: d.category,
+          type: d.file_type,
+          size_bytes: d.file_size,
+          description: d.description,
+          visibility: d.visibility,
+          created_at: d.created_at,
+        })),
+      };
+    },
+  },
 ];
 
 // ── Rate Limiting / Abuse Protection ──────────────────────────────────────────
@@ -727,15 +791,20 @@ serve(async (req) => {
       supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
     }
 
-    // ── TASK 5: Admin Kill-Switch Check (assistant_enabled in system_settings) ──
-    if (supabaseClient) {
-      const { data: setting } = await supabaseClient
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'assistant_enabled')
-        .maybeSingle();
+    // ── TASK 5: Admin Kill-Switch Check & User Auth (Executed concurrently) ──
+    const token = authHeader.replace(/^Bearer\s+/i, '');
 
-      if (setting?.value === 'false') {
+    if (supabaseClient) {
+      const [settingRes, authRes] = await Promise.all([
+        supabaseClient
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'assistant_enabled')
+          .maybeSingle(),
+        token ? supabaseClient.auth.getUser(token) : Promise.resolve({ data: { user: null }, error: null })
+      ]);
+
+      if (settingRes?.data?.value === 'false') {
         return new Response(
           JSON.stringify({
             success: false,
@@ -744,13 +813,9 @@ serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-    }
 
-    const token = authHeader.replace(/^Bearer\s+/i, '');
-    if (token && supabaseClient) {
-      const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
-
-      if (user && !userError) {
+      const user = authRes?.data?.user;
+      if (user && !authRes.error) {
         userId = user.id;
         userEmail = user.email || null;
 

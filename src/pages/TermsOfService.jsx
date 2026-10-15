@@ -1,62 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import {
+  ShieldAlert,
+  FileCheck2,
+  Lock,
+  QrCode,
+  Share2,
+  Printer,
+  ArrowLeft,
+  Search,
+  Check,
+  Mail,
+  Globe,
+  ExternalLink,
+  BookOpen,
+  Award,
+  AlertTriangle,
+  Scale,
+  Copy,
+  FileText
+} from "lucide-react";
 
-export default function TermsOfService({ onBackToLanding }) {
+export default function TermsOfService({ onBackToLanding, onNavigate }) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [activeSection, setActiveSection] = useState("");
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const sections = document.querySelectorAll("section[id]");
-      const scrollPosition = window.scrollY + 200;
-
-      sections.forEach((section) => {
-        const top = section.offsetTop;
-        const height = section.offsetHeight;
-        const id = section.getAttribute("id");
-
-        if (scrollPosition >= top && scrollPosition < top + height) {
-          setActiveSection(id);
-        }
-      });
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const sectionsList = [
-    { id: "section-1", num: "1", title: "About ADSS Ruhuna" },
-    { id: "section-2", num: "2", title: "Acceptance of Terms" },
-    { id: "section-3", num: "3", title: "Permitted Use" },
-    { id: "section-4", num: "4", title: "User Responsibilities" },
-    { id: "section-5", num: "5", title: "Prohibited Activities" },
-    { id: "section-6", num: "6", title: "Event Registration" },
-    { id: "section-7", num: "7", title: "Membership" },
-    { id: "section-8", num: "8", title: "Intellectual Property" },
-    { id: "section-9", num: "9", title: "User-Submitted Content" },
-    { id: "section-10", num: "10", title: "Third-Party Links" },
-    { id: "section-11", num: "11", title: "Disclaimer" },
-    { id: "section-12", num: "12", title: "Limitation of Liability" },
-    { id: "section-13", num: "13", title: "Privacy" },
-    { id: "section-14", num: "14", title: "Changes to These Terms" },
-    { id: "section-15", num: "15", title: "Governing Law" },
-    { id: "section-16", num: "16", title: "Contact Us" }
-  ];
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
   const handleNavigateBack = () => {
-    if (onBackToLanding) {
+    if (onNavigate) {
+      onNavigate("dashboard");
+    } else if (onBackToLanding) {
       onBackToLanding();
     } else {
       window.history.pushState({}, "", "/");
@@ -64,518 +37,498 @@ export default function TermsOfService({ onBackToLanding }) {
     }
   };
 
+  const handleNavigatePrivacy = () => {
+    if (onNavigate) {
+      onNavigate("privacy");
+    } else {
+      window.history.pushState({}, "", "/privacy");
+      window.dispatchEvent(new Event("popstate"));
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
+  };
+
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText("bhanukadilshan2002@gmail.com").then(() => {
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+    });
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   const matchesSearch = (text) => {
     if (!searchTerm.trim()) return true;
     return text.toLowerCase().includes(searchTerm.toLowerCase());
   };
 
+  const pillars = [
+    {
+      id: "conduct",
+      code: "TERMS-01",
+      category: "conduct",
+      title: "Permitted Use & Code of Conduct",
+      icon: BookOpen,
+      summary: "Academic participation is welcomed for educational growth; abusive or malicious actions are strictly prohibited.",
+      items: [
+        {
+          label: "Permitted Activities",
+          detail: "Accessing educational materials, registering for hackathons and seminars, applying for executive roles, and participating in society initiatives.",
+        },
+        {
+          label: "User Responsibilities",
+          detail: "Providing genuine student credentials, respecting peer participants, maintaining account security, and upholding University of Ruhuna student ethics.",
+        },
+        {
+          label: "Prohibited Actions",
+          detail: "Automated scraping, injecting malicious scripts, credential sharing, impersonating society officials, or disrupting live event registrations.",
+        },
+        {
+          label: "Enforcement & Suspension",
+          detail: "Violation of conduct terms may lead to immediate revocation of society membership and reporting to faculty authorities.",
+        },
+      ],
+    },
+    {
+      id: "events",
+      code: "TERMS-02",
+      category: "events",
+      title: "Membership, Events & Dynamic QR Passes",
+      icon: QrCode,
+      summary: "Rules governing event admission, rotating digital attendance tokens, and official letter requisitions.",
+      items: [
+        {
+          label: "Registration & Capacity",
+          detail: "Event registration secures seat allocation subject to venue and resource limits; inaccurate details may invalidate registration.",
+        },
+        {
+          label: "Anti-Fraud Dynamic QR Passes",
+          detail: "Attendance QR codes feature time-rotating signatures. Screenshots and shared links are voided by gate scanners to prevent proxy attendance.",
+        },
+        {
+          label: "Official Certificates & Letters",
+          detail: "Issuance of participation certificates and recommendation letters requires meeting minimum attendance thresholds validated in the system.",
+        },
+        {
+          label: "Schedule Modifications",
+          detail: "ADSS Ruhuna reserves the right to reschedule, change speakers, or modify session formats due to university academic calendar adjustments.",
+        },
+      ],
+    },
+    {
+      id: "ip",
+      code: "TERMS-03",
+      category: "ip",
+      title: "Intellectual Property & Educational License",
+      icon: Award,
+      summary: "Society branding, slide decks, and code repositories are provided freely for personal, non-commercial education.",
+      items: [
+        {
+          label: "Protected Materials",
+          detail: "ADSS Ruhuna logos, event graphics, curated workshop presentations, competition challenge datasets, and software codebase.",
+        },
+        {
+          label: "Permitted Educational License",
+          detail: "You may view, download, and study workshop materials for personal educational purposes with proper attribution.",
+        },
+        {
+          label: "Commercial Prohibition",
+          detail: "Reproduction, redistribution, or commercial sale of society assets without written consent from the executive board is strictly prohibited.",
+        },
+        {
+          label: "Student Submissions",
+          detail: "Hackathon project code and presentation materials submitted by participants remain their intellectual property, with a promotional showcase license to ADSS.",
+        },
+      ],
+    },
+    {
+      id: "governance",
+      code: "TERMS-04",
+      category: "governance",
+      title: "Governance, Disclaimers & Inquiries",
+      icon: Scale,
+      summary: "Legal jurisdiction, warranty disclaimers for voluntary student activities, and governing society contacts.",
+      items: [
+        {
+          label: "Disclaimer of Warranty",
+          detail: "All resources, tutorials, and events are organized on a voluntary student basis in good faith without commercial fitness warranties.",
+        },
+        {
+          label: "Limitation of Liability",
+          detail: "ADSS Ruhuna and the University of Ruhuna are not liable for incidental technical downtime, third-party link availability, or event date shifts.",
+        },
+        {
+          label: "Governing Jurisdiction",
+          detail: "These Terms are governed by the laws of the Democratic Socialist Republic of Sri Lanka and University of Ruhuna student council regulations.",
+        },
+        {
+          label: "Amendments",
+          detail: "Terms may be updated periodically to reflect revised society constitution bylaws; continued use signifies acceptance of updated terms.",
+        },
+      ],
+    },
+  ];
+
+  const filteredPillars = pillars.filter((p) => {
+    const categoryMatch = selectedCategory === "all" || p.category === selectedCategory;
+    const textToSearch = `${p.title} ${p.summary} ${p.items.map((i) => `${i.label} ${i.detail}`).join(" ")}`;
+    return categoryMatch && matchesSearch(textToSearch);
+  });
+
   return (
-    <div className="min-h-screen bg-[#0c0c0e] text-[#e5e5ea] font-body-md selection:bg-white/20 selection:text-white pb-20">
+    <div className="min-h-screen bg-[#08090a] text-[#d0d6e0] font-sans selection:bg-[#e4f222]/20 selection:text-[#ffffff] pb-20">
+      {/* ── Print Styling ── */}
       <style>{`
         @media print {
           nav, .no-print { display: none !important; }
-          body { background: #fff !important; color: #000 !important; }
-          .terms-card { border: none !important; background: none !important; box-shadow: none !important; }
-        }
-        .glass-header {
-          background: rgba(12, 12, 14, 0.85);
-          backdrop-filter: blur(20px);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .terms-card {
-          background: rgba(24, 24, 28, 0.6);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 24px;
-        }
-        .toc-item {
-          transition: all 0.2s ease;
-        }
-        .toc-item.active {
-          background: rgba(255, 255, 255, 0.1);
-          color: #ffffff;
-          border-left: 3px solid #6366f1;
+          body { background: #ffffff !important; color: #000000 !important; }
+          .linear-card { border: 1px solid #ddd !important; background: none !important; box-shadow: none !important; color: #000 !important; }
+          .text-white { color: #000 !important; }
+          .text-[#d0d6e0], .text-[#8a8f98] { color: #333 !important; }
         }
       `}</style>
 
-      {/* Navigation Header */}
-      <nav className="fixed top-0 w-full z-50 glass-header flex justify-between items-center px-6 md:px-12 py-4 no-print">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={handleNavigateBack}>
-          <img alt="ADSS Logo" className="h-9 w-auto" src="/logo_trans_light.png" />
-          <span className="font-headline-md text-xl font-bold text-on-surface hidden md:block">ADSS Ruhuna</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleCopyLink}
-            className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-all cursor-pointer"
-            title="Copy URL link"
-          >
-            <span className="material-symbols-outlined text-sm">share</span>
-            <span>{copied ? "Copied!" : "Share"}</span>
-          </button>
-          <button
-            onClick={handlePrint}
-            className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-all cursor-pointer hidden sm:flex"
-            title="Print Terms of Service"
-          >
-            <span className="material-symbols-outlined text-sm">print</span>
-            <span>Print</span>
-          </button>
-          <button
+      {/* ── Precision Top Navigation Bar ── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#08090a]/85 backdrop-blur-md border-b border-[#23252a] px-4 md:px-8 py-3 no-print">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+          {/* Brand & Document ID */}
+          <div
+            className="flex items-center gap-2.5 cursor-pointer group"
             onClick={handleNavigateBack}
-            className="px-4 py-2 bg-[#e4e4e7] hover:bg-white text-[#09090b] font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Return to home"
           >
-            <span className="material-symbols-outlined text-sm">arrow_back</span>
-            <span>Back to Home</span>
-          </button>
+            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#e4f222] font-berkeley-mono text-[11px] font-[510]">
+              §
+            </div>
+            <div className="flex flex-col">
+              <span className="font-[510] text-[#ffffff] text-[13px] group-hover:text-[#e4f222] transition-colors leading-tight">
+                ADSS Ruhuna
+              </span>
+              <span className="font-berkeley-mono text-[10px] text-[#8a8f98]">
+                DOC-ADSS-TERMS-V2
+              </span>
+            </div>
+          </div>
+
+          {/* Nav Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#8a8f98] hover:text-[#ffffff] transition-colors font-berkeley-mono text-[11px] flex items-center gap-1.5 cursor-pointer"
+              title="Copy link to clipboard"
+            >
+              {copiedLink ? <Check className="w-3.5 h-3.5 text-[#27a644]" /> : <Share2 className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{copiedLink ? "Copied" : "Share"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#8a8f98] hover:text-[#ffffff] transition-colors font-berkeley-mono text-[11px] hidden sm:flex items-center gap-1.5 cursor-pointer"
+              title="Print document"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print</span>
+            </button>
+
+            {/* Acid-Lime Primary CTA */}
+            <button
+              type="button"
+              onClick={handleNavigateBack}
+              className="h-8 px-3.5 rounded-[6px] bg-[#e4f222] text-[#08090a] font-[510] text-[12px] hover:bg-[#d5e31f] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-[0.98]"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
+            </button>
+          </div>
         </div>
       </nav>
 
-      {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 md:px-8 pt-28">
-        
-        {/* Banner Card */}
-        <div className="terms-card p-6 md:p-10 mb-8 border border-white/10 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              Legal & Policy
-            </span>
-            <span className="text-zinc-400 text-xs font-medium flex items-center gap-1">
-              <span className="material-symbols-outlined text-sm">event</span>
-              <strong>Effective Date:</strong> August 5, 2026
-            </span>
+      {/* ── Main Content Container ── */}
+      <main className="max-w-5xl mx-auto px-4 md:px-8 pt-24 space-y-8">
+        {/* ── Document Classification Header Banner ── */}
+        <div className="bg-[#0f1011] border border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-8 space-y-5">
+          {/* Classification Tags */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#23252a] pb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-berkeley-mono text-[10px] font-[510] text-[#8a8f98] uppercase bg-[#161718] border border-[#23252a] px-2 py-0.5 rounded-[4px]">
+                OFFICIAL TERMS // GOVERNANCE
+              </span>
+              <span className="font-berkeley-mono text-[10px] font-[510] text-[#27a644] bg-[#27a644]/10 border border-[#27a644]/30 px-2 py-0.5 rounded-[4px] inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#27a644] animate-pulse" />
+                ENFORCED BY ADSS COUNCIL
+              </span>
+              <span className="font-berkeley-mono text-[10px] text-[#62666d]">
+                REV 2026.08
+              </span>
+            </div>
+
+            <div className="font-berkeley-mono text-[11px] text-[#8a8f98]">
+              Effective: <span className="text-[#ffffff]">August 2026</span>
+            </div>
           </div>
 
-          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4">
-            Terms of Service
-          </h1>
-
-          <p className="text-zinc-300 text-base md:text-lg leading-relaxed max-w-4xl">
-            Welcome to the official website of the <strong>Actuarial & Data Science Society (ADSS) Ruhuna</strong>, Faculty of Science, University of Ruhuna.
-          </p>
-
-          <div className="mt-4 p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-zinc-300 leading-relaxed">
-            These Terms of Service ("Terms") govern your access to and use of the ADSS Ruhuna website and any services, events, or resources provided through it. By accessing or using this website, you agree to comply with these Terms. If you do not agree with any part of these Terms, please refrain from using our website.
+          {/* Hero Title Block */}
+          <div className="space-y-2">
+            <h1 className="text-[28px] sm:text-[36px] font-[510] text-[#ffffff] tracking-[-0.022em] leading-tight">
+              Terms of Service & Member Charter
+            </h1>
+            <p className="text-[14px] sm:text-[15px] text-[#8a8f98] leading-relaxed max-w-3xl">
+              Binding operational standards, digital credential rules, and code of conduct for members, event participants, and website visitors of the{" "}
+              <strong className="text-[#d0d6e0] font-[510]">
+                Actuarial & Data Science Society (ADSS)
+              </strong>
+              , Faculty of Science, University of Ruhuna.
+            </p>
           </div>
 
-          {/* Quick Search */}
-          <div className="mt-6 no-print">
-            <div className="relative max-w-md">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">search</span>
+          {/* Interactive Search & Quick Filter Row */}
+          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 no-print">
+            {/* Search Input */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8a8f98]" />
               <input
                 type="text"
-                placeholder="Search terms of service..."
+                placeholder="Search terms, QR pass rules, or conduct guidelines..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/15 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-400 transition-all"
+                className="w-full bg-[#161718] border border-[#23252a] focus:border-[#d0d6e0] rounded-[6px] pl-9 pr-8 py-2 text-[12.5px] text-[#ffffff] placeholder-[#62666d] outline-none transition-colors font-sans"
               />
               {searchTerm && (
                 <button
+                  type="button"
                   onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a8f98] hover:text-[#ffffff] text-[11px] font-berkeley-mono"
                 >
                   Clear
                 </button>
               )}
             </div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* Table of Contents Sidebar */}
-          <aside className="lg:col-span-4 no-print">
-            <div className="terms-card p-5 sticky top-28 border border-white/10 max-h-[80vh] overflow-y-auto">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-sm">toc</span>
-                Table of Contents
-              </h3>
-              <nav className="flex flex-col gap-1 text-xs">
-                {sectionsList.map((sec) => (
-                  <a
-                    key={sec.id}
-                    href={`#${sec.id}`}
-                    className={`toc-item px-3 py-2 rounded-lg text-zinc-300 hover:bg-white/5 hover:text-white flex items-center gap-2 ${
-                      activeSection === sec.id ? "active" : ""
-                    }`}
-                  >
-                    <span className="w-5 h-5 rounded-full bg-white/10 text-zinc-300 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                      {sec.num}
-                    </span>
-                    <span className="truncate">{sec.title}</span>
-                  </a>
-                ))}
-              </nav>
-            </div>
-          </aside>
-
-          {/* Detailed Policy Sections */}
-          <div className="lg:col-span-8 flex flex-col gap-6">
-
-            {/* Section 1 */}
-            {matchesSearch("1. About ADSS Ruhuna student-led society Faculty of Science University of Ruhuna actuarial science data science statistics mathematics workshops seminars competitions") && (
-              <section id="section-1" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    1
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">About ADSS Ruhuna</h2>
-                </div>
-                <p className="text-zinc-300 text-sm md:text-base leading-relaxed">
-                  The <strong>Actuarial & Data Science Society (ADSS) Ruhuna</strong> is a student-led society under the <strong>Faculty of Science, University of Ruhuna</strong>, dedicated to promoting knowledge and professional development in actuarial science, data science, statistics, mathematics, and related fields through educational activities, workshops, seminars, competitions, and community engagement.
-                </p>
-              </section>
-            )}
-
-            {/* Section 2 */}
-            {matchesSearch("2. Acceptance of Terms agree Terms of Service Privacy Policy laws responsible") && (
-              <section id="section-2" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    2
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Acceptance of Terms</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3">By using this website, you confirm that you:</p>
-                <ul className="text-xs md:text-sm text-zinc-300 space-y-2 list-disc pl-5 leading-relaxed">
-                  <li>Agree to these Terms of Service.</li>
-                  <li>Agree to our Privacy Policy.</li>
-                  <li>Will use the website responsibly and in accordance with applicable laws.</li>
-                </ul>
-              </section>
-            )}
-
-            {/* Section 3 */}
-            {matchesSearch("3. Permitted Use learn register events workshops membership educational resources contact announcements") && (
-              <section id="section-3" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    3
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Permitted Use</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3">You may use this website to:</p>
-                <ul className="text-xs md:text-sm text-zinc-300 space-y-1.5 list-disc pl-5 mb-4">
-                  <li>Learn about ADSS Ruhuna.</li>
-                  <li>Register for events and workshops.</li>
-                  <li>Apply for membership where applicable.</li>
-                  <li>Access educational resources.</li>
-                  <li>Contact the society.</li>
-                  <li>Stay informed about society activities and announcements.</li>
-                </ul>
-                <p className="text-xs text-zinc-400">
-                  You agree to use the website only for lawful purposes.
-                </p>
-              </section>
-            )}
-
-            {/* Section 4 */}
-            {matchesSearch("4. User Responsibilities accurate information respect account security interfere University policies") && (
-              <section id="section-4" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    4
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">User Responsibilities</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3">When using this website, you agree to:</p>
-                <ul className="text-xs md:text-sm text-zinc-300 space-y-2 list-disc pl-5">
-                  <li>Provide accurate and truthful information.</li>
-                  <li>Respect other users and society members.</li>
-                  <li>Keep any account credentials secure (if applicable).</li>
-                  <li>Not interfere with the operation or security of the website.</li>
-                  <li>Comply with all applicable laws and University of Ruhuna policies.</li>
-                </ul>
-              </section>
-            )}
-
-            {/* Section 5 */}
-            {matchesSearch("5. Prohibited Activities unauthorized access malicious software viruses scrape scrape code impersonate false unlawful restricted") && (
-              <section id="section-5" className="terms-card p-6 md:p-8 border border-red-500/30 bg-red-950/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-red-500/20 text-red-300 font-bold flex items-center justify-center text-sm border border-red-500/30">
-                    5
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Prohibited Activities</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3">You must not:</p>
-                <ul className="text-xs md:text-sm text-zinc-300 space-y-2 list-disc pl-5 mb-4">
-                  <li>Attempt to gain unauthorized access to the website or its systems.</li>
-                  <li>Upload malicious software, viruses, or harmful code.</li>
-                  <li>Use automated tools to scrape or copy website content without permission.</li>
-                  <li>Impersonate another person or organization.</li>
-                  <li>Submit false or misleading information.</li>
-                  <li>Use the website for unlawful, fraudulent, or abusive activities.</li>
-                  <li>Disrupt events, registrations, or website services.</li>
-                </ul>
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200 text-xs">
-                  <strong>Warning:</strong> Violation of these Terms may result in restricted access to the website.
-                </div>
-              </section>
-            )}
-
-            {/* Section 6 */}
-            {matchesSearch("6. Event Registration accurate limits selection certificates schedule modify cancel") && (
-              <section id="section-6" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    6
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Event Registration</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3">When registering for ADSS Ruhuna events, you agree that:</p>
-                <ul className="text-xs md:text-sm text-zinc-300 space-y-2 list-disc pl-5">
-                  <li>Information provided is accurate and complete.</li>
-                  <li>Registration does not guarantee selection where participant limits apply.</li>
-                  <li>Attendance requirements may apply for receiving certificates.</li>
-                  <li>Event schedules, speakers, or venues may change due to unforeseen circumstances.</li>
-                  <li>ADSS Ruhuna reserves the right to cancel or modify events when necessary.</li>
-                </ul>
-              </section>
-            )}
-
-            {/* Section 7 */}
-            {matchesSearch("7. Membership eligibility applications procedures termination rejection false information") && (
-              <section id="section-7" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    7
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Membership</h2>
-                </div>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-3">
-                  Membership eligibility, application procedures, and benefits are determined by ADSS Ruhuna and may change from time to time.
-                </p>
-                <p className="text-zinc-400 text-xs leading-relaxed">
-                  Providing false information during membership applications may result in rejection or termination of membership.
-                </p>
-              </section>
-            )}
-
-            {/* Section 8 */}
-            {matchesSearch("8. Intellectual Property branding logos posters articles images videos documents materials credit non-commercial reproduction") && (
-              <section id="section-8" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    8
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Intellectual Property</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3">
-                  Unless otherwise stated, all content available on this website is the property of ADSS Ruhuna or is used with permission. This includes:
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-                  {["Society name & branding", "Logos", "Event posters", "Articles", "Images", "Videos", "Documents", "Website design & materials"].map(item => (
-                    <div key={item} className="p-2 rounded-lg bg-white/5 text-xs text-zinc-300 border border-white/5 text-center font-medium">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-zinc-300 text-xs leading-relaxed mb-2">
-                  You may view, download, and share content for personal, educational, and non-commercial purposes, provided appropriate credit is given and the content is not modified.
-                </p>
-                <p className="text-amber-300/90 text-xs font-semibold">
-                  Commercial use, reproduction, or redistribution without prior written permission is prohibited.
-                </p>
-              </section>
-            )}
-
-            {/* Section 9 */}
-            {matchesSearch("9. User-Submitted Content feedback registrations comments photographs competition submissions accurate permission promote") && (
-              <section id="section-9" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    9
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">User-Submitted Content</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3">If you submit content such as feedback, event registrations, comments, photographs, or competition submissions, you confirm that:</p>
-                <ul className="text-xs md:text-sm text-zinc-300 space-y-2 list-disc pl-5">
-                  <li>The information is accurate.</li>
-                  <li>You own or have permission to submit the content.</li>
-                  <li>ADSS Ruhuna may use the content for administrative purposes or to promote society activities, unless otherwise agreed.</li>
-                </ul>
-              </section>
-            )}
-
-            {/* Section 10 */}
-            {matchesSearch("10. Third-Party Links external websites universities partners sponsors availability endorse responsible") && (
-              <section id="section-10" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    10
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Third-Party Links</h2>
-                </div>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-3">
-                  Our website may include links to external websites operated by universities, partners, sponsors, or service providers.
-                </p>
-                <p className="text-zinc-400 text-xs leading-relaxed">
-                  These links are provided for convenience only. ADSS Ruhuna does not control or endorse the content, privacy practices, or availability of third-party websites and is not responsible for any information or services they provide.
-                </p>
-              </section>
-            )}
-
-            {/* Section 11 */}
-            {matchesSearch("11. Disclaimer informational educational accuracy guarantees completeness reliability notice") && (
-              <section id="section-11" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    11
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Disclaimer</h2>
-                </div>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-3">
-                  The information provided on this website is for general informational and educational purposes.
-                </p>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-3">
-                  While ADSS Ruhuna strives to keep information accurate and up to date, we make no guarantees regarding the completeness, reliability, or accuracy of any content.
-                </p>
-                <p className="text-zinc-400 text-xs leading-relaxed">
-                  Website content, event details, schedules, and resources may change without prior notice.
-                </p>
-              </section>
-            )}
-
-            {/* Section 12 */}
-            {matchesSearch("12. Limitation of Liability committee volunteers University of Ruhuna direct indirect damage downtime technical errors cancellations") && (
-              <section id="section-12" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    12
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Limitation of Liability</h2>
-                </div>
-                <p className="text-zinc-300 text-sm mb-3 leading-relaxed">
-                  To the fullest extent permitted by law, ADSS Ruhuna, its committee members, volunteers, and the University of Ruhuna shall not be liable for any direct, indirect, incidental, or consequential loss or damage arising from:
-                </p>
-                <ul className="text-xs md:text-sm text-zinc-300 space-y-1.5 list-disc pl-5">
-                  <li>Use of this website.</li>
-                  <li>Website downtime or technical issues.</li>
-                  <li>Errors or omissions in website content.</li>
-                  <li>Third-party services linked from this website.</li>
-                  <li>Event cancellations or schedule changes.</li>
-                </ul>
-              </section>
-            )}
-
-            {/* Section 13 */}
-            {matchesSearch("13. Privacy Privacy Policy personal information collected protected") && (
-              <section id="section-13" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    13
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Privacy</h2>
-                </div>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-4">
-                  Your use of this website is also governed by our <strong>Privacy Policy</strong>, which explains how personal information is collected, used, and protected.
-                </p>
+            {/* Quick Segment Filter Pills */}
+            <div className="flex items-center gap-1 bg-[#161718] p-1 rounded-[6px] border border-[#23252a] overflow-x-auto">
+              {[
+                { id: "all", label: "All" },
+                { id: "conduct", label: "Conduct" },
+                { id: "events", label: "Events & Pass" },
+                { id: "ip", label: "IP & Assets" },
+                { id: "governance", label: "Governance" },
+              ].map((tab) => (
                 <button
-                  onClick={() => {
-                    window.history.pushState({}, "", "/privacy");
-                    window.dispatchEvent(new Event("popstate"));
-                  }}
-                  className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-semibold rounded-xl text-xs border border-indigo-500/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(tab.id)}
+                  className={`px-2.5 py-1 rounded-[4px] font-berkeley-mono text-[10.5px] whitespace-nowrap transition-colors cursor-pointer ${
+                    selectedCategory === tab.id
+                      ? "bg-[#08090a] text-[#ffffff] border border-[#383b3f]"
+                      : "text-[#8a8f98] hover:text-[#ffffff]"
+                  }`}
                 >
-                  <span className="material-symbols-outlined text-sm">policy</span>
-                  <span>View Privacy Policy</span>
+                  {tab.label}
                 </button>
-              </section>
-            )}
-
-            {/* Section 14 */}
-            {matchesSearch("14. Changes to These Terms revise operational legal organizational effective date acceptance") && (
-              <section id="section-14" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    14
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Changes to These Terms</h2>
-                </div>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-3">
-                  ADSS Ruhuna may revise these Terms of Service at any time to reflect operational, legal, or organizational changes.
-                </p>
-                <p className="text-zinc-400 text-xs leading-relaxed">
-                  Updated versions will be published on this page with a revised effective date. Continued use of the website after changes become effective constitutes acceptance of the updated Terms.
-                </p>
-              </section>
-            )}
-
-            {/* Section 15 */}
-            {matchesSearch("15. Governing Law Democratic Socialist Republic of Sri Lanka competent courts jurisdiction disputes") && (
-              <section id="section-15" className="terms-card p-6 md:p-8 border border-white/10">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    15
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Governing Law</h2>
-                </div>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-3">
-                  These Terms of Service shall be governed by and interpreted in accordance with the laws of the <strong>Democratic Socialist Republic of Sri Lanka</strong>.
-                </p>
-                <p className="text-zinc-400 text-xs leading-relaxed">
-                  Any disputes arising from the use of this website shall be subject to the jurisdiction of the competent courts of Sri Lanka.
-                </p>
-              </section>
-            )}
-
-            {/* Section 16 */}
-            {matchesSearch("16. Contact Us Actuarial Data Science Society ADSS Ruhuna Faculty of Science University of Ruhuna Matara Sri Lanka website email") && (
-              <section id="section-16" className="terms-card p-6 md:p-8 border border-indigo-500/30 bg-indigo-950/20">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-500/30">
-                    16
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Contact Us</h2>
-                </div>
-                <p className="text-zinc-300 text-sm leading-relaxed mb-6">
-                  If you have any questions regarding these Terms of Service, please contact us.
-                </p>
-
-                <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3 text-xs md:text-sm">
-                  <div>
-                    <strong className="text-white text-base block mb-1">Actuarial & Data Science Society (ADSS) Ruhuna</strong>
-                    <span className="text-zinc-300 block">Faculty of Science</span>
-                    <span className="text-zinc-300 block">University of Ruhuna</span>
-                    <span className="text-zinc-300 block">Matara, Sri Lanka</span>
-                  </div>
-
-                  <div className="pt-3 border-t border-white/10 flex flex-wrap gap-4">
-                    <div>
-                      <span className="text-zinc-400 block text-xs">Official Website:</span>
-                      <a 
-                        href="https://www.math.ruh.ac.lk/adss/" 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-indigo-300 hover:text-white underline font-medium"
-                      >
-                        https://www.math.ruh.ac.lk/adss/
-                      </a>
-                    </div>
-                    <div>
-                      <span className="text-zinc-400 block text-xs">Email Contact:</span>
-                      <a 
-                        href="mailto:bhanukadilshan2002@gmail.com" 
-                        className="text-indigo-300 hover:text-white underline font-medium"
-                      >
-                        bhanukadilshan2002@gmail.com
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* Footer timestamp */}
-            <div className="text-center py-6 text-xs text-zinc-500 border-t border-white/5">
-              <strong>Last Updated:</strong> August 5, 2026 &bull; Actuarial & Data Science Society (ADSS) Ruhuna
+              ))}
             </div>
-
           </div>
         </div>
 
+        {/* ── Student Charter Matrix (4 Core Ground Rules) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-sans">
+          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#27a644]">
+              <FileCheck2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-[13px] font-[510] text-[#ffffff]">Academic Integrity</h4>
+              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+                All participant engagement must reflect University of Ruhuna student ethics and mutual respect.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#02b8cc]">
+              <QrCode className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-[13px] font-[510] text-[#ffffff]">Anti-Fraud QR Passes</h4>
+              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+                Dynamic QR credentials are non-transferable and verified live at gate scanners.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#6366f1]">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-[13px] font-[510] text-[#ffffff]">Platform Security</h4>
+              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+                Zero tolerance for credential sharing, automated scraping, or unauthorized access attempts.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#e4f222]">
+              <Award className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-[13px] font-[510] text-[#ffffff]">Educational Licensing</h4>
+              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+                Society slide decks and resources are strictly for non-commercial personal learning.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── The 4 Shortened Policy Pillars ── */}
+        <div className="space-y-4">
+          {filteredPillars.length === 0 ? (
+            <div className="bg-[#0f1011] border border-[#23252a] rounded-[12px] p-10 text-center font-berkeley-mono text-[12px] text-[#8a8f98] space-y-2">
+              <Search className="w-6 h-6 mx-auto text-[#62666d]" />
+              <p>No terms clauses match "{searchTerm}".</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedCategory("all");
+                }}
+                className="text-[#e4f222] hover:underline"
+              >
+                Reset Search Filters
+              </button>
+            </div>
+          ) : (
+            filteredPillars.map((pillar) => {
+              const Icon = pillar.icon;
+              return (
+                <section
+                  key={pillar.id}
+                  id={pillar.id}
+                  className="bg-[#0f1011] border border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-7 space-y-4"
+                >
+                  {/* Pillar Header */}
+                  <div className="flex items-start justify-between gap-3 border-b border-[#23252a] pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#d0d6e0] flex-shrink-0">
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-berkeley-mono text-[10.5px] text-[#e4f222]">
+                            {pillar.code}
+                          </span>
+                          <h2 className="text-[16px] sm:text-[18px] font-[510] text-[#ffffff] tracking-[-0.012em]">
+                            {pillar.title}
+                          </h2>
+                        </div>
+                        <p className="text-[12px] text-[#8a8f98] mt-0.5">
+                          {pillar.summary}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pillar Content Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    {pillar.items.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-[#161718] border border-[#23252a] rounded-[8px] p-3.5 space-y-1"
+                      >
+                        <h3 className="text-[12.5px] font-[510] text-[#ffffff] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#383b3f]" />
+                          {item.label}
+                        </h3>
+                        <p className="text-[11.5px] text-[#8a8f98] leading-relaxed pl-3">
+                          {item.detail}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })
+          )}
+        </div>
+
+        {/* ── Privacy Policy Bridge & Official Governing Council ── */}
+        <section className="bg-[#0f1011] border border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-7 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#23252a] pb-4">
+            <div>
+              <span className="font-berkeley-mono text-[10px] text-[#8a8f98] uppercase">
+                GOVERNING COUNCIL & INQUIRIES
+              </span>
+              <h3 className="text-[16px] font-[510] text-[#ffffff] mt-0.5">
+                Actuarial & Data Science Society (ADSS)
+              </h3>
+              <p className="text-[12px] text-[#8a8f98]">
+                Faculty of Science, University of Ruhuna, Matara, Sri Lanka
+              </p>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Privacy Policy Link */}
+              <button
+                type="button"
+                onClick={handleNavigatePrivacy}
+                className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#818cf8] hover:text-[#ffffff] font-berkeley-mono text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="View Privacy Policy"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Privacy Policy</span>
+              </button>
+
+              <a
+                href="https://www.math.ruh.ac.lk/adss/"
+                target="_blank"
+                rel="noreferrer"
+                className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#d0d6e0] hover:text-[#ffffff] font-berkeley-mono text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-[#02b8cc]" />
+                <span>math.ruh.ac.lk/adss</span>
+                <ExternalLink className="w-3 h-3 text-[#62666d]" />
+              </a>
+
+              <div className="flex items-center bg-[#161718] border border-[#23252a] rounded-[6px] overflow-hidden">
+                <a
+                  href="mailto:bhanukadilshan2002@gmail.com"
+                  className="h-8 px-3 text-[#d0d6e0] hover:text-[#ffffff] font-berkeley-mono text-[11px] flex items-center gap-1.5 transition-colors"
+                >
+                  <Mail className="w-3.5 h-3.5 text-[#e4f222]" />
+                  <span>bhanukadilshan2002@gmail.com</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={handleCopyEmail}
+                  className="h-8 px-2.5 border-l border-[#23252a] hover:bg-[#23252a] text-[#8a8f98] hover:text-[#ffffff] transition-colors flex items-center justify-center cursor-pointer"
+                  title="Copy email address"
+                >
+                  {copiedEmail ? <Check className="w-3.5 h-3.5 text-[#27a644]" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-berkeley-mono text-[#62666d]">
+            <div>
+              Legal Authority: <span className="text-[#8a8f98]">University of Ruhuna Student Society Charter</span>
+            </div>
+            <div>
+              Last Revised: <span className="text-[#8a8f98]">August 2026</span>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );

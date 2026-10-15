@@ -9,7 +9,7 @@
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#6366f1" />
+    <meta name="theme-color" content="#08090a" />
 
     <!-- iOS PWA Support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -19,7 +19,7 @@
 
     <!-- Windows PWA -->
     <meta name="msapplication-TileImage" content="/icons/icon-192x192.png" />
-    <meta name="msapplication-TileColor" content="#09090b" />
+    <meta name="msapplication-TileColor" content="#08090a" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
@@ -45,7 +45,7 @@
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet" />
     
     <style>
@@ -80,6 +80,25 @@
         theme: {
           extend: {
             "colors": {
+              /* DESIGN.md Linear Tokens */
+              "void": "#08090a",
+              "carbon": "#0f1011",
+              "obsidian": "#161718",
+              "graphite": "#23252a",
+              "smoke": "#383b3f",
+              "ash": "#62666d",
+              "fog": "#8a8f98",
+              "mist": "#d0d6e0",
+              "bone": "#e5e5e6",
+              "paper": "#ffffff",
+              "acid-lime": "#e4f222",
+              "pulse-green": "#27a644",
+              "coral-red": "#eb5757",
+              "signal-teal": "#02b8cc",
+              "iris-violet": "#6366f1",
+              "lavender": "#8b5cf6",
+
+              /* Legacy app tokens preserved */
               "surface-elevated": "#18181b",
               "text-secondary": "#a1a1aa",
               "on-surface-variant": "#818cf8",
@@ -138,16 +157,33 @@
               "DEFAULT": "0.25rem",
               "lg": "0.5rem",
               "xl": "0.75rem",
-              "full": "9999px"
+              "full": "9999px",
+              /* DESIGN.md 3-radii vocabulary */
+              "cards": "12px",
+              "buttons": "6px",
+              "inputs": "6px",
+              "pills": "9999px",
+              "badges": "4px"
+            },
+            "fontWeight": {
+              "light": "300",
+              "normal": "400",
+              "regular": "400",
+              "medium": "510",
+              "w510": "510",
+              "w590": "590"
             },
             "spacing": {
               "gutter": "24px",
-              "section-padding-desktop": "120px",
-              "container-max": "1280px",
-              "unit": "8px",
+              "section-padding-desktop": "96px",
+              "container-max": "1200px",
+              "unit": "4px",
+              "section-gap": "96px",
               "section-padding-mobile": "64px"
             },
             "fontFamily": {
+              "inter-variable": ['"Inter"', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+              "berkeley-mono": ['"JetBrains Mono"', '"SFMono-Regular"', 'ui-monospace', 'Menlo', 'monospace'],
               "headline-lg": ["Inter"],
               "headline-md": ["Inter"],
               "body-lg": ["Inter"],
@@ -157,13 +193,20 @@
               "display-hero": ["Inter"]
             },
             "fontSize": {
-              "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}],
-              "headline-md": ["32px", {"lineHeight": "1.3", "fontWeight": "600"}],
-              "body-lg": ["20px", {"lineHeight": "1.6", "fontWeight": "400"}],
-              "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
-              "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "600"}],
-              "headline-lg-mobile": ["32px", {"lineHeight": "1.2", "fontWeight": "600"}],
-              "display-hero": ["80px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+              "caption": ["13px", {"lineHeight": "1.2"}],
+              "body-sm": ["15px", {"lineHeight": "1.6", "letterSpacing": "-0.165px"}],
+              "body-lg": ["20px", {"lineHeight": "1.33", "letterSpacing": "-0.24px"}],
+              "subheading": ["24px", {"lineHeight": "1.33", "letterSpacing": "-0.288px"}],
+              "heading-sm": ["32px", {"lineHeight": "1.13", "letterSpacing": "-0.704px"}],
+              "heading": ["48px", {"lineHeight": "1.0", "letterSpacing": "-1.056px"}],
+              "heading-lg": ["64px", {"lineHeight": "1.0", "letterSpacing": "-1.408px"}],
+              "display": ["72px", {"lineHeight": "1.0", "letterSpacing": "-1.584px"}],
+              "headline-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "510"}],
+              "headline-md": ["32px", {"lineHeight": "1.3", "fontWeight": "510"}],
+              "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+              "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "510"}],
+              "headline-lg-mobile": ["32px", {"lineHeight": "1.2", "fontWeight": "510"}],
+              "display-hero": ["72px", {"lineHeight": "1.0", "letterSpacing": "-0.022em", "fontWeight": "510"}]
             }
           },
         },
@@ -180,11 +223,18 @@
       (function() {
         // Set background instantly from cached theme to prevent white flash
         var theme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.style.background = theme === 'dark' ? '#09090b' : '#fafafa';
+        if (theme === 'light') {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+          document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        document.documentElement.style.background = theme === 'dark' ? '#08090a' : '#ffffff';
 
-        // If visiting /login and already have a cached session, redirect immediately (before React loads)
+        // If visiting /login or /register and already have a cached session, redirect immediately (before React loads)
         var path = window.location.pathname;
-        if (path === '/login') {
+        if (path === '/login' || path === '/register') {
           try {
             var auth = localStorage.getItem('adss-auth');
             var profile = localStorage.getItem('adss-profile-cache');

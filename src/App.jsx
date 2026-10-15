@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
-import { resizeImage } from "./utils/imageOptimizer";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import Events from "./pages/Events";
 import Attendance from "./pages/Attendance";
 import Committee from "./pages/Committee";
-import About from "./pages/About";
 import Setup from "./pages/Setup";
 import Access from "./pages/Access";
 import MyInfo from "./pages/MyInfo";
@@ -21,26 +21,64 @@ import Letters from "./pages/Letters";
 import AssistantPage from "./pages/AssistantPage";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import Documents from "./pages/Documents";
 import ChatWidget from "./components/ChatWidget";
+import ErrorBoundary from "./components/ErrorBoundary";
+import MobileNav from "./components/MobileNav";
+import MinimalFooter from "./components/MinimalFooter";
+import {
+  LayoutDashboard,
+  Megaphone,
+  UserCheck,
+  CalendarCheck,
+  Users,
+  Briefcase,
+  Calendar,
+  Mail,
+  FileText,
+  ShieldCheck,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Moon,
+  LogOut,
+  Shield,
+  FolderArchive
+} from "lucide-react";
 import "./App.css";
 
-const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: "dashboard" },
-  { id: "notices", label: "Notices", icon: "campaign" },
-  { id: "my_info", label: "My Info", icon: "person" },
-  { id: "attendance", label: "Attendance", icon: "check_circle" },
-  { id: "members", label: "Members", icon: "groups" },
-  { id: "committee", label: "Committee", icon: "diversity_3" },
-  // { id: "tasks", label: "OC Tasks", icon: "task_alt" },
-  { id: "events", label: "Events", icon: "event" },
-  { id: "messages", label: "Messages", icon: "mail" },
-  { id: "letters", label: "Letter Requests", icon: "description" },
-  { id: "access", label: "Access", icon: "admin_panel_settings" },
-  { id: "assistant", label: "AI Assistant", icon: "auto_awesome" },
-  { id: "about", label: "Society Details", icon: "info" },
-
-  // { id: "setup", label: "DB Setup", icon: "database" },
+const NAV_SECTIONS = [
+  {
+    title: "Workspace",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { id: "notices", label: "Notices", icon: Megaphone },
+      { id: "my_info", label: "My Credentials", icon: UserCheck },
+      { id: "messages", label: "Messages", icon: Mail },
+    ]
+  },
+  {
+    title: "Operations",
+    items: [
+      { id: "events", label: "Events", icon: Calendar },
+      { id: "attendance", label: "Attendance", icon: CalendarCheck },
+      { id: "committee", label: "Committee (OC)", icon: Briefcase },
+      { id: "letters", label: "Letter Requests", icon: FileText },
+      { id: "documents", label: "Documents", icon: FolderArchive },
+    ]
+  },
+  {
+    title: "Directory & Intel",
+    items: [
+      { id: "members", label: "Members", icon: Users },
+      { id: "assistant", label: "AI Assistant", icon: Sparkles },
+      { id: "access", label: "Access Control", icon: ShieldCheck },
+    ]
+  }
 ];
+
+const NAV_ITEMS = NAV_SECTIONS.flatMap(s => s.items);
 
 const ROLE_LABELS = {
   guest: "Guest",
@@ -56,6 +94,38 @@ const getInitials = (name) => {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// Helper to get allowed document categories for a member (supports legacy array and granular category map)
+export const getMemberDocCategories = (stId, email, docAccessData) => {
+  if (!docAccessData) return [];
+  const myStId = (stId || "").trim().toUpperCase();
+  const myEmail = (email || "").trim().toLowerCase();
+
+  // 1. Array format (legacy): all categories allowed
+  if (Array.isArray(docAccessData)) {
+    const isPresent = docAccessData.some(id => {
+      const val = (id || "").trim();
+      return (myStId && val.toUpperCase() === myStId) ||
+             (myEmail && val.toLowerCase() === myEmail);
+    });
+    return isPresent ? ["Events", "Budgets", "Permissions", "Guidance"] : [];
+  }
+
+  // 2. Object format (granular): { [key]: ["Guidance", "Permissions"] }
+  if (typeof docAccessData === "object") {
+    for (const [key, categories] of Object.entries(docAccessData)) {
+      const normKey = (key || "").trim();
+      if (
+        (myStId && normKey.toUpperCase() === myStId) ||
+        (myEmail && normKey.toLowerCase() === myEmail)
+      ) {
+        return Array.isArray(categories) ? categories : [];
+      }
+    }
+  }
+
+  return [];
 };
 
 // --- Profile cache for instant startup (like Facebook) ---
@@ -77,10 +147,9 @@ export default function App() {
   const [page, setPage] = useState(() => {
     if (_isReturningUser) {
       // Instantly set the correct page from cache
-      if (_cached.status === "pending") return "about";
       return _cached.role === "member" ? "attendance" : "dashboard";
     }
-    return "about";
+    return "dashboard";
   });
   const [connected, setConnected] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
@@ -90,18 +159,11 @@ export default function App() {
   });
   // If we have a cached profile, skip loading entirely — dashboard renders instantly
   const [authLoading, setAuthLoading] = useState(!_isReturningUser);
-  const [showLogin, setShowLogin] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
-  const [login, setLogin] = useState({ role: "member", email: "", password: "", stId: "", name: "", preferredName: "", level: "1", phone: "", memberFunction: "Finance" });
-  const [loginError, setLoginError] = useState("");
-  const [authSaving, setAuthSaving] = useState(false);
   const [regEnabled, setRegEnabled] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(true);
+  const [docAccessMembers, setDocAccessMembers] = useState([]);
   const [viewAsMember, setViewAsMember] = useState(false);
   const [pendingMsgCount, setPendingMsgCount] = useState(0);
-  
-  const [profileImageFile, setProfileImageFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
 
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [currentHash, setCurrentHash] = useState(window.location.hash);
@@ -126,40 +188,12 @@ export default function App() {
   const isPrivacyRoute = currentPath.startsWith("/privacy") || currentHash.startsWith("#/privacy") || currentHash.startsWith("#privacy");
   const isTermsRoute = currentPath.startsWith("/terms") || currentHash.startsWith("#/terms") || currentHash.startsWith("#terms");
   const isLoginRoute = currentPath === "/login" || currentHash === "#/login" || currentHash === "#login";
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        setLoginError("Please select a valid image file.");
-        return;
-      }
-      setProfileImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
-  };
-
-  const resetAuthForm = () => {
-    setLogin({ role: "member", email: "", password: "", name: "", preferredName: "", stId: "", level: "1", phone: "", memberFunction: "Finance" });
-    setLoginError("");
-    setProfileImageFile(null);
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-  };
+  const isRegisterRoute = currentPath === "/register" || currentHash === "#/register" || currentHash === "#register";
 
   useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
     document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.style.background = theme === "dark" ? "#08090a" : "#ffffff";
     localStorage.setItem("theme", theme);
   }, [theme]);
 
@@ -167,15 +201,53 @@ export default function App() {
     supabase.from("members").select("count", { count: "exact", head: true })
       .then(({ error }) => setConnected(!error));
 
-    supabase.from("system_settings").select("key, value").in("key", ["registration_enabled", "ai_feature_enabled"])
-      .then(({ data }) => {
-        if (data) {
-          const regSetting = data.find(s => s.key === "registration_enabled");
-          const aiSetting = data.find(s => s.key === "ai_feature_enabled");
-          if (regSetting) setRegEnabled(regSetting.value === "true");
-          if (aiSetting) setAiEnabled(aiSetting.value === "true");
+    const loadSettings = () => {
+      supabase.from("system_settings").select("key, value").in("key", ["registration_enabled", "ai_feature_enabled", "document_access_members"])
+        .then(({ data }) => {
+          if (data) {
+            const regSetting = data.find(s => s.key === "registration_enabled");
+            const aiSetting = data.find(s => s.key === "ai_feature_enabled");
+            const docSetting = data.find(s => s.key === "document_access_members");
+            if (regSetting) setRegEnabled(regSetting.value === "true");
+            if (aiSetting) setAiEnabled(aiSetting.value === "true");
+            if (docSetting) {
+              try {
+                const parsed = JSON.parse(docSetting.value);
+                setDocAccessMembers(parsed || {});
+              } catch (_) {
+                setDocAccessMembers({});
+              }
+            }
+          }
+        });
+    };
+    loadSettings();
+
+    // Subscribe to system settings changes so permissions update in real-time
+    const settingsSub = supabase
+      .channel("app-system-settings-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "system_settings" }, (payload) => {
+        const record = payload.new;
+        if (!record || !record.key) {
+          loadSettings();
+          return;
         }
-      });
+        if (record.key === "registration_enabled") setRegEnabled(record.value === "true");
+        if (record.key === "ai_feature_enabled") setAiEnabled(record.value === "true");
+        if (record.key === "document_access_members") {
+          try {
+            const parsed = JSON.parse(record.value);
+            setDocAccessMembers(parsed || {});
+          } catch (_) {
+            setDocAccessMembers({});
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(settingsSub);
+    };
   }, []);
 
   /* ─ Pending message badge count ─ */
@@ -209,16 +281,8 @@ export default function App() {
         if (alive) {
           setSession({ role: "guest", stId: "", name: "", email: "", userId: "" });
           setViewAsMember(false);
-          setPage("about");
+          setPage("dashboard");
           setAuthLoading(false);
-
-          // Auto-open login modal when visiting /login as guest
-          const path = window.location.pathname;
-          const hash = window.location.hash;
-          if (path === "/login" || hash === "#/login" || hash === "#login") {
-            setAuthMode("login");
-            setShowLogin(true);
-          }
         }
         return;
       }
@@ -246,7 +310,7 @@ export default function App() {
         setCachedProfile(profileData);  // Cache for instant startup next time
         setViewAsMember(false);
         setPage(prev => {
-          if (userStatus === "pending") return "about";
+          if (userStatus === "pending") return "dashboard";
           if (prev === "about") {
             return userRole === "member" ? "attendance" : "dashboard";
           }
@@ -254,10 +318,10 @@ export default function App() {
         });
         setAuthLoading(false);
 
-        // If user is already logged in and visits /login, redirect to home
+        // If user is already logged in and visits /login or /register, redirect to home
         const path = window.location.pathname;
         const hash = window.location.hash;
-        if (path === "/login" || hash === "#/login" || hash === "#login") {
+        if (path === "/login" || hash === "#/login" || hash === "#login" || path === "/register" || hash === "#/register" || hash === "#register") {
           window.history.replaceState({}, "", "/");
           window.dispatchEvent(new Event("popstate"));
         }
@@ -276,231 +340,44 @@ export default function App() {
     };
   }, []);
 
-  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, about: About, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage, privacy: PrivacyPolicy, terms: TermsOfService };
+  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage, privacy: PrivacyPolicy, terms: TermsOfService, documents: Documents };
   const PageComponent = pages[page];
   const isRealStaff = canEdit(session.role);
   const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
   const isEditor = canEdit(effectiveRole);
   const canAccessAi = isEditor || aiEnabled;
 
-  const visibleNavItems = effectiveRole === "guest"
-    ? NAV_ITEMS.filter(item => item.id === "about" || item.id === "privacy" || item.id === "terms" || (item.id === "assistant" && canAccessAi))
-    : NAV_ITEMS.filter(item => {
-      if (item.id === "access") return effectiveRole === "admin";
-      if (item.id === "letters") return isEditor;
-      if (item.id === "my_info") return !!session.stId;
-      if (item.id === "members") return isEditor;
-      if (item.id === "assistant") return canAccessAi;
-      return isEditor || item.id !== "dashboard";
-    });
-
-  const handleLogin = async (event) => {
-    event.preventDefault();
-    setLoginError("");
-    setAuthSaving(true);
-
-    const email = login.email.trim().toLowerCase();
-    const role = login.role;
-
-    if (authMode === "register") {
-      const name = login.name.trim();
-      if (!email || !login.password || !name) {
-        setLoginError("Email, name, and password are required.");
-        setAuthSaving(false);
-        return;
-      }
-
-      let v_st_id = null;
-      let v_name = name;
-      let v_preferred_name = login.preferredName.trim() || null;
-
-      // Check if email exists in the members table to link st_id for all roles (member, editor, admin)
-      const { data: memberRows, error: memberErr } = await supabase
-        .rpc("get_member_by_email", { p_email: email });
-
-      if (memberErr) {
-        setLoginError("Database check failed: " + memberErr.message);
-        setAuthSaving(false);
-        return;
-      }
-
-      const isPreRegistered = memberRows && memberRows.length > 0;
-      if (isPreRegistered) {
-        const memberData = memberRows[0];
-        v_st_id = memberData.st_id;
-        if (!v_name) {
-          v_name = memberData.name;
-        }
-        if (!v_preferred_name && memberData.preferred_name) {
-          v_preferred_name = memberData.preferred_name;
-        }
-      }
-
-      // Check if staff invite exists
-      const { data: canRegisterStaff } = await supabase
-        .rpc("can_register_staff", { p_email: email, p_role: role });
-
-      // If general registration is off, and they are not pre-registered nor invited staff, block it
-      if (!regEnabled && !isPreRegistered && !canRegisterStaff) {
-        setLoginError("General registration is currently closed.");
-        setAuthSaving(false);
-        return;
-      }
-
-      // If they are registering a new user not in the members table, and they are not invited staff,
-      // they must provide student ID and phone number.
-      if (!isPreRegistered && !canRegisterStaff) {
-        if (!login.stId.trim() || !login.phone.trim()) {
-          setLoginError("Student ID and Phone Number are required for registration.");
-          setAuthSaving(false);
-          return;
-        }
-      }
-
-      let finalStId = isPreRegistered ? v_st_id : "";
-      if (!isPreRegistered) {
-        const trimmedStId = login.stId.trim();
-        if (!trimmedStId) {
-          setLoginError("Student ID is required.");
-          setAuthSaving(false);
-          return;
-        }
-        if (/^\d{4}\/\d{5}$/.test(trimmedStId)) {
-          finalStId = "SC/" + trimmedStId;
-        } else if (/^sc\/\d{4}\/\d{5}$/i.test(trimmedStId)) {
-          finalStId = "SC/" + trimmedStId.substring(3);
-        } else {
-          setLoginError("Invalid Student ID format. Correct format: SC/2022/12984");
-          setAuthSaving(false);
-          return;
-        }
-      }
-
-      let profileImageUrl = null;
-      if (profileImageFile) {
-        try {
-          const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
-          const cleanStId = finalStId.replace(/\//g, "-");
-          const fileName = `${cleanStId}_${Date.now()}.jpg`;
-
-          const { error: uploadError } = await supabase.storage
-            .from("profile_images")
-            .upload(fileName, optimizedFile, {
-              cacheControl: "3600",
-              upsert: true
-            });
-
-          if (uploadError) {
-            throw new Error("Failed to upload profile image: " + uploadError.message);
-          }
-
-          const { data: urlData } = supabase.storage
-            .from("profile_images")
-            .getPublicUrl(fileName);
-
-          profileImageUrl = urlData?.publicUrl;
-        } catch (imgErr) {
-          setLoginError(imgErr.message);
-          setAuthSaving(false);
-          return;
-        }
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: login.password,
-        options: {
-          data: {
-            full_name: v_name,
-            preferred_name: v_preferred_name,
-            role,
-            st_id: finalStId,
-            level: login.level || "1",
-            mobile_number: isPreRegistered ? null : login.phone.trim(),
-            member_function: isPreRegistered ? null : (role === "member" ? login.memberFunction : null),
-            profile_image_url: profileImageUrl
-          }
-        },
-      });
-
-      if (error) {
-        setLoginError(error.message);
-        setAuthSaving(false);
-        return;
-      }
-
-      setAuthSaving(false);
-      setLoginError(data.session ? "" : "Registration request submitted. Check your email to confirm your account, then login.");
-      if (data.session) {
-        setShowLogin(false);
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("status, role")
-          .eq("id", data.user.id)
-          .maybeSingle();
-
-        const userStatus = profile?.status || "approved";
-        const userRole = profile?.role || role;
-
-        if (userStatus === "pending") {
-          setSession({
-            role: userRole,
-            stId: isPreRegistered ? v_st_id : login.stId.trim(),
-            name: v_name,
-            email,
-            userId: data.user.id,
-            status: "pending"
-          });
-          setViewAsMember(false);
-          setPage("about");
-        } else {
-          setSession({
-            role: userRole,
-            stId: isPreRegistered ? v_st_id : login.stId.trim(),
-            name: v_name,
-            email,
-            userId: data.user.id,
-            status: "approved"
-          });
-          setViewAsMember(false);
-          setPage(userRole === "member" ? "attendance" : userRole === "admin" ? "dashboard" : "members");
-        }
-      }
-      return;
+  const filterNavItem = (item) => {
+    if (effectiveRole === "guest") {
+      return item.id === "privacy" || item.id === "terms" || (item.id === "assistant" && canAccessAi);
     }
-
-    // Login logic for all roles (member, editor, admin) via email & password
-    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password: login.password });
-    setAuthSaving(false);
-    if (!error && authData?.user) {
-      setShowLogin(false);
-      setLogin({ role: "member", email: "", password: "", stId: "", name: "" });
-      setLoginError("");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", authData.user.id)
-        .maybeSingle();
-
-      const userRole = profile?.role || "member";
-      if (userRole === "member") {
-        setPage("attendance");
-      } else {
-        setPage(userRole === "admin" ? "dashboard" : "members");
-      }
-      return;
+    if (item.id === "access") return effectiveRole === "admin";
+    if (item.id === "letters") return isEditor;
+    if (item.id === "my_info") return !!session.stId;
+    if (item.id === "members") return isEditor;
+    if (item.id === "assistant") return canAccessAi;
+    if (item.id === "documents") {
+      if (isEditor) return true;
+      const allowedCats = getMemberDocCategories(session.stId, session.email, docAccessMembers);
+      return allowedCats.length > 0;
     }
-
-    setLoginError(error ? error.message : "Invalid credentials.");
+    return isEditor || item.id !== "dashboard";
   };
+
+  const visibleNavItems = NAV_ITEMS.filter(filterNavItem);
+
+  const visibleSections = NAV_SECTIONS.map(sec => ({
+    ...sec,
+    items: sec.items.filter(filterNavItem)
+  })).filter(sec => sec.items.length > 0);
+
 
   const handleLogout = async () => {
     clearCachedProfile();  // Clear cached profile so next visit shows login
     await supabase.auth.signOut();
     setSession({ role: "guest", stId: "", name: "", email: "", userId: "", status: "approved" });
     setViewAsMember(false);
-    setPage("about");
+    setPage("dashboard");
   };
 
   const toggleTheme = () => setTheme(current => current === "dark" ? "light" : "dark");
@@ -535,6 +412,7 @@ export default function App() {
   if (isNoticeRoute) {
     return (
       <PublicNotice
+        theme={theme}
         onBackToLanding={() => {
           window.history.pushState({}, "", "/");
           window.dispatchEvent(new Event("popstate"));
@@ -608,6 +486,58 @@ export default function App() {
         }}
         role={effectiveRole}
         session={session}
+        theme={theme}
+      />
+    );
+  }
+
+  if (isLoginRoute) {
+    if (session.userId && session.role !== "guest") {
+      window.history.replaceState({}, "", "/");
+      window.dispatchEvent(new Event("popstate"));
+      return null;
+    }
+    return (
+      <Login
+        theme={theme}
+        onNavigate={(dest) => {
+          window.history.pushState({}, "", dest === "register" ? "/register" : "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+        onLoginSuccess={(profileData) => {
+          setSession(profileData);
+          setCachedProfile(profileData);
+          setViewAsMember(false);
+          setPage(profileData.status === "pending" ? "dashboard" : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+      />
+    );
+  }
+
+  if (isRegisterRoute) {
+    if (session.userId && session.role !== "guest") {
+      window.history.replaceState({}, "", "/");
+      window.dispatchEvent(new Event("popstate"));
+      return null;
+    }
+    return (
+      <Register
+        theme={theme}
+        regEnabled={regEnabled}
+        onNavigate={(dest) => {
+          window.history.pushState({}, "", dest === "login" ? "/login" : "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
+        onRegisterSuccess={(profileData, isPending) => {
+          setSession(profileData);
+          setCachedProfile(profileData);
+          setViewAsMember(false);
+          setPage(isPending ? "dashboard" : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
+          window.history.pushState({}, "", "/");
+          window.dispatchEvent(new Event("popstate"));
+        }}
       />
     );
   }
@@ -704,10 +634,13 @@ export default function App() {
   // Returning users NEVER see this — their dashboard renders instantly from cache
   if (authLoading && !session.userId) {
     return (
-      <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
+      <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)", flexDirection: "column", position: "relative" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ width: "32px", height: "32px", border: "3px solid var(--border)", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.6s linear infinite", margin: "0 auto 12px" }} />
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+        <div style={{ position: "fixed", bottom: "24px", left: 0, right: 0 }}>
+          <MinimalFooter session={session} />
         </div>
       </div>
     );
@@ -720,184 +653,31 @@ export default function App() {
           theme={theme}
           onThemeToggle={toggleTheme}
           regEnabled={regEnabled}
+          aiEnabled={canAccessAi}
           onLoginClick={() => {
-            setAuthMode("login");
-            setShowLogin(true);
-            setLoginError("");
+            window.history.pushState({}, "", "/login");
+            window.dispatchEvent(new Event("popstate"));
           }}
           onRegisterClick={() => {
-            setAuthMode("register");
-            setShowLogin(true);
-            setLoginError("");
+            window.history.pushState({}, "", "/register");
+            window.dispatchEvent(new Event("popstate"));
           }}
         />
-        {showLogin && (
-          <div className="modal-overlay" onClick={() => setShowLogin(false)}>
-            <div className="modal" style={{ maxWidth: "450px" }} onClick={(e) => e.stopPropagation()}>
-              <form className="login-card" onSubmit={handleLogin} style={{ padding: 0, border: "none", background: "none" }}>
-                <div className="page-header">
-                  <h1 className="page-title">{authMode === "login" ? "Login" : "Register"}</h1>
-                  <p className="page-subtitle">{authMode === "login" ? "Email access for members, editors, and admins" : "Member or staff registration"}</p>
-                </div>
-                {loginError && <div className="alert alert-error">{loginError}</div>}
-                <div className="auth-tabs">
-                  <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setLoginError(""); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setLogin({ role: "member", email: "", password: "", name: "", preferredName: "", stId: "", level: "1", phone: "", memberFunction: "Finance" }); setLoginError(""); }}>Register</button>
-                </div>
-                {authMode === "register" && (
-                  <>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Full Name</label>
-                        <input
-                          placeholder="A.B. Pathum Nissanka"
-                          value={login.name}
-                          onChange={e => setLogin({ ...login, name: e.target.value })}
-                          autoFocus
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Preferred Name <span className="text-muted" style={{ fontSize: "12px", fontWeight: "normal" }}>(Calling Name)</span></label>
-                        <input
-                          placeholder="Pathum"
-                          value={login.preferredName}
-                          onChange={e => setLogin({ ...login, preferredName: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Profile Picture</label>
-                        <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
-                          {previewUrl ? (
-                            <img
-                              src={previewUrl}
-                              alt="Profile Preview"
-                              style={{ width: "50px", height: "50px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
-                            />
-                          ) : (
-                            <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "var(--text3)", flexShrink: 0 }}>
-                              👤
-                            </div>
-                          )}
-                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              id="profile-image-upload-guest"
-                              onChange={handleFileChange}
-                              style={{ display: "none" }}
-                            />
-                            <label
-                              htmlFor="profile-image-upload-guest"
-                              className="btn btn-ghost btn-sm"
-                              style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
-                            >
-                              Choose Photo
-                            </label>
-                            <span className="text-muted" style={{ fontSize: "11px" }}>
-                              {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "No file chosen (Auto-resized to 500x600 px)"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {(!regEnabled && login.role === "member") ? (
-                      <div className="form-row">
-                        <div className="alert alert-error" style={{ width: "100%", margin: 0 }}>
-                          General registration is currently closed. If you have been invited as staff, please select Editor or Admin.
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="form-row form-row-2">
-                          <div className="form-group">
-                            <label>Student ID (ST ID)</label>
-                            <input
-                              placeholder="e.g. SC/2022/12345"
-                              value={login.stId}
-                              onChange={e => setLogin({ ...login, stId: e.target.value })}
-                              required
-                            />
-                            {login.stId && !/^(?:SC\/)?\d{4}\/\d{5}$/i.test(login.stId.trim()) && (
-                              <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
-                                Invalid Student ID format. Correct format: SC/2022/12984
-                              </span>
-                            )}
-                          </div>
-                          <div className="form-group">
-                            <label>Year / Level</label>
-                            <select value={login.level} onChange={e => setLogin({ ...login, level: e.target.value })}>
-                              <option value="1">Year 1</option>
-                              <option value="2">Year 2</option>
-                              <option value="3">Year 3</option>
-                              <option value="4">Year 4</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="form-row">
-                          <div className="form-group">
-                            <label>Phone Number</label>
-                            <input
-                              placeholder="e.g. +94771234567"
-                              value={login.phone}
-                              onChange={e => setLogin({ ...login, phone: e.target.value })}
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div className="form-row">
-                          <div className="form-group">
-                            <label>Member Function</label>
-                            <select value={login.memberFunction} onChange={e => setLogin({ ...login, memberFunction: e.target.value })}>
-                              <option value="Finance">Finance</option>
-                              <option value="Marketing">Marketing</option>
-                              <option value="Operation & Academic Management">Operation & Academic Management</option>
-                              <option value="Personal Development">Personal Development</option>
-                              <option value="Public Relations">Public Relations</option>
-                              <option value="Research & Analyst">Research & Analyst</option>
-                            </select>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-                <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Email</label>
-                      <input
-                        type="email"
-                        placeholder="e.g. member@domain.com"
-                        value={login.email}
-                        onChange={e => setLogin({ ...login, email: e.target.value })}
-                        autoFocus={authMode === "login"}
-                      />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Password</label>
-                      <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={login.password}
-                        onChange={e => setLogin({ ...login, password: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </>
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowLogin(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={authSaving || (authMode === "register" && !regEnabled && login.role === "member")}>{authSaving ? "Please wait..." : authMode === "login" ? "Login" : "Register"}</button>
-                </div>
-              </form>
-            </div>
-          </div>
+        {canAccessAi && (
+          <ChatWidget
+            role="guest"
+            session={session}
+            theme={theme}
+            onNavigate={(dest) => {
+              if (dest === "assistant") {
+                window.history.pushState({}, "", "/assistant");
+                window.dispatchEvent(new Event("popstate"));
+              } else {
+                setPage(dest);
+              }
+            }}
+            currentPage="landing"
+          />
         )}
       </>
     );
@@ -905,73 +685,129 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/* Mobile-only Navigation: Top bar, Bottom bar, and Curved side drawer */}
+      <MobileNav
+        page={page}
+        setPage={setPage}
+        visibleSections={visibleSections}
+        session={session}
+        pendingMsgCount={pendingMsgCount}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        isRealStaff={isRealStaff}
+        viewAsMember={viewAsMember}
+        handleToggleViewAsMember={handleToggleViewAsMember}
+        handleLogout={handleLogout}
+        connected={connected}
+        canAccessAi={canAccessAi}
+      />
+
       <aside className={`sidebar ${sidebarOpen ? "open" : "collapsed"}`}>
         <div className="sidebar-header">
-          <img src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} className="logo-img" alt="ADSS Logo" />
-          <div className="logo-text">
-            <span className="logo-title">ADSS</span>
-            <span className="logo-sub">Society Manager</span>
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <img 
+              src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`} 
+              className="logo-img" 
+              alt="ADSS Logo" 
+            />
+            {sidebarOpen && (
+              <div className="logo-text min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="logo-title">ADSS RUHUNA</span>
+                  <span className="text-[9px] font-berkeley-mono text-[#8a8f98] bg-[#161718] border border-[#23252a] px-1 py-0.5 rounded-[3px]">
+                    v2.6
+                  </span>
+                </div>
+                <span className="logo-sub">2024/25 Active Cycle</span>
+              </div>
+            )}
           </div>
-          <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle navigation menu">
-            <span className="toggle-icon-desktop"><span className="material-symbols-outlined" style={{fontSize:'16px'}}>{sidebarOpen ? "chevron_left" : "chevron_right"}</span></span>
-            <span className="toggle-icon-mobile"><span className="material-symbols-outlined" style={{fontSize:'20px'}}>{sidebarOpen ? "close" : "menu"}</span></span>
+          <button 
+            className="sidebar-toggle" 
+            onClick={() => setSidebarOpen(!sidebarOpen)} 
+            aria-label="Toggle navigation menu"
+          >
+            {sidebarOpen ? (
+              <ChevronLeft className="w-4 h-4 text-[#8a8f98] hover:text-white transition-colors" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-[#8a8f98] hover:text-white transition-colors" />
+            )}
           </button>
         </div>
 
+        {/* Database Telemetry Indicator */}
         <div className="connection-badge">
           <span className={`dot ${connected === null ? "pending" : connected ? "ok" : "err"}`} />
-          {sidebarOpen && <span>{connected === null ? "Connecting..." : connected ? "Database Live" : "Not Connected"}</span>}
+          {sidebarOpen && (
+            <span className="text-[10px] font-berkeley-mono uppercase tracking-wider text-[#8a8f98]">
+              {connected === null ? "SYNCHRONIZING..." : connected ? "DB SYNCHRONIZED" : "OFFLINE"}
+            </span>
+          )}
         </div>
 
+        {/* Grouped Linear Nav Sections */}
         <nav className="sidebar-nav">
-          {visibleNavItems.map(item => (
-            <button
-              key={item.id}
-              className={`nav-item ${page === item.id ? "active" : ""}`}
-              onClick={() => {
-                setPage(item.id);
-                if (window.innerWidth <= 768) setSidebarOpen(false);
-              }}
-              style={{ position: "relative" }}
-            >
-              <span className="nav-icon"><span className="material-symbols-outlined">{item.icon}</span></span>
-              {sidebarOpen && <span className="nav-label">{item.label}</span>}
-              {/* Pending message badge */}
-              {item.id === "messages" && pendingMsgCount > 0 && (
-                <span style={{
-                  position: sidebarOpen ? "static" : "absolute",
-                  top: sidebarOpen ? undefined : "4px",
-                  right: sidebarOpen ? undefined : "4px",
-                  marginLeft: sidebarOpen ? "auto" : undefined,
-                  minWidth: "18px",
-                  height: "18px",
-                  borderRadius: "99px",
-                  background: "#f59e0b",
-                  color: "#fff",
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 5px",
-                  lineHeight: 1,
-                  boxShadow: "0 0 0 2px var(--bg)",
-                  flexShrink: 0,
-                }}>
-                  {pendingMsgCount > 99 ? "99+" : pendingMsgCount}
-                </span>
+          {visibleSections.map((section) => (
+            <div key={section.title} className="sidebar-group">
+              {sidebarOpen && (
+                <div className="sidebar-group-title">
+                  {section.title}
+                </div>
               )}
-            </button>
+              <div className="sidebar-group-items">
+                {section.items.map(item => {
+                  const IconComponent = item.icon;
+                  const isActive = page === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      className={`nav-item ${isActive ? "active" : ""}`}
+                      onClick={() => {
+                        setPage(item.id);
+                        if (window.innerWidth <= 768) setSidebarOpen(false);
+                      }}
+                      title={!sidebarOpen ? item.label : undefined}
+                    >
+                      <span className="nav-icon">
+                        <IconComponent className="w-4 h-4" />
+                      </span>
+                      {sidebarOpen && <span className="nav-label">{item.label}</span>}
+                      
+                      {/* Pending message badge */}
+                      {item.id === "messages" && pendingMsgCount > 0 && (
+                        <span className="nav-badge-pill">
+                          {pendingMsgCount > 99 ? "99+" : pendingMsgCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           ))}
         </nav>
 
-        {sidebarOpen && (
+        {/* Footer: User Quick Profile & Controls */}
+        {sidebarOpen ? (
           <div className="sidebar-footer">
-            <div className="sidebar-section-label">
-              {session.role === "admin" || session.role === "editor" ? "Admin" : "Preferences"}
-            </div>
+            {/* User Quick Profile Snippet (if logged in) */}
+            {session.role !== "guest" && (
+              <div className="sidebar-user-pill">
+                <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center font-berkeley-mono text-[11px] font-[510] text-white flex-shrink-0">
+                  {getInitials(session.name || session.email)}
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="text-[12px] font-[510] text-white truncate leading-tight">
+                    {session.preferredName || session.name || "Member"}
+                  </div>
+                  <div className="text-[10px] font-berkeley-mono text-[#8a8f98] uppercase tracking-wider">
+                    {session.role}
+                  </div>
+                </div>
+              </div>
+            )}
 
-            {/* Row 1: Side-by-side controls (View Staff & Dark Mode) */}
+            {/* Quick Segmented Controls */}
             <div className={`sidebar-grid-row ${isRealStaff ? "two-cols" : "one-col"}`}>
               {isRealStaff && (
                 <div
@@ -980,9 +816,7 @@ export default function App() {
                   title={viewAsMember ? "Switch to Staff View" : "Switch to Member View"}
                 >
                   <div className="sidebar-compact-header">
-                    <span className="material-symbols-outlined icon">
-                      {viewAsMember ? "person" : "group"}
-                    </span>
+                    <Shield className="w-3.5 h-3.5 icon text-[#6366f1]" />
                     <span className="sidebar-compact-title">{viewAsMember ? "Member" : "Staff"}</span>
                   </div>
                   <div className="sidebar-compact-badge">
@@ -997,9 +831,7 @@ export default function App() {
                 title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
               >
                 <div className="sidebar-compact-header">
-                  <span className="material-symbols-outlined icon">
-                    {theme === "dark" ? "dark_mode" : "light_mode"}
-                  </span>
+                  {theme === "dark" ? <Moon className="w-3.5 h-3.5 icon text-amber-400" /> : <Sun className="w-3.5 h-3.5 icon text-amber-500" />}
                   <span className="sidebar-compact-title">{theme === "dark" ? "Dark" : "Light"}</span>
                 </div>
                 <div className={`sidebar-toggle-switch mini ${theme === "dark" ? "active" : ""}`}>
@@ -1010,206 +842,74 @@ export default function App() {
 
             <div className="sidebar-divider" />
 
-            {/* Row 2: Logout */}
+            {/* Logout / Login button */}
             <div
               className="sidebar-pref-card logout-card"
               onClick={session.role !== "guest" ? handleLogout : () => {
-                setShowLogin(true);
-                resetAuthForm();
+                window.history.pushState({}, "", "/login");
+                window.dispatchEvent(new Event("popstate"));
                 if (window.innerWidth <= 768) {
                   setSidebarOpen(false);
                 }
               }}
             >
               <div className="sidebar-pref-left">
-                <span className="material-symbols-outlined" style={{ color: "#f43f5e", fontSize: "18px" }}>
-                  logout
-                </span>
+                <LogOut className="w-3.5 h-3.5 text-[#eb5757]" />
                 <span className="sidebar-logout-title">{session.role !== "guest" ? "Logout" : "Login"}</span>
               </div>
-              <span className="material-symbols-outlined" style={{ color: "#f43f5e", fontSize: "18px" }}>
-                chevron_right
-              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-[#62666d]" />
             </div>
+          </div>
+        ) : (
+          /* Collapsed Bottom Action */
+          <div className="p-2 border-t border-[#23252a] flex flex-col items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[#8a8f98] hover:text-white hover:bg-[#161718] transition-colors"
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? <Moon className="w-4 h-4 text-amber-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            </button>
+            <button
+              onClick={session.role !== "guest" ? handleLogout : () => {
+                window.history.pushState({}, "", "/login");
+                window.dispatchEvent(new Event("popstate"));
+              }}
+              className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[#eb5757] hover:bg-[#eb5757]/10 transition-colors"
+              title={session.role !== "guest" ? "Logout" : "Login"}
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         )}
       </aside>
 
       <main className="main-content">
         <div className="page-wrapper">
-          {showLogin ? (
-            <div className="login-page">
-              <form className="login-card" onSubmit={handleLogin}>
-                <div className="page-header">
-                  <h1 className="page-title">{authMode === "login" ? "Login" : "Register"}</h1>
-                  <p className="page-subtitle">{authMode === "login" ? "Email access for members, editors, and admins" : "Member or staff registration"}</p>
-                </div>
-                {loginError && <div className="alert alert-error">{loginError}</div>}
-                <div className="auth-tabs">
-                  <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); resetAuthForm(); }}>Login</button>
-                  <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); resetAuthForm(); }}>Register</button>
-                </div>
-                {authMode === "register" && (
-                  <>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Full Name</label>
-                        <input
-                          placeholder="A.B. Pathum Nissanka"
-                          value={login.name}
-                          onChange={e => setLogin({ ...login, name: e.target.value })}
-                          autoFocus
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Preferred Name <span className="text-muted" style={{ fontSize: "12px", fontWeight: "normal" }}>(Calling Name)</span></label>
-                        <input
-                          placeholder="Pathum"
-                          value={login.preferredName}
-                          onChange={e => setLogin({ ...login, preferredName: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Profile Picture</label>
-                        <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "var(--bg3)", padding: "12px", borderRadius: "var(--r)", border: "1px solid var(--border)" }}>
-                          {previewUrl ? (
-                            <img
-                              src={previewUrl}
-                              alt="Profile Preview"
-                              style={{ width: "50px", height: "50px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--accent)", flexShrink: 0 }}
-                            />
-                          ) : (
-                            <div style={{ width: "50px", height: "50px", borderRadius: "50%", background: "var(--bg)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "var(--text3)", flexShrink: 0 }}>
-                              👤
-                            </div>
-                          )}
-                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              id="profile-image-upload"
-                              onChange={handleFileChange}
-                              style={{ display: "none" }}
-                            />
-                            <label
-                              htmlFor="profile-image-upload"
-                              className="btn btn-ghost btn-sm"
-                              style={{ cursor: "pointer", alignSelf: "flex-start", padding: "4px 12px", border: "1px solid var(--border)" }}
-                            >
-                              Choose Photo
-                            </label>
-                            <span className="text-muted" style={{ fontSize: "11px" }}>
-                              {profileImageFile ? `${profileImageFile.name.substring(0, 20)}${profileImageFile.name.length > 20 ? "..." : ""}` : "No file chosen (Auto-resized to 500x600 px)"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {(!regEnabled && login.role === "member") ? (
-                      <div className="form-row">
-                        <div className="alert alert-error" style={{ width: "100%", margin: 0 }}>
-                          General registration is currently closed. If you have been invited as staff, please select Editor or Admin.
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="form-row form-row-2">
-                          <div className="form-group">
-                            <label>Student ID (ST ID)</label>
-                            <input
-                              placeholder="e.g. SC/2022/12345"
-                              value={login.stId}
-                              onChange={e => setLogin({ ...login, stId: e.target.value })}
-                              required
-                            />
-                            {login.stId && !/^(?:SC\/)?\d{4}\/\d{5}$/i.test(login.stId.trim()) && (
-                              <span style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px", display: "block" }}>
-                                Invalid Student ID format. Correct format: SC/2022/12984
-                              </span>
-                            )}
-                          </div>
-                          <div className="form-group">
-                            <label>Year / Level</label>
-                            <select value={login.level} onChange={e => setLogin({ ...login, level: e.target.value })}>
-                              <option value="1">Year 1</option>
-                              <option value="2">Year 2</option>
-                              <option value="3">Year 3</option>
-                              <option value="4">Year 4</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="form-row">
-                          <div className="form-group">
-                            <label>Phone Number</label>
-                            <input
-                              placeholder="e.g. +94771234567"
-                              value={login.phone}
-                              onChange={e => setLogin({ ...login, phone: e.target.value })}
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div className="form-row">
-                          <div className="form-group">
-                            <label>Member Function</label>
-                            <select value={login.memberFunction} onChange={e => setLogin({ ...login, memberFunction: e.target.value })}>
-                              <option value="Finance">Finance</option>
-                              <option value="Marketing">Marketing</option>
-                              <option value="Operation & Academic Management">Operation & Academic Management</option>
-                              <option value="Personal Development">Personal Development</option>
-                              <option value="Public Relations">Public Relations</option>
-                              <option value="Research & Analyst">Research & Analyst</option>
-                            </select>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-                <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Email</label>
-                      <input
-                        type="email"
-                        placeholder="e.g. member@domain.com"
-                        value={login.email}
-                        onChange={e => setLogin({ ...login, email: e.target.value })}
-                        autoFocus={authMode === "login"}
-                      />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Password</label>
-                      <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={login.password}
-                        onChange={e => setLogin({ ...login, password: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </>
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowLogin(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={authSaving || (authMode === "register" && !regEnabled && login.role === "member")}>{authSaving ? "Please wait..." : authMode === "login" ? "Login" : "Register"}</button>
-                </div>
-              </form>
-            </div>
-          ) : (
-            <PageComponent onNavigate={setPage} isAdmin={isEditor} role={effectiveRole} session={session} />
-          )}
+          <ErrorBoundary key={page} onNavigate={setPage}>
+            <PageComponent
+              onNavigate={setPage}
+              isAdmin={isEditor}
+              role={effectiveRole}
+              session={session}
+              theme={theme}
+              docAccessMembers={docAccessMembers}
+              setDocAccessMembers={setDocAccessMembers}
+            />
+          </ErrorBoundary>
         </div>
       </main>
 
       {/* AI Assistant widget — hidden when user is on full page or when disabled for members */}
-      {canAccessAi && page !== "assistant" && <ChatWidget role={effectiveRole} session={session} />}
+      {canAccessAi && page !== "assistant" && (
+        <ChatWidget
+          role={effectiveRole}
+          session={session}
+          onNavigate={setPage}
+          currentPage={page}
+          theme={theme}
+        />
+      )}
     </div>
   );
 }
