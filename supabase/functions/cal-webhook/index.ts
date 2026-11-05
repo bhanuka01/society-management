@@ -3,17 +3,73 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cal-signature-256',
 };
+
+// Verify HMAC-SHA256 signature from Cal.com
+async function verifyCalSignature(rawBody: string, signatureHeader: string | null, secret: string): Promise<boolean> {
+  if (!signatureHeader || !secret) return false;
+
+  try {
+    const signature = signatureHeader.startsWith('sha256=')
+      ? signatureHeader.slice(7)
+      : signatureHeader;
+
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+
+    const signedBuffer = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      encoder.encode(rawBody)
+    );
+
+    const computedSignature = Array.from(new Uint8Array(signedBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    const sigA = encoder.encode(computedSignature.toLowerCase());
+    const sigB = encoder.encode(signature.toLowerCase().trim());
+
+    if (sigA.byteLength !== sigB.byteLength) {
+      return false;
+    }
+
+    // Constant-time comparison to prevent timing attacks
+    let diff = 0;
+    for (let i = 0; i < sigA.byteLength; i++) {
+      diff |= sigA[i] ^ sigB[i];
+    }
+    return diff === 0;
+  } catch (err) {
+    console.error('Signature verification error:', err);
+    return false;
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // Health check endpoint
+  if (req.method === 'GET') {
+    return new Response(
+      JSON.stringify({ status: 'ok', message: 'Cal.com webhook endpoint is active.' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const calWebhookSecret = Deno.env.get('CAL_WEBHOOK_SECRET');
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
@@ -22,21 +78,42 @@ serve(async (req) => {
       );
     }
 
+    if (!calWebhookSecret) {
+      console.error('CAL_WEBHOOK_SECRET is not configured in Supabase Edge Secrets.');
+      return new Response(
+        JSON.stringify({ error: 'Server misconfiguration: CAL_WEBHOOK_SECRET is not set.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Read raw body string for exact HMAC signature validation
+    const rawBody = await req.text();
+    const signature = req.headers.get('x-cal-signature-256');
+
+    const isValidSignature = await verifyCalSignature(rawBody, signature, calWebhookSecret);
+    if (!isValidSignature) {
+      console.warn('Unauthorized webhook request: Invalid or missing X-Cal-Signature-256');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Invalid webhook signature.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     let body: any = {};
     try {
-      body = await req.json();
+      body = JSON.parse(rawBody);
     } catch {
       // Empty body request handling
     }
 
-    console.log('Cal.com Webhook Payload received:', JSON.stringify(body));
+    console.log('Cal.com Webhook Payload received (authenticated):', JSON.stringify(body));
 
     const triggerEvent = body.triggerEvent || body.event || body.type;
     const payload = body.payload || body;
 
     // Handle Cal.com Ping Test
-    if (!triggerEvent || triggerEvent === 'PING' || triggerEvent === 'ping' || body.ping || req.method === 'GET') {
+    if (!triggerEvent || triggerEvent === 'PING' || triggerEvent === 'ping' || body.ping) {
       return new Response(
         JSON.stringify({ success: true, message: 'Ping test successful!' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
