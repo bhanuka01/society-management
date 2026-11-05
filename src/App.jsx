@@ -1,31 +1,42 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./supabaseClient";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
-import Members from "./pages/Members";
-import Events from "./pages/Events";
-import Attendance from "./pages/Attendance";
-import Committee from "./pages/Committee";
-import Setup from "./pages/Setup";
-import Access from "./pages/Access";
-import MyInfo from "./pages/MyInfo";
-import Messages from "./pages/Messages";
-import Tasks from "./pages/Tasks";
-import Landing from "./pages/Landing";
-import PublicEvent from "./pages/PublicEvent";
-import Notices from "./pages/Notices";
-import PublicNotice from "./pages/PublicNotice";
-import ScanAttendance from "./pages/ScanAttendance";
-import Letters from "./pages/Letters";
-import AssistantPage from "./pages/AssistantPage";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsOfService from "./pages/TermsOfService";
-import Documents from "./pages/Documents";
+
+// Code-split pages for high performance and fast initial load
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Members = lazy(() => import("./pages/Members"));
+const Events = lazy(() => import("./pages/Events"));
+const Attendance = lazy(() => import("./pages/Attendance"));
+const Committee = lazy(() => import("./pages/Committee"));
+const Setup = lazy(() => import("./pages/Setup"));
+const Access = lazy(() => import("./pages/Access"));
+const MyInfo = lazy(() => import("./pages/MyInfo"));
+const Messages = lazy(() => import("./pages/Messages"));
+const Tasks = lazy(() => import("./pages/Tasks"));
+const Landing = lazy(() => import("./pages/Landing"));
+const PublicEvent = lazy(() => import("./pages/PublicEvent"));
+const Notices = lazy(() => import("./pages/Notices"));
+const PublicNotice = lazy(() => import("./pages/PublicNotice"));
+const ScanAttendance = lazy(() => import("./pages/ScanAttendance"));
+const Letters = lazy(() => import("./pages/Letters"));
+const AssistantPage = lazy(() => import("./pages/AssistantPage"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const Documents = lazy(() => import("./pages/Documents"));
+
 import ChatWidget from "./components/ChatWidget";
 import ErrorBoundary from "./components/ErrorBoundary";
 import MobileNav from "./components/MobileNav";
 import MinimalFooter from "./components/MinimalFooter";
+
+function PageFallback() {
+  return (
+    <div style={{ display: "flex", minHeight: "50vh", alignItems: "center", justifyContent: "center", width: "100%" }}>
+      <div style={{ width: "32px", height: "32px", border: "2px solid rgba(129, 140, 248, 0.2)", borderTop: "2px solid #818cf8", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+    </div>
+  );
+}
 import {
   LayoutDashboard,
   Megaphone,
@@ -400,57 +411,67 @@ export default function App() {
 
   if (isEventRoute) {
     return (
-      <PublicEvent
-        onBackToLanding={() => {
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <PublicEvent
+          onBackToLanding={() => {
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+        />
+      </Suspense>
     );
   }
 
   if (isNoticeRoute) {
     return (
-      <PublicNotice
-        theme={theme}
-        onBackToLanding={() => {
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <PublicNotice
+          theme={theme}
+          onBackToLanding={() => {
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+        />
+      </Suspense>
     );
   }
 
   if (isScanAttendanceRoute) {
     return (
-      <ScanAttendance
-        onBackToLanding={() => {
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <ScanAttendance
+          onBackToLanding={() => {
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+        />
+      </Suspense>
     );
   }
 
   if (isPrivacyRoute) {
     return (
-      <PrivacyPolicy
-        onBackToLanding={() => {
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <PrivacyPolicy
+          onBackToLanding={() => {
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+        />
+      </Suspense>
     );
   }
 
   if (isTermsRoute) {
     return (
-      <TermsOfService
-        onBackToLanding={() => {
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <TermsOfService
+          onBackToLanding={() => {
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -479,15 +500,17 @@ export default function App() {
       );
     }
     return (
-      <AssistantPage
-        onBackToLanding={() => {
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-        role={effectiveRole}
-        session={session}
-        theme={theme}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <AssistantPage
+          onBackToLanding={() => {
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+          role={effectiveRole}
+          session={session}
+          theme={theme}
+        />
+      </Suspense>
     );
   }
 
@@ -498,21 +521,23 @@ export default function App() {
       return null;
     }
     return (
-      <Login
-        theme={theme}
-        onNavigate={(dest) => {
-          window.history.pushState({}, "", dest === "register" ? "/register" : "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-        onLoginSuccess={(profileData) => {
-          setSession(profileData);
-          setCachedProfile(profileData);
-          setViewAsMember(false);
-          setPage(profileData.status === "pending" ? "dashboard" : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <Login
+          theme={theme}
+          onNavigate={(dest) => {
+            window.history.pushState({}, "", dest === "register" ? "/register" : "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+          onLoginSuccess={(profileData) => {
+            setSession(profileData);
+            setCachedProfile(profileData);
+            setViewAsMember(false);
+            setPage(profileData.status === "pending" ? "dashboard" : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -523,22 +548,24 @@ export default function App() {
       return null;
     }
     return (
-      <Register
-        theme={theme}
-        regEnabled={regEnabled}
-        onNavigate={(dest) => {
-          window.history.pushState({}, "", dest === "login" ? "/login" : "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-        onRegisterSuccess={(profileData, isPending) => {
-          setSession(profileData);
-          setCachedProfile(profileData);
-          setViewAsMember(false);
-          setPage(isPending ? "dashboard" : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
-          window.history.pushState({}, "", "/");
-          window.dispatchEvent(new Event("popstate"));
-        }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <Register
+          theme={theme}
+          regEnabled={regEnabled}
+          onNavigate={(dest) => {
+            window.history.pushState({}, "", dest === "login" ? "/login" : "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+          onRegisterSuccess={(profileData, isPending) => {
+            setSession(profileData);
+            setCachedProfile(profileData);
+            setViewAsMember(false);
+            setPage(isPending ? "dashboard" : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
+            window.history.pushState({}, "", "/");
+            window.dispatchEvent(new Event("popstate"));
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -648,7 +675,7 @@ export default function App() {
 
   if (session.role === "guest") {
     return (
-      <>
+      <Suspense fallback={<PageFallback />}>
         <Landing
           theme={theme}
           onThemeToggle={toggleTheme}
@@ -679,7 +706,7 @@ export default function App() {
             currentPage="landing"
           />
         )}
-      </>
+      </Suspense>
     );
   }
 
@@ -881,15 +908,17 @@ export default function App() {
       <main className="main-content">
         <div className="page-wrapper">
           <ErrorBoundary key={page} onNavigate={setPage}>
-            <PageComponent
-              onNavigate={setPage}
-              isAdmin={isEditor}
-              role={effectiveRole}
-              session={session}
-              theme={theme}
-              docAccessMembers={docAccessMembers}
-              setDocAccessMembers={setDocAccessMembers}
-            />
+            <Suspense fallback={<PageFallback />}>
+              <PageComponent
+                onNavigate={setPage}
+                isAdmin={isEditor}
+                role={effectiveRole}
+                session={session}
+                theme={theme}
+                docAccessMembers={docAccessMembers}
+                setDocAccessMembers={setDocAccessMembers}
+              />
+            </Suspense>
           </ErrorBoundary>
         </div>
       </main>

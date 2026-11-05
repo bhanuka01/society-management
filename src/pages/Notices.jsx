@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { 
   Megaphone, 
   Search, 
@@ -377,7 +378,8 @@ export default function Notices({ isAdmin = false, session, theme }) {
 
   const renderMarkdown = (mdContent) => {
     try {
-      return { __html: marked.parse(mdContent || "") };
+      const rawHtml = marked.parse(mdContent || "");
+      return { __html: DOMPurify.sanitize(rawHtml) };
     } catch (err) {
       return { __html: `<p class="text-[#eb5757] font-berkeley-mono text-xs">Markdown rendering error</p>` };
     }

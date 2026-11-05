@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { 
   Megaphone, 
   Share2, 
@@ -150,7 +151,8 @@ export default function PublicNotice({ onBackToLanding, theme }) {
 
   const renderMarkdown = (mdContent) => {
     try {
-      return { __html: marked.parse(mdContent || "") };
+      const rawHtml = marked.parse(mdContent || "");
+      return { __html: DOMPurify.sanitize(rawHtml) };
     } catch (err) {
       return { __html: `<p class="text-[#eb5757] font-berkeley-mono text-xs">Markdown parsing error</p>` };
     }
