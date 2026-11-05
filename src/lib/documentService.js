@@ -61,7 +61,7 @@ export function getMemberCategoriesFromMap(accessMap, member) {
   return [];
 }
 
-export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 export const MAX_TOTAL_STORAGE_BYTES = 9 * 1024 * 1024 * 1024; // 9 GB = 9,663,676,416 bytes
 
 export const ALLOWED_EXTENSIONS = ["pdf", "docx", "doc", "png", "jpg", "jpeg", "webp", "zip", "7z"];
@@ -134,7 +134,7 @@ export function validateDocumentFile(file, currentTotalBytes = null) {
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return {
       valid: false,
-      error: `File is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed size is 25 MB.`
+      error: `File is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed size is 50 MB.`
     };
   }
 
@@ -292,6 +292,78 @@ export async function checkR2Config() {
 }
 
 /**
+ * Uploads a file directly to Cloudflare R2 via pre-signed PUT URL using XMLHttpRequest
+ * to stream upload progress events with real-time byte accuracy.
+ *
+ * @param {string} uploadUrl
+ * @param {File} file
+ * @param {(evt: { loaded: number, total: number, percent: number }) => void} [onProgress]
+ * @returns {Promise<XMLHttpRequest | Response>}
+ */
+function uploadToR2WithProgress(uploadUrl, file, onProgress) {
+  if (typeof XMLHttpRequest !== "undefined") {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", uploadUrl, true);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+      if (xhr.upload) {
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable && evt.total > 0) {
+            const percent = Math.min(100, Math.round((evt.loaded / evt.total) * 100));
+            onProgress?.({
+              loaded: evt.loaded,
+              total: evt.total,
+              percent
+            });
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr);
+        } else {
+          reject(new Error(`Failed to upload file to Cloudflare R2 (${xhr.status} ${xhr.statusText || "Error"})`));
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(
+          new Error(
+            "Cloudflare R2 upload failed (Network Error). Please ensure CORS is enabled on your Cloudflare R2 bucket with Allowed Origins: * (or your domain) and Allowed Methods: PUT, GET."
+          )
+        );
+      };
+
+      xhr.ontimeout = () => {
+        reject(new Error("Upload timed out. Please check your internet connection and try again."));
+      };
+
+      xhr.onabort = () => {
+        reject(new Error("Upload was cancelled."));
+      };
+
+      xhr.send(file);
+    });
+  }
+
+  // Fallback to fetch if XMLHttpRequest is unavailable
+  return fetch(uploadUrl, {
+    method: "PUT",
+    body: file,
+    headers: {
+      "Content-Type": file.type || "application/octet-stream"
+    }
+  }).then((res) => {
+    if (!res.ok) {
+      throw new Error(`Failed to upload file to Cloudflare R2 (${res.status} ${res.statusText})`);
+    }
+    return res;
+  });
+}
+
+/**
  * Uploads a document via Cloudflare R2 pre-signed PUT URL and stores metadata in Supabase.
  */
 export async function uploadDocument({
@@ -303,9 +375,12 @@ export async function uploadDocument({
   eventId = null,
   stId = null,
   session,
-  currentTotalBytes = null
+  currentTotalBytes = null,
+  onProgress = null
 }) {
-  // 1. Client-side validation (file format, single file 25MB max, and 9GB total storage ceiling)
+  onProgress?.({ stage: "Validating file...", percent: 3, loaded: 0, total: file.size });
+
+  // 1. Client-side validation (file format, single file 50MB max, and 9GB total storage ceiling)
   const validation = validateDocumentFile(file, currentTotalBytes);
   if (!validation.valid) {
     throw new Error(validation.error);
@@ -314,6 +389,7 @@ export async function uploadDocument({
   const fileType = getFileTypeCategory(file.type, file.name);
 
   // 2. Request pre-signed upload URL from Supabase Edge Function
+  onProgress?.({ stage: "Preparing storage ticket...", percent: 8, loaded: 0, total: file.size });
   let presignedData, presignedError;
   try {
     const res = await supabase.functions.invoke(
@@ -348,27 +424,21 @@ export async function uploadDocument({
     throw new Error("Did not receive a valid upload URL from storage server.");
   }
 
-  // 3. Upload binary directly to Cloudflare R2 via HTTP PUT
-  let uploadResponse;
-  try {
-    uploadResponse = await fetch(uploadUrl, {
-      method: "PUT",
-      body: file,
-      headers: {
-        "Content-Type": file.type || "application/octet-stream"
-      }
+  // 3. Upload binary directly to Cloudflare R2 via XMLHttpRequest with real-time byte tracking
+  onProgress?.({ stage: "Streaming to Cloudflare R2...", percent: 12, loaded: 0, total: file.size });
+  await uploadToR2WithProgress(uploadUrl, file, ({ loaded, total, percent }) => {
+    // Map binary upload 0%..100% to overall progress 12%..92%
+    const mappedPercent = Math.min(92, Math.max(12, Math.round(12 + (percent * 0.8))));
+    onProgress?.({
+      stage: "Streaming to Cloudflare R2...",
+      percent: mappedPercent,
+      loaded,
+      total
     });
-  } catch (uploadErr) {
-    throw new Error(
-      "Cloudflare R2 upload failed (Failed to fetch). Please ensure CORS is enabled on your Cloudflare R2 bucket with Allowed Origins: * (or your domain) and Allowed Methods: PUT, GET."
-    );
-  }
-
-  if (!uploadResponse.ok) {
-    throw new Error(`Failed to upload file to Cloudflare R2 (${uploadResponse.status} ${uploadResponse.statusText})`);
-  }
+  });
 
   // 4. Save metadata record into Supabase Postgres
+  onProgress?.({ stage: "Registering document...", percent: 94, loaded: file.size, total: file.size });
   const uploaderName = session?.preferredName || session?.name || session?.email || "Officer";
   const docRecord = {
     name: (name || file.name).trim(),
@@ -417,6 +487,7 @@ export async function uploadDocument({
     throw new Error(`Failed to save document metadata: ${dbError.message}`);
   }
 
+  onProgress?.({ stage: "Completed!", percent: 100, loaded: file.size, total: file.size });
   return insertedDoc;
 }
 

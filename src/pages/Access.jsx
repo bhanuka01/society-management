@@ -35,8 +35,11 @@ import {
   FileSpreadsheet,
   FileCheck,
   FileText,
-  Folder
+  Folder,
+  Plus,
+  RotateCcw
 } from "lucide-react";
+import { useCycle } from "../context/CycleContext";
 import {
   ALLOWED_CATEGORIES,
   ALL_CATEGORY_IDS,
@@ -108,6 +111,26 @@ export default function Access({
   const [tempDocAccessMap, setTempDocAccessMap] = useState({});
   const [docMemberSearch, setDocMemberSearch] = useState("");
   const [savingDocAccess, setSavingDocAccess] = useState(false);
+
+  // Academic Cycle Management
+  const {
+    cycles = [],
+    activeCycle = {},
+    activeCycleId = "",
+    saveCycles = async () => ({ success: true })
+  } = useCycle();
+  const [cycleModalOpen, setCycleModalOpen] = useState(false);
+  const [tempCycles, setTempCycles] = useState([]);
+  const [tempActiveId, setTempActiveId] = useState("");
+  const [savingCycles, setSavingCycles] = useState(false);
+  const [newCycleForm, setNewCycleForm] = useState({
+    name: "",
+    startDate: "",
+    endDate: "",
+    description: "",
+    makeActive: false,
+    isVisible: true
+  });
 
   // UI state: Search, Filters, Tabs & Modals
   const [activeTab, setActiveTab] = useState("staff"); // 'staff' | 'invites' | 'matrix'
@@ -776,7 +799,7 @@ export default function Access({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
           {/* 1. General Member Registration */}
           <div className={`p-4 rounded-[8px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border flex flex-col justify-between space-y-3`}>
             <div>
@@ -951,6 +974,59 @@ export default function Access({
                 className={`h-6 px-2.5 rounded-[4px] ${isDark ? "bg-[#23252a] hover:bg-[#383b3f] text-white" : "bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 shadow-xs"} text-[11px] font-medium transition-colors`}
               >
                 Configure
+              </button>
+            </div>
+          </div>
+
+          {/* 5. Active Academic Cycle Management */}
+          <div className={`p-4 rounded-[8px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border flex flex-col justify-between space-y-3`}>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <Calendar className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
+                  <h3 className={`text-[13px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+                    Active Cycle
+                  </h3>
+                </div>
+                <span className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold ${
+                  isDark ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30" : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                }`}>
+                  {activeCycle?.name || "2024/2025"}
+                </span>
+              </div>
+              <p className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
+                Official society AGM cycle. Dictates active dates for events, committee, attendance, and notices across system dropdowns.
+              </p>
+              <div className={`mt-2 text-[10px] font-berkeley-mono px-2 py-1 rounded-[4px] border ${
+                isDark ? "bg-[#08090a] border-[#23252a] text-[#8a8f98]" : "bg-white border-gray-200 text-gray-600"
+              }`}>
+                Time: <span className={isDark ? "text-white" : "text-gray-900"}>{activeCycle?.startDate || "2024-01-01"}</span> → <span className={isDark ? "text-white" : "text-gray-900"}>{activeCycle?.endDate || "2025-12-31"}</span>
+              </div>
+            </div>
+
+            <div className={`flex items-center justify-between pt-2 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
+              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-500"}`}>
+                {cycles.length} cycles ({cycles.filter(c => c.isVisible !== false).length} visible)
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempCycles(JSON.parse(JSON.stringify(cycles)));
+                  setTempActiveId(activeCycleId);
+                  setNewCycleForm({
+                    name: "",
+                    startDate: "",
+                    endDate: "",
+                    description: "",
+                    makeActive: false,
+                    isVisible: true
+                  });
+                  setCycleModalOpen(true);
+                }}
+                className={`h-6 px-2.5 rounded-[4px] ${isDark ? "bg-[#23252a] hover:bg-[#383b3f] text-white" : "bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 shadow-xs"} text-[11px] font-medium transition-colors flex items-center gap-1`}
+              >
+                <SlidersHorizontal className="w-3 h-3" />
+                Manage
               </button>
             </div>
           </div>
@@ -1903,6 +1979,413 @@ export default function Access({
                     <>
                       <Check className="w-3.5 h-3.5" />
                       Save Access Permissions
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Academic Cycles & AGM Management Modal ── */}
+      {cycleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            className={`w-full max-w-3xl max-h-[90vh] flex flex-col rounded-[12px] border shadow-2xl ${
+              isDark ? "bg-[#0f1011] border-[#23252a] text-[#d0d6e0]" : "bg-white border-gray-200 text-gray-800"
+            }`}
+          >
+            {/* Modal Header */}
+            <div className={`p-5 border-b ${isDark ? "border-[#23252a]" : "border-gray-200"} flex items-center justify-between`}>
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-[6px] flex items-center justify-center ${isDark ? "bg-[#e4f222]/10 text-[#e4f222]" : "bg-amber-100 text-amber-700"}`}>
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className={`text-[15px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+                    Academic Cycles & AGM Manager
+                  </h2>
+                  <p className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Manage society cycles across AGM tenures, set active dates, and control dropdown visibility.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCycleModalOpen(false)}
+                className={`p-1.5 rounded-[6px] transition-colors ${
+                  isDark ? "hover:bg-[#161718] text-[#8a8f98] hover:text-white" : "hover:bg-gray-100 text-gray-500"
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-6 flex-1 text-[12px]">
+              {/* Guidance banner */}
+              <div className={`p-3.5 rounded-[8px] border flex items-start gap-3 ${
+                isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-amber-50/70 border-amber-200 text-amber-900"
+              }`}>
+                <Info className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isDark ? "text-[#e4f222]" : "text-amber-600"}`} />
+                <div className="text-[11px] leading-relaxed">
+                  <span className={`font-semibold ${isDark ? "text-white" : "text-amber-950"}`}>
+                    AGM Handover & Data Separation:
+                  </span>{" "}
+                  After each Annual General Meeting, add the new cycle (e.g. 2024/2025, 2025/2026) and designate it as the Active Cycle.
+                  Use the <span className={`font-medium ${isDark ? "text-[#e4f222]" : "text-amber-700"}`}>tick checkbox</span> to determine which cycles appear in user dropdowns (events, committee recruitment, attendance, and notices). Unticking keeps historical records safe while archiving them from active menus.
+                </div>
+              </div>
+
+              {/* 1. Existing Cycles List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-[12px] font-[510] uppercase tracking-wider font-berkeley-mono ${isDark ? "text-white" : "text-gray-900"}`}>
+                    Configured Academic Cycles ({tempCycles.length})
+                  </h3>
+                  <span className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Select radio to change the primary active cycle
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {tempCycles.map((c, index) => {
+                    const isActive = c.id === tempActiveId;
+                    const isVisible = c.isVisible !== false || isActive;
+
+                    return (
+                      <div
+                        key={c.id || index}
+                        className={`p-3.5 rounded-[8px] border transition-all ${
+                          isActive
+                            ? isDark
+                              ? "bg-[#161718] border-[#27a644]/40 shadow-[0_0_12px_rgba(39,166,68,0.08)]"
+                              : "bg-emerald-50/50 border-emerald-300"
+                            : isDark
+                            ? "bg-[#08090a] border-[#23252a]"
+                            : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          {/* Left: Active Radio & Name */}
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="activeCycleSelection"
+                                checked={isActive}
+                                onChange={() => setTempActiveId(c.id)}
+                                className="cursor-pointer text-[#27a644] focus:ring-0"
+                              />
+                              <span className={`text-[11px] font-berkeley-mono font-bold px-1.5 py-0.5 rounded-[3px] border ${
+                                isActive
+                                  ? "bg-[#27a644]/15 text-[#27a644] border-[#27a644]/30"
+                                  : isDark
+                                  ? "bg-[#161718] text-[#8a8f98] border-[#23252a]"
+                                  : "bg-gray-200 text-gray-600 border-gray-300"
+                              }`}>
+                                {isActive ? "PRIMARY ACTIVE" : "PAST CYCLE"}
+                              </span>
+                            </label>
+
+                            <input
+                              type="text"
+                              value={c.name}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTempCycles(prev => prev.map((item, i) => i === index ? { ...item, name: val } : item));
+                              }}
+                              className={`w-32 px-2.5 py-1 text-[13px] font-berkeley-mono font-[510] rounded-[4px] border ${
+                                isDark
+                                  ? "bg-[#0f1011] border-[#23252a] text-white focus:border-[#d0d6e0]"
+                                  : "bg-white border-gray-300 text-gray-900"
+                              } focus:outline-none`}
+                              placeholder="e.g. 2024/2025"
+                            />
+                          </div>
+
+                          {/* Middle: Date Range Inputs */}
+                          <div className="flex items-center gap-2 text-[11px] font-berkeley-mono">
+                            <div className="flex items-center gap-1">
+                              <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>From:</span>
+                              <input
+                                type="date"
+                                value={c.startDate || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setTempCycles(prev => prev.map((item, i) => i === index ? { ...item, startDate: val } : item));
+                                }}
+                                className={`px-2 py-1 text-[11px] rounded-[4px] border ${
+                                  isDark ? "bg-[#0f1011] border-[#23252a] text-white" : "bg-white border-gray-300 text-gray-900"
+                                } focus:outline-none`}
+                              />
+                            </div>
+                            <span className={isDark ? "text-[#62666d]" : "text-gray-400"}>→</span>
+                            <div className="flex items-center gap-1">
+                              <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>To:</span>
+                              <input
+                                type="date"
+                                value={c.endDate || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setTempCycles(prev => prev.map((item, i) => i === index ? { ...item, endDate: val } : item));
+                                }}
+                                className={`px-2 py-1 text-[11px] rounded-[4px] border ${
+                                  isDark ? "bg-[#0f1011] border-[#23252a] text-white" : "bg-white border-gray-300 text-gray-900"
+                                } focus:outline-none`}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Right: Tick Button (Visibility in Dropdowns) & Delete */}
+                          <div className="flex items-center gap-3">
+                            <label
+                              className={`flex items-center gap-1.5 cursor-pointer select-none text-[11px] ${
+                                isActive ? "opacity-75 cursor-not-allowed" : ""
+                              }`}
+                              title={isActive ? "The active cycle is always visible in dropdowns" : "Tick to show this cycle in system dropdowns"}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isVisible}
+                                disabled={isActive}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setTempCycles(prev => prev.map((item, i) => i === index ? { ...item, isVisible: checked } : item));
+                                }}
+                                className={`rounded cursor-pointer ${
+                                  isDark ? "border-[#23252a] bg-[#0f1011] text-[#e4f222] focus:ring-0" : "border-gray-300 text-indigo-600"
+                                }`}
+                              />
+                              <span className={isVisible ? (isDark ? "text-[#d0d6e0]" : "text-gray-800") : (isDark ? "text-[#62666d]" : "text-gray-400")}>
+                                {isVisible ? "Show in Dropdowns" : "Archived (Hidden)"}
+                              </span>
+                            </label>
+
+                            {!isActive && tempCycles.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTempCycles(prev => prev.filter((_, i) => i !== index));
+                                }}
+                                className={`p-1 rounded-[4px] transition-colors ${
+                                  isDark ? "hover:bg-[#eb5757]/15 text-[#eb5757]" : "hover:bg-red-50 text-red-600"
+                                }`}
+                                title="Remove this cycle"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Add New Cycle Form */}
+              <div className={`p-4 rounded-[8px] border space-y-3 ${
+                isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Plus className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
+                  <h3 className={`text-[12px] font-[510] uppercase tracking-wider font-berkeley-mono ${isDark ? "text-white" : "text-gray-900"}`}>
+                    Add New Cycle (New AGM Handover)
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-3 space-y-1">
+                    <label className={`text-[10px] font-berkeley-mono uppercase ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+                      Cycle Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2025/2026"
+                      value={newCycleForm.name}
+                      onChange={(e) => setNewCycleForm({ ...newCycleForm, name: e.target.value })}
+                      className={`w-full px-2.5 py-1.5 text-[12px] rounded-[5px] border ${
+                        isDark ? "bg-[#0f1011] border-[#23252a] text-white focus:border-[#d0d6e0]" : "bg-white border-gray-300 text-gray-900"
+                      } focus:outline-none`}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3 space-y-1">
+                    <label className={`text-[10px] font-berkeley-mono uppercase ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={newCycleForm.startDate}
+                      onChange={(e) => setNewCycleForm({ ...newCycleForm, startDate: e.target.value })}
+                      className={`w-full px-2 py-1.5 text-[12px] rounded-[5px] border ${
+                        isDark ? "bg-[#0f1011] border-[#23252a] text-white focus:border-[#d0d6e0]" : "bg-white border-gray-300 text-gray-900"
+                      } focus:outline-none`}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3 space-y-1">
+                    <label className={`text-[10px] font-berkeley-mono uppercase ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={newCycleForm.endDate}
+                      onChange={(e) => setNewCycleForm({ ...newCycleForm, endDate: e.target.value })}
+                      className={`w-full px-2 py-1.5 text-[12px] rounded-[5px] border ${
+                        isDark ? "bg-[#0f1011] border-[#23252a] text-white focus:border-[#d0d6e0]" : "bg-white border-gray-300 text-gray-900"
+                      } focus:outline-none`}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newCycleForm.name.trim()) {
+                          setMsg({ type: "error", text: "Please enter a Cycle Name (e.g. 2025/2026)." });
+                          return;
+                        }
+                        if (!newCycleForm.startDate || !newCycleForm.endDate) {
+                          setMsg({ type: "error", text: "Please specify both Start Date and End Date." });
+                          return;
+                        }
+                        if (newCycleForm.startDate > newCycleForm.endDate) {
+                          setMsg({ type: "error", text: "Start Date cannot be after End Date." });
+                          return;
+                        }
+
+                        const newId = `cycle-${newCycleForm.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now().toString().slice(-4)}`;
+                        const newCycleObj = {
+                          id: newId,
+                          name: newCycleForm.name.trim(),
+                          startDate: newCycleForm.startDate,
+                          endDate: newCycleForm.endDate,
+                          description: newCycleForm.description.trim() || `ADSS Academic Cycle ${newCycleForm.name.trim()}`,
+                          isActive: !!newCycleForm.makeActive,
+                          isVisible: newCycleForm.isVisible !== false
+                        };
+
+                        let updatedList = [...tempCycles];
+                        let nextActiveId = tempActiveId;
+
+                        if (newCycleForm.makeActive) {
+                          updatedList = updatedList.map(c => ({ ...c, isActive: false }));
+                          nextActiveId = newId;
+                          newCycleObj.isActive = true;
+                          newCycleObj.isVisible = true;
+                        }
+
+                        updatedList.push(newCycleObj);
+                        setTempCycles(updatedList);
+                        setTempActiveId(nextActiveId);
+                        setNewCycleForm({
+                          name: "",
+                          startDate: "",
+                          endDate: "",
+                          description: "",
+                          makeActive: false,
+                          isVisible: true
+                        });
+                        setMsg({
+                          type: "success",
+                          text: `Cycle "${newCycleObj.name}" added to list. Click "Save Academic Cycles" below to apply.`
+                        });
+                      }}
+                      className={`w-full h-8 px-3 text-[11px] font-[510] rounded-[5px] flex items-center justify-center gap-1.5 transition-colors ${
+                        isDark ? "bg-[#23252a] hover:bg-[#383b3f] text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                      }`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add to List
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 pt-1">
+                  <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newCycleForm.makeActive}
+                      onChange={(e) => setNewCycleForm({ ...newCycleForm, makeActive: e.target.checked })}
+                      className={`rounded cursor-pointer ${
+                        isDark ? "border-[#23252a] bg-[#0f1011] text-[#27a644] focus:ring-0" : "border-gray-300 text-emerald-600"
+                      }`}
+                    />
+                    <span className={isDark ? "text-[#d0d6e0]" : "text-gray-700"}>
+                      Set as Primary Active Cycle immediately (Post-AGM Handover)
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newCycleForm.isVisible}
+                      onChange={(e) => setNewCycleForm({ ...newCycleForm, isVisible: e.target.checked })}
+                      className={`rounded cursor-pointer ${
+                        isDark ? "border-[#23252a] bg-[#0f1011] text-[#e4f222] focus:ring-0" : "border-gray-300 text-indigo-600"
+                      }`}
+                    />
+                    <span className={isDark ? "text-[#d0d6e0]" : "text-gray-700"}>
+                      Show in user-facing cycle filters & dropdowns (Tick button)
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className={`p-4 border-t ${isDark ? "border-[#23252a]" : "border-gray-200"} flex items-center justify-between`}>
+              <div className="text-[11px] font-berkeley-mono text-[#8a8f98]">
+                Active Cycle: <span className={isDark ? "text-[#27a644] font-bold" : "text-emerald-700 font-bold"}>
+                  {tempCycles.find(c => c.id === tempActiveId)?.name || "None"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCycleModalOpen(false)}
+                  className={`h-8 px-3 text-xs rounded-[6px] transition-colors ${
+                    isDark ? "hover:bg-[#161718] text-[#8a8f98] hover:text-white" : "hover:bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingCycles}
+                  onClick={async () => {
+                    setSavingCycles(true);
+                    try {
+                      const res = await saveCycles(tempCycles, tempActiveId);
+                      if (!res.success) throw new Error(res.error);
+                      setMsg({
+                        type: "success",
+                        text: "Academic Cycles updated successfully! Active cycle and dropdown filters synchronized in real time."
+                      });
+                      setCycleModalOpen(false);
+                    } catch (err) {
+                      setMsg({ type: "error", text: "Failed to save: " + err.message });
+                    } finally {
+                      setSavingCycles(false);
+                    }
+                  }}
+                  className={`h-8 px-4 text-xs font-[510] ${
+                    isDark ? "bg-[#e4f222] hover:bg-[#d5e31d] text-black" : "bg-gray-900 hover:bg-black text-white"
+                  } rounded-[6px] transition-colors flex items-center gap-1.5`}
+                >
+                  {savingCycles ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Save Academic Cycles
                     </>
                   )}
                 </button>

@@ -3,6 +3,8 @@ import { supabase } from "../supabaseClient";
 import { invalidateCache, CACHE_KEYS } from "../lib/queryCache";
 import StudentProfileModal from "../components/StudentProfileModal";
 import { StudentNameLink } from "../components/StudentProfileContext";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
 import {
   FileText,
   Clock,
@@ -125,6 +127,7 @@ export default function Letters({ session, theme }) {
   }, []);
 
   const isDark = currentTheme === "dark";
+  const { selectedCycle, isWithinCycle } = useCycle();
   const [requests, setRequests] = useState([]);
   const [settings, setSettings] = useState({
     letter_show_name: true,
@@ -287,16 +290,26 @@ export default function Letters({ session, theme }) {
     document.body.removeChild(link);
   };
 
-  // Status counts
-  const countNotStarted = useMemo(() => requests.filter((r) => r.status === "not start").length, [requests]);
-  const countInProgress = useMemo(() => requests.filter((r) => r.status === "inprogress").length, [requests]);
-  const countDone = useMemo(() => requests.filter((r) => r.status === "done").length, [requests]);
-  const countRejected = useMemo(() => requests.filter((r) => r.status === "rejected").length, [requests]);
+  // Derive requests for active / selected academic cycle
+  const cycleRequests = useMemo(() => {
+    return requests.filter((r) => isWithinCycle(r.created_at));
+  }, [requests, isWithinCycle]);
+
+  // Reset page when academic cycle changes
+  useEffect(() => {
+    setPage(0);
+  }, [selectedCycle]);
+
+  // Status counts (based on cycleRequests)
+  const countNotStarted = useMemo(() => cycleRequests.filter((r) => r.status === "not start").length, [cycleRequests]);
+  const countInProgress = useMemo(() => cycleRequests.filter((r) => r.status === "inprogress").length, [cycleRequests]);
+  const countDone = useMemo(() => cycleRequests.filter((r) => r.status === "done").length, [cycleRequests]);
+  const countRejected = useMemo(() => cycleRequests.filter((r) => r.status === "rejected").length, [cycleRequests]);
 
   // Filter requests by status tab and search query
   const filteredRequests = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return requests.filter((r) => {
+    return cycleRequests.filter((r) => {
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       if (q) {
         const matchesName = (r.members?.name || "").toLowerCase().includes(q);
@@ -308,7 +321,7 @@ export default function Letters({ session, theme }) {
       }
       return true;
     });
-  }, [requests, filterStatus, search]);
+  }, [cycleRequests, filterStatus, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
   const paginatedRequests = filteredRequests.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -328,7 +341,7 @@ export default function Letters({ session, theme }) {
                 Appreciation Letters & Credentials
               </h1>
               <div className={`hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] ${isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-gray-100 border-gray-200 text-gray-600"} border font-berkeley-mono text-[10px]`}>
-                <span>{requests.length} requests</span>
+                <span>{cycleRequests.length} requests</span>
                 <span className={isDark ? "text-[#383b42]" : "text-gray-300"}>·</span>
                 <span className={isDark ? "text-[#f59e0b] font-[510]" : "text-amber-600 font-[510]"}>{countNotStarted} pending</span>
                 <span className={isDark ? "text-[#383b42]" : "text-gray-300"}>·</span>
@@ -384,14 +397,17 @@ export default function Letters({ session, theme }) {
             </div>
           </div>
 
-          {/* Row 2: Status Tabs & Real-time Search */}
+          {/* Row 2: Cycle Selector, Status Tabs & Real-time Search */}
           <div className={`flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t ${isDark ? "border-[#1a1b1e]" : "border-gray-200"}`}>
-            {/* Status Segment Pills */}
-            <div className={`flex items-center p-0.5 rounded-[6px] border overflow-x-auto scrollbar-none max-w-full ${
-              isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-100 border-gray-200"
-            }`}>
-              {[
-                { id: "all", label: `All (${requests.length})` },
+            {/* Cycle Selector & Status Segment Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <CycleSelector variant="toolbar" theme={currentTheme} />
+
+              <div className={`flex items-center p-0.5 rounded-[6px] border overflow-x-auto scrollbar-none max-w-full ${
+                isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-100 border-gray-200"
+              }`}>
+                {[
+                  { id: "all", label: `All (${cycleRequests.length})` },
                 { id: "not start", label: `Pending (${countNotStarted})`, color: "#f59e0b" },
                 { id: "inprogress", label: `In Progress (${countInProgress})`, color: "#818cf8" },
                 { id: "done", label: `Issued (${countDone})`, color: "#27a644" },
@@ -422,6 +438,7 @@ export default function Letters({ session, theme }) {
                   </button>
                 );
               })}
+            </div>
             </div>
 
             {/* Search Input */}
@@ -673,6 +690,8 @@ export default function Letters({ session, theme }) {
               <p className={`text-[12px] leading-relaxed font-sans ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
                 {search
                   ? `No requests match "${search}". Try clearing search keywords.`
+                  : selectedCycle
+                  ? `No appreciation letter requests recorded for the ${selectedCycle.name} cycle.`
                   : "No appreciation letter requests in this category."}
               </p>
             </div>

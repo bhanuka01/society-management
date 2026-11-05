@@ -5,6 +5,8 @@ import StudentProfileModal from "../components/StudentProfileModal";
 import { StudentNameLink } from "../components/StudentProfileContext";
 import EventSelect from "../components/EventSelect";
 import CalEmbedModal from "../components/CalEmbedModal";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
 import {
   Users,
   Search,
@@ -77,10 +79,27 @@ export default function Committee({ isAdmin = false, session, theme }) {
   }, []);
 
   const isDark = currentTheme === "dark";
+  const { selectedCycle, isWithinCycle } = useCycle();
 
   const [oc, setOc] = useState([]);
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState("");
+
+  const cycleEvents = useMemo(() => {
+    return events.filter(e => isWithinCycle(e.date));
+  }, [events, isWithinCycle]);
+
+  // When cycle filter changes, update selectedEvent if current event is not in cycle
+  useEffect(() => {
+    if (cycleEvents.length > 0) {
+      const exists = cycleEvents.some(e => e.event_id === selectedEvent);
+      if (!exists) {
+        setSelectedEvent(cycleEvents[0].event_id);
+      }
+    } else {
+      setSelectedEvent("");
+    }
+  }, [cycleEvents, selectedEvent]);
   const [functions, setFunctions] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1059,10 +1078,11 @@ export default function Committee({ isAdmin = false, session, theme }) {
       <div className={`p-2.5 rounded-[10px] ${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200 shadow-xs"} border space-y-2.5 relative z-30`}>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           {/* Left: Event Selection + Cal.com Toggle */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+            <CycleSelector variant="toolbar" theme={currentTheme} />
             <div className="flex-1 min-w-[220px] max-w-sm">
               <EventSelect
-                events={events}
+                events={cycleEvents}
                 value={selectedEvent}
                 onChange={(id) => {
                   setPage(0);

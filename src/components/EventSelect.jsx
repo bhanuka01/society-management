@@ -170,7 +170,7 @@ export default function EventSelect({
           <div className={`p-1 max-h-64 overflow-y-auto divide-y ${isDark ? "divide-[#23252a]/40" : "divide-gray-100"}`}>
             {paginatedEvents.length === 0 ? (
               <div className={`py-6 px-4 text-center text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
-                No matching events found
+                {events.length === 0 ? "No events found in this cycle" : "No matching events found"}
               </div>
             ) : (
               paginatedEvents.map(e => {

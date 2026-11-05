@@ -5,6 +5,7 @@ import { resizeImage } from "../utils/imageOptimizer";
 import PhoneContact from "../components/PhoneContact";
 import MinimalFooter from "../components/MinimalFooter";
 import { useStudentProfile } from "../components/StudentProfileContext";
+import { useCycle } from "../context/CycleContext";
 import { 
   User, 
   Edit3, 
@@ -58,6 +59,7 @@ export default function MyInfo({ session, theme }) {
   }, []);
 
   const isDark = currentTheme === "dark";
+  const { activeCycle } = useCycle();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(false);
@@ -277,8 +279,8 @@ export default function MyInfo({ session, theme }) {
         supabase
           .from("events")
           .select("event_id, name, date")
-          .gte("date", `${new Date().getFullYear()}-01-01`)
-          .lte("date", `${new Date().getFullYear()}-12-31`)
+          .gte("date", activeCycle?.startDate || `${new Date().getFullYear()}-01-01`)
+          .lte("date", activeCycle?.endDate || `${new Date().getFullYear()}-12-31`)
           .order("date", { ascending: false })
       ]);
 
@@ -1435,7 +1437,9 @@ export default function MyInfo({ session, theme }) {
                 <div>
                   <label className={`block text-[12px] mb-1 font-[510] ${isDark ? "text-[#8a8f98]" : "text-gray-700"}`}>Select Events Participated / Organized</label>
                   {thisYearEvents.length === 0 ? (
-                    <p className={`text-[12px] italic font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>No events logged for this academic cycle.</p>
+                    <p className={`text-[12px] italic font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>
+                      No events logged for the {activeCycle?.name || "active"} academic cycle.
+                    </p>
                   ) : (
                     <div className={`space-y-1.5 max-h-36 overflow-y-auto p-2 rounded-[6px] border font-berkeley-mono text-[11px] ${
                       isDark ? "bg-[#08090a] border-[#23252a]" : "bg-gray-50 border-gray-200"

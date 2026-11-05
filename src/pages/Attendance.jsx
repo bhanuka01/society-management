@@ -3,6 +3,8 @@ import { supabase } from "../supabaseClient";
 import EventSelect from "../components/EventSelect";
 import { StudentNameLink } from "../components/StudentProfileContext";
 import GatePassScannerModal from "../components/GatePassScannerModal";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
 import {
   CalendarCheck,
   CheckCircle2,
@@ -75,6 +77,7 @@ export default function Attendance({
 
   const isStaff = isAdmin || role === "admin" || role === "editor" || session?.role === "admin" || session?.role === "editor";
   const hasStId = Boolean(session?.stId);
+  const { selectedCycle, isWithinCycle } = useCycle();
 
   // Perspective tab:
   // For staff: "members" | "csv" | "my"
@@ -212,6 +215,23 @@ export default function Attendance({
         setEventsLoading(false);
       });
   }, []);
+
+  // Filter events based on active/selected academic cycle
+  const cycleEvents = useMemo(() => {
+    return events.filter(e => isWithinCycle(e.date));
+  }, [events, isWithinCycle]);
+
+  // When cycle filter changes, update selectedEvent if current event is not in cycle
+  useEffect(() => {
+    if (cycleEvents.length > 0) {
+      const exists = cycleEvents.some(e => e.event_id === selectedEvent);
+      if (!exists) {
+        setSelectedEvent(cycleEvents[0].event_id);
+      }
+    } else {
+      setSelectedEvent("");
+    }
+  }, [cycleEvents, selectedEvent]);
 
   // Selected Event Object
   const selectedEventInfo = useMemo(() => {
@@ -1107,11 +1127,12 @@ export default function Attendance({
             </div>
 
             {/* Header Right: Event Selector Dropdown & Scan Gate Pass CTA */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+              <CycleSelector variant="toolbar" theme={currentTheme} />
               {(activeTab === "members" || activeTab === "csv") && (
                 <div className="w-36 sm:w-60">
                   <EventSelect
-                    events={events}
+                    events={cycleEvents}
                     value={selectedEvent}
                     theme={currentTheme}
                     onChange={(id) => {

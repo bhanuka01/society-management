@@ -28,6 +28,8 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { StudentNameLink } from "../components/StudentProfileContext";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
 
 
 const STANDARD_OC_POSITIONS = [
@@ -99,6 +101,7 @@ export default function Events({ isAdmin = false, session, theme }) {
   }, []);
 
   const isDark = currentTheme === "dark";
+  const { selectedCycle, activeCycle, isWithinCycle } = useCycle();
   const [events, setEvents] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +140,15 @@ export default function Events({ isAdmin = false, session, theme }) {
       .select("event_id, name, date, time, oc_st_id, apply_start_date, apply_end_date, description, tally_link, flyer_url, is_public, self_attendance_enabled, available_oc_positions", { count: "exact" })
       .order("date", { ascending: false })
       .range(from, to);
+
+    if (selectedCycle) {
+      if (selectedCycle.startDate) {
+        eventQuery = eventQuery.gte("date", selectedCycle.startDate);
+      }
+      if (selectedCycle.endDate) {
+        eventQuery = eventQuery.lte("date", selectedCycle.endDate);
+      }
+    }
 
     const q = searchText.trim();
     if (q) {
@@ -219,7 +231,7 @@ export default function Events({ isAdmin = false, session, theme }) {
     setLoading(false);
   };
 
-  useEffect(() => { load(page, search); }, [page, search]);
+  useEffect(() => { load(page, search); }, [page, search, selectedCycle]);
 
   const openAdd = () => { 
     setForm(EMPTY); 
@@ -688,30 +700,34 @@ export default function Events({ isAdmin = false, session, theme }) {
 
           {/* Row 2: Status Filter Tabs & Search Bar */}
           <div className={`flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t ${isDark ? "border-[#1a1b1e]" : "border-gray-100"}`}>
-            {/* Status Segment Pills */}
-            <div className={`flex items-center p-0.5 rounded-[6px] ${isDark ? "bg-[#161718] border border-[#23252a]" : "bg-gray-100 border border-gray-200"}`}>
-              {[
-                { id: "all", label: "All Events" },
-                { id: "upcoming", label: "Upcoming" },
-                { id: "ongoing", label: "Ongoing", pulse: telemetry.ongoing > 0 },
-                { id: "past", label: "Past" },
-              ].map(tab => {
-                const active = statusFilter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setStatusFilter(tab.id)}
-                    className={`px-2.5 py-1 rounded-[4px] font-berkeley-mono text-[11px] font-[510] transition-colors flex items-center gap-1.5 ${
-                      active 
-                        ? (isDark ? "bg-[#23252a] text-white" : "bg-white text-gray-900 shadow-sm font-semibold") 
-                        : (isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-500 hover:text-gray-900")
-                    }`}
-                  >
-                    {tab.pulse && <span className={`w-1.5 h-1.5 rounded-full ${isDark ? "bg-[#27a644]" : "bg-emerald-500"} animate-pulse`} />}
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
+            {/* Filter controls: Cycle Selector & Status Segment Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <CycleSelector variant="toolbar" theme={currentTheme} />
+
+              <div className={`flex items-center p-0.5 rounded-[6px] ${isDark ? "bg-[#161718] border border-[#23252a]" : "bg-gray-100 border border-gray-200"}`}>
+                {[
+                  { id: "all", label: "All Events" },
+                  { id: "upcoming", label: "Upcoming" },
+                  { id: "ongoing", label: "Ongoing", pulse: telemetry.ongoing > 0 },
+                  { id: "past", label: "Past" },
+                ].map(tab => {
+                  const active = statusFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setStatusFilter(tab.id)}
+                      className={`px-2.5 py-1 rounded-[4px] font-berkeley-mono text-[11px] font-[510] transition-colors flex items-center gap-1.5 ${
+                        active 
+                          ? (isDark ? "bg-[#23252a] text-white" : "bg-white text-gray-900 shadow-sm font-semibold") 
+                          : (isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-500 hover:text-gray-900")
+                      }`}
+                    >
+                      {tab.pulse && <span className={`w-1.5 h-1.5 rounded-full ${isDark ? "bg-[#27a644]" : "bg-emerald-500"} animate-pulse`} />}
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Search Input */}

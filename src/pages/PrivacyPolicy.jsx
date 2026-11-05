@@ -43,7 +43,7 @@ export default function PrivacyPolicy({ onBackToLanding, onNavigate }) {
   };
 
   const handleCopyEmail = () => {
-    navigator.clipboard.writeText("bhanukadilshan2002@gmail.com").then(() => {
+    navigator.clipboard.writeText("adss@sci.ruh.ac.lk").then(() => {
       setCopiedEmail(true);
       setTimeout(() => setCopiedEmail(false), 2000);
     });
@@ -472,11 +472,11 @@ export default function PrivacyPolicy({ onBackToLanding, onNavigate }) {
 
               <div className="flex items-center bg-[#161718] border border-[#23252a] rounded-[6px] overflow-hidden">
                 <a
-                  href="mailto:bhanukadilshan2002@gmail.com"
+                  href="mailto:adss@sci.ruh.ac.lk"
                   className="h-8 px-3 text-[#d0d6e0] hover:text-[#ffffff] font-berkeley-mono text-[11px] flex items-center gap-1.5 transition-colors"
                 >
                   <Mail className="w-3.5 h-3.5 text-[#e4f222]" />
-                  <span>bhanukadilshan2002@gmail.com</span>
+                  <span>adss@sci.ruh.ac.lk</span>
                 </a>
                 <button
                   type="button"

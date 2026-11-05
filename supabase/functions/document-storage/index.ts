@@ -31,7 +31,7 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const ALLOWED_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'png', 'jpg', 'jpeg', 'webp', 'zip', '7z']);
 
-const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 const MAX_TOTAL_STORAGE_BYTES = 9 * 1024 * 1024 * 1024; // 9 GB maximum total storage limit
 
 const sanitizeFilename = (name: string): string => {
@@ -271,7 +271,7 @@ serve(async (req: Request) => {
 
       if (fileSize && fileSize > MAX_FILE_SIZE_BYTES) {
         return new Response(
-          JSON.stringify({ error: 'File size exceeds 25 MB limit.' }),
+          JSON.stringify({ error: 'File size exceeds 50 MB limit.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

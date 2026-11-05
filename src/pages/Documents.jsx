@@ -22,6 +22,8 @@ import {
   getMemberCategoriesFromMap
 } from "../lib/documentService";
 import { getMemberDocCategories } from "../App";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
 import {
   Folder,
   FolderOpen,
@@ -240,6 +242,7 @@ export default function Documents({
 
   const isDark = currentTheme === "dark";
   const isOfficer = isAdmin; // Only admin or editor can upload, edit, and delete
+  const { selectedCycle } = useCycle();
 
   // Data states
   const [documents, setDocuments] = useState([]);
@@ -307,6 +310,8 @@ export default function Documents({
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadBytes, setUploadBytes] = useState({ loaded: 0, total: 0 });
+  const [uploadStage, setUploadStage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
@@ -323,8 +328,14 @@ export default function Documents({
   useEffect(() => {
     async function loadRelations() {
       try {
+        let evQuery = supabase.from("events").select("event_id, name, date").order("date", { ascending: false }).limit(100);
+        if (selectedCycle) {
+          if (selectedCycle.startDate) evQuery = evQuery.gte("date", selectedCycle.startDate);
+          if (selectedCycle.endDate) evQuery = evQuery.lte("date", selectedCycle.endDate);
+        }
+
         const [eventRes, memberRes, allMemRes, profRes] = await Promise.all([
-          supabase.from("events").select("event_id, name, date").order("date", { ascending: false }).limit(100),
+          evQuery,
           supabase.from("members").select("st_id, name").order("name").limit(100),
           supabase.from("members").select("st_id, name, level, email").order("name"),
           supabase.from("profiles").select("id, email, full_name, preferred_name, st_id, role")
@@ -366,7 +377,7 @@ export default function Documents({
       }
     }
     loadRelations();
-  }, []);
+  }, [selectedCycle]);
 
   // Load document access member permissions from system_settings
   useEffect(() => {
@@ -433,7 +444,7 @@ export default function Documents({
       }
 
       // 1. Fetch category counts and storage sizes
-      let countsQuery = supabase.from("documents").select("category, visibility, file_size, file_type");
+      let countsQuery = supabase.from("documents").select("category, visibility, file_size, file_type, created_at");
       if (!isOfficer) {
         countsQuery = countsQuery.in("category", userPermittedCategories);
       }
@@ -445,12 +456,19 @@ export default function Documents({
         let totalBytes = 0;
 
         countsRes.data.forEach(d => {
+          const sz = Number(d.file_size) || 0;
+          totalBytes += sz;
+
           // If not officer and doc is officers_only, skip in count
           if (!isOfficer && d.visibility === "officers_only") return;
           if (!isOfficer && !userPermittedCategories.includes(d.category)) return;
 
-          const sz = Number(d.file_size) || 0;
-          totalBytes += sz;
+          // If a cycle is selected, only tally folder counts and type sizes for documents within the cycle
+          if (selectedCycle) {
+            if (selectedCycle.startDate && d.created_at < `${selectedCycle.startDate}T00:00:00.000Z`) return;
+            if (selectedCycle.endDate && d.created_at > `${selectedCycle.endDate}T23:59:59.999Z`) return;
+          }
+
           counts.All += 1;
           sizes.All += sz;
 
@@ -486,6 +504,12 @@ export default function Documents({
       // Non-officers only query categories they are permitted to view
       if (!isOfficer) {
         query = query.in("category", userPermittedCategories);
+      }
+
+      // Active Academic Cycle date filter
+      if (selectedCycle) {
+        if (selectedCycle.startDate) query = query.gte("created_at", `${selectedCycle.startDate}T00:00:00.000Z`);
+        if (selectedCycle.endDate) query = query.lte("created_at", `${selectedCycle.endDate}T23:59:59.999Z`);
       }
 
       // Category / Folder filter
@@ -582,8 +606,12 @@ export default function Documents({
   };
 
   useEffect(() => {
+    setPage(0);
+  }, [selectedCycle]);
+
+  useEffect(() => {
     loadDocuments(page);
-  }, [page, selectedFolder, fileTypeFilter, dateFilter, sortBy, isOfficer, userPermittedCategories]);
+  }, [page, selectedFolder, fileTypeFilter, dateFilter, sortBy, isOfficer, userPermittedCategories, selectedCycle]);
 
   // Handle Search submit / reset
   const handleSearchSubmit = (e) => {
@@ -597,7 +625,7 @@ export default function Documents({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate type, single file size limit (25 MB), and total repository quota (9 GB ceiling)
+    // Validate type, single file size limit (50 MB), and total repository quota (9 GB ceiling)
     const validation = validateDocumentFile(file, totalStorageBytes);
     if (!validation.valid) {
       setFileError(validation.error);
@@ -631,11 +659,12 @@ export default function Documents({
     }
 
     setIsSubmitting(true);
-    setUploadProgress(20);
+    setUploadProgress(0);
+    setUploadBytes({ loaded: 0, total: selectedFile.size });
+    setUploadStage("Preparing upload...");
     setFeedbackMsg(null);
 
     try {
-      setUploadProgress(50);
       await uploadDocument({
         file: selectedFile,
         name: form.name || selectedFile.name,
@@ -645,10 +674,18 @@ export default function Documents({
         eventId: form.eventId || null,
         stId: form.stId || null,
         session,
-        currentTotalBytes: totalStorageBytes
+        currentTotalBytes: totalStorageBytes,
+        onProgress: ({ stage, percent, loaded, total }) => {
+          if (stage) setUploadStage(stage);
+          if (percent !== undefined) setUploadProgress(percent);
+          if (loaded !== undefined && total !== undefined) {
+            setUploadBytes({ loaded, total });
+          }
+        }
       });
 
       setUploadProgress(100);
+      setUploadStage("Upload complete!");
       setFeedbackMsg({ type: "success", text: `Document "${form.name || selectedFile.name}" uploaded successfully!` });
       setUploadModalOpen(false);
       setForm(INITIAL_FORM);
@@ -661,6 +698,8 @@ export default function Documents({
     } finally {
       setIsSubmitting(false);
       setUploadProgress(0);
+      setUploadBytes({ loaded: 0, total: 0 });
+      setUploadStage("");
     }
   };
 
@@ -1259,7 +1298,7 @@ export default function Documents({
                 </div>
               ))}
               <div className={`${isDark ? "text-[#8a8f98]" : "text-gray-500"} ml-auto text-[9px]`}>
-                Single file max: <span className={isDark ? "text-white" : "text-gray-900 font-medium"}>25 MB</span>
+                Single file max: <span className={isDark ? "text-white" : "text-gray-900 font-medium"}>50 MB</span>
               </div>
             </div>
           </div>
@@ -1386,6 +1425,9 @@ export default function Documents({
 
         {/* Filter controls row */}
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] ml-auto sm:ml-0">
+          {/* Active Cycle Selector */}
+          <CycleSelector variant="toolbar" theme={currentTheme} />
+
           {/* File Type Filter */}
           <div className={`flex items-center rounded-[5px] p-0.5 border ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-100 border-gray-200"}`}>
             {["ALL", "PDF", "Word", "Image", "Archive"].map((type) => (
@@ -1483,8 +1525,10 @@ export default function Documents({
           <FolderOpen className={`w-10 h-10 ${isDark ? "text-[#62666d]" : "text-gray-400"} mx-auto mb-3`} />
           <h3 className={`text-sm font-[510] ${isDark ? "text-white" : "text-gray-900"} mb-1`}>No documents found</h3>
           <p className={`text-xs ${isDark ? "text-[#8a8f98]" : "text-gray-600"} max-w-md mx-auto mb-4`}>
-            {search || selectedFolder !== "All" || fileTypeFilter !== "ALL"
+            {search || selectedFolder !== "All" || fileTypeFilter !== "ALL" || dateFilter !== "ALL"
               ? "No files matched your active search or filter criteria. Try resetting your filters."
+              : selectedCycle
+              ? `No documents have been uploaded for the ${selectedCycle.name} cycle yet.`
               : "No documents have been uploaded to this category yet."}
           </p>
           {isOfficer && (
@@ -1846,15 +1890,17 @@ export default function Documents({
           MODAL 1: Upload Document (Officers Only)
          ══════════════════════════════════════════════════════════════════════════ */}
       {uploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className={`${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"} border rounded-[12px] w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-hidden">
+          <div className={`${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"} border rounded-[12px] w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150`}>
             {/* Modal Header */}
-            <div className={`p-4 border-b ${isDark ? "border-[#23252a]" : "border-gray-200 bg-gray-50"} flex items-center justify-between`}>
+            <div className={`p-4 border-b ${isDark ? "border-[#23252a] bg-[#0c0d0e]" : "border-gray-200 bg-gray-50"} flex items-center justify-between flex-shrink-0`}>
               <div className="flex items-center gap-2">
                 <UploadCloud className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`} />
                 <h3 className={`text-sm font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>Upload New Document to R2</h3>
               </div>
               <button
+                type="button"
+                disabled={isSubmitting}
                 onClick={() => setUploadModalOpen(false)}
                 className={isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-400 hover:text-gray-600"}
               >
@@ -1863,7 +1909,9 @@ export default function Documents({
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleUploadSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleUploadSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Form Body */}
+              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 overscroll-contain">
               {/* Storage Quota Usage Indicator in Modal (9 GB Ceiling) */}
               <div className={`${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border rounded-[8px] p-3`}>
                 <div className="flex items-center justify-between text-xs mb-1.5">
@@ -1975,7 +2023,7 @@ export default function Documents({
                         Click or drag file here to upload
                       </p>
                       <p className={`text-[10px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"} mt-1`}>
-                        PDF, Word (.docx, .doc), Images (.png, .jpg, .webp), and Archives (.zip, .7z) up to 25 MB
+                        PDF, Word (.docx, .doc), Images (.png, .jpg, .webp), and Archives (.zip, .7z) up to 50 MB
                       </p>
                     </div>
                   )}
@@ -2113,23 +2161,44 @@ export default function Documents({
               </div>
 
               {/* Progress bar during upload */}
-              {isSubmitting && (
-                <div>
-                  <div className={`flex justify-between text-[10px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"} mb-1`}>
-                    <span>Streaming to Cloudflare R2...</span>
-                    <span>{uploadProgress}%</span>
+              {isSubmitting && selectedFile && (
+                <div className={`p-3 rounded-[8px] border ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"}`}>
+                  {/* File Name & Percentage Header */}
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <UploadCloud className={`w-3.5 h-3.5 flex-shrink-0 animate-pulse ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`} />
+                      <span className={`text-[11px] font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`} title={selectedFile.name}>
+                        Uploading: <span className="font-berkeley-mono font-semibold">{selectedFile.name}</span>
+                      </span>
+                    </div>
+                    <span className={`text-[11px] font-berkeley-mono font-semibold flex-shrink-0 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`}>
+                      {uploadProgress}%
+                    </span>
                   </div>
+
+                  {/* Stage & Bytes Info */}
+                  <div className={`flex items-center justify-between text-[10px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"} mb-1.5`}>
+                    <span className="truncate">{uploadStage || "Streaming to Cloudflare R2..."}</span>
+                    <span className="flex-shrink-0">
+                      {uploadBytes.total > 0
+                        ? `${formatBytes(uploadBytes.loaded)} / ${formatBytes(uploadBytes.total)}`
+                        : formatBytes(selectedFile.size)}
+                    </span>
+                  </div>
+
+                  {/* Dynamic Progress Bar */}
                   <div className={`w-full h-1.5 ${isDark ? "bg-[#23252a]" : "bg-gray-200"} rounded-full overflow-hidden`}>
                     <div
-                      className={`h-full ${isDark ? "bg-[#e4f222]" : "bg-indigo-600"} transition-all duration-300`}
-                      style={{ width: `${uploadProgress}%` }}
+                      className={`h-full ${isDark ? "bg-[#e4f222]" : "bg-indigo-600"} transition-all duration-150 rounded-full`}
+                      style={{ width: `${Math.max(3, Math.min(100, uploadProgress))}%` }}
                     />
                   </div>
                 </div>
               )}
+              </div>
 
-              {/* Modal Footer */}
-              <div className={`pt-3 border-t ${isDark ? "border-[#23252a]" : "border-gray-200"} flex items-center justify-end gap-2`}>
+              {/* Modal Footer (Pinned at bottom) */}
+              <div className={`p-3 sm:p-4 border-t ${isDark ? "border-[#23252a] bg-[#0c0d0e]" : "border-gray-200 bg-gray-50/90"} flex items-center justify-end gap-2 flex-shrink-0`}>
                 <button
                   type="button"
                   disabled={isSubmitting}
@@ -2154,7 +2223,7 @@ export default function Documents({
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Uploading...
+                      <span>Uploading {uploadProgress > 0 ? `${uploadProgress}%` : "..."}</span>
                     </>
                   ) : selectedFile && totalStorageBytes + selectedFile.size > MAX_TOTAL_STORAGE_BYTES ? (
                     <>
@@ -2178,14 +2247,15 @@ export default function Documents({
           MODAL 2: Edit Metadata (Officers Only)
          ══════════════════════════════════════════════════════════════════════════ */}
       {editModalOpen && activeDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className={`${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"} border rounded-[12px] w-full max-w-lg overflow-hidden shadow-2xl`}>
-            <div className={`p-4 border-b ${isDark ? "border-[#23252a]" : "border-gray-200 bg-gray-50"} flex items-center justify-between`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-hidden">
+          <div className={`${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"} border rounded-[12px] w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl`}>
+            <div className={`p-4 border-b ${isDark ? "border-[#23252a] bg-[#0c0d0e]" : "border-gray-200 bg-gray-50"} flex items-center justify-between flex-shrink-0`}>
               <div className="flex items-center gap-2">
                 <Edit3 className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`} />
                 <h3 className={`text-sm font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>Edit Document Metadata</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setEditModalOpen(false)}
                 className={isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-400 hover:text-gray-600"}
               >
@@ -2193,7 +2263,9 @@ export default function Documents({
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleEditSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Form Body */}
+              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 overscroll-contain">
               <div>
                 <label className={`block text-xs font-medium ${isDark ? "text-[#8a8f98]" : "text-gray-700"} mb-1.5`}>
                   Document Title
@@ -2301,8 +2373,10 @@ export default function Documents({
                   }`}
                 />
               </div>
+              </div>
 
-              <div className={`pt-3 border-t ${isDark ? "border-[#23252a]" : "border-gray-200"} flex items-center justify-end gap-2`}>
+              {/* Modal Footer (Pinned at bottom) */}
+              <div className={`p-3 sm:p-4 border-t ${isDark ? "border-[#23252a] bg-[#0c0d0e]" : "border-gray-200 bg-gray-50/90"} flex items-center justify-end gap-2 flex-shrink-0`}>
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
@@ -2329,13 +2403,13 @@ export default function Documents({
           MODAL 3: Delete Confirmation (Officers Only)
          ══════════════════════════════════════════════════════════════════════════ */}
       {deleteModalOpen && activeDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className={`${isDark ? "bg-[#0f1011] border-[#eb5757]/30" : "bg-white border-red-200"} border rounded-[12px] w-full max-w-md overflow-hidden shadow-2xl`}>
-            <div className={`p-4 border-b ${isDark ? "border-[#23252a]" : "border-gray-200 bg-red-50/50"} flex items-center gap-2 text-[#eb5757]`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-hidden">
+          <div className={`${isDark ? "bg-[#0f1011] border-[#eb5757]/30" : "bg-white border-red-200"} border rounded-[12px] w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden shadow-2xl`}>
+            <div className={`p-4 border-b ${isDark ? "border-[#23252a] bg-[#0c0d0e]" : "border-gray-200 bg-red-50/50"} flex items-center gap-2 text-[#eb5757] flex-shrink-0`}>
               <Trash2 className="w-4 h-4" />
               <h3 className={`text-sm font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>Delete Document</h3>
             </div>
-            <div className="p-5 text-xs space-y-3">
+            <div className="p-5 text-xs space-y-3 overflow-y-auto flex-1 overscroll-contain">
               <p className={isDark ? "text-[#8a8f98]" : "text-gray-600"}>
                 Are you sure you want to permanently delete <strong className={isDark ? "text-white" : "text-gray-900"}>"{activeDoc.name}"</strong>?
               </p>
@@ -2350,8 +2424,8 @@ export default function Documents({
                 This action will delete the underlying file from Cloudflare R2 and remove its database record permanently.
               </p>
             </div>
-            <div className={`p-4 border-t flex items-center justify-end gap-2 ${
-              isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"
+            <div className={`p-3 sm:p-4 border-t flex items-center justify-end gap-2 flex-shrink-0 ${
+              isDark ? "bg-[#0c0d0e] border-[#23252a]" : "bg-gray-50 border-gray-200"
             }`}>
               <button
                 type="button"

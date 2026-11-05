@@ -2928,15 +2928,9 @@ select option {
     min-width: 100%;
   }
 
-  .flex {
+  .toolbar.flex,
+  .form-row.flex {
     flex-wrap: wrap;
-  }
-
-  .flex > select,
-  .flex > input,
-  .flex > .btn {
-    width: 100% !important;
-    min-width: 0 !important;
   }
 
   .table-wrap {

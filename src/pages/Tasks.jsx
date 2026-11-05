@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import EventSelect from "../components/EventSelect";
 import DatePicker from "../components/DatePicker";
 import { StudentNameLink } from "../components/StudentProfileContext";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
 
 const EMPTY_FORM = { st_id: "", task_name: "", deadline: "" };
 
 export default function Tasks({ isAdmin = false, session }) {
+  const { selectedCycle, isWithinCycle } = useCycle();
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState("");
   const [tasks, setTasks] = useState([]);
@@ -16,6 +19,21 @@ export default function Tasks({ isAdmin = false, session }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [msg, setMsg] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const cycleEvents = useMemo(() => {
+    return events.filter(e => isWithinCycle(e.date));
+  }, [events, isWithinCycle]);
+
+  useEffect(() => {
+    if (cycleEvents.length > 0) {
+      const exists = cycleEvents.some(e => e.event_id === selectedEvent);
+      if (!exists) {
+        setSelectedEvent(cycleEvents[0].event_id);
+      }
+    } else {
+      setSelectedEvent("");
+    }
+  }, [cycleEvents, selectedEvent]);
 
   const loadEvents = async () => {
     if (!session?.stId && !isAdmin) {
@@ -243,12 +261,17 @@ export default function Tasks({ isAdmin = false, session }) {
                 </span>
               )}
             </div>
-            <EventSelect
-              events={events}
-              value={selectedEvent}
-              onChange={(id) => setSelectedEvent(id)}
-              placeholder="Search or select an event..."
-            />
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-end">
+                <CycleSelector variant="toolbar" />
+              </div>
+              <EventSelect
+                events={cycleEvents}
+                value={selectedEvent}
+                onChange={(id) => setSelectedEvent(id)}
+                placeholder="Search or select an event..."
+              />
+            </div>
           </div>
 
           <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 16 }}>

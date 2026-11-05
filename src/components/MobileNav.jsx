@@ -17,7 +17,7 @@ import {
   Moon,
   LogOut,
   Shield,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
 
 export default function MobileNav({
@@ -104,7 +104,7 @@ export default function MobileNav({
   // Find active page title for the top header
   const allNavItems = visibleSections.flatMap((s) => s.items);
   const activeItem = allNavItems.find((i) => i.id === page);
-  const activeTitle = activeItem ? activeItem.label : page.replace("_", " ").toUpperCase();
+  const activeTitle = activeItem ? activeItem.label : (page ? String(page).replace("_", " ").toUpperCase() : "DASHBOARD");
 
   const handleTabClick = (tabId) => {
     setDrawerOpen(false);
@@ -115,7 +115,10 @@ export default function MobileNav({
     <>
       {/* ── Mobile Top Sticky Bar ── */}
       <header className="mobile-topbar" role="banner">
-        <div className="mobile-topbar-left">
+        <div
+          className="mobile-topbar-left cursor-pointer"
+          onClick={() => handleTabClick("dashboard")}
+        >
           <img
             src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`}
             className="mobile-topbar-logo"
@@ -124,13 +127,12 @@ export default function MobileNav({
           <div className="mobile-topbar-title-wrap">
             <div className="mobile-topbar-brand">
               ADSS RUHUNA
-              <span className="mobile-topbar-version">v2.6</span>
             </div>
             <div className="mobile-topbar-page">{activeTitle}</div>
           </div>
         </div>
 
-        <div className="mobile-topbar-right">
+        <div className="mobile-topbar-right flex items-center">
           {/* Connection status indicator */}
           <div
             className="mobile-telemetry-dot"
@@ -138,20 +140,6 @@ export default function MobileNav({
           >
             <span className={`dot ${connected === null ? "pending" : connected ? "ok" : "err"}`} />
           </div>
-
-          {/* User profile initial button */}
-          {session.role !== "guest" && (
-            <button
-              className="mobile-topbar-user-btn"
-              onClick={() => setDrawerOpen(true)}
-              title="Open profile & menu"
-              aria-label="Open profile and navigation menu"
-            >
-              <span className="mobile-topbar-initials">
-                {getInitials(session.name || session.email)}
-              </span>
-            </button>
-          )}
         </div>
       </header>
 

@@ -21,6 +21,9 @@ import {
   GraduationCap
 } from "lucide-react";
 import { StudentNameLink } from "../components/StudentProfileContext";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
+
 
 
 const getInitials = (name) => {
@@ -315,7 +318,8 @@ export default function Dashboard({ onNavigate, isAdmin = false, theme }) {
         </div>
 
         {/* Top Control Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <CycleSelector variant="toolbar" theme={theme} />
           <button
             onClick={() => {
               invalidateCache(CACHE_KEYS.DASHBOARD_STATS);

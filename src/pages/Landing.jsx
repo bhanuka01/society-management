@@ -96,14 +96,14 @@ export default function Landing({
             : "bg-white/85 border-b border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
         }`}
       >
-        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="max-w-[1200px] mx-auto px-3 sm:px-6 h-14 flex flex-nowrap items-center justify-between">
           {/* Brand Logo */}
           <div
-            className="flex items-center gap-3 cursor-pointer"
+            className="flex flex-nowrap items-center gap-2 sm:gap-3 cursor-pointer shrink-0"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           >
             <div
-              className={`w-7 h-7 rounded-[6px] flex items-center justify-center p-1 transition-colors ${
+              className={`w-7 h-7 rounded-[6px] flex items-center justify-center p-1 transition-colors shrink-0 ${
                 isDark
                   ? "bg-[#161718] border border-[#23252a]"
                   : "bg-gray-100 border border-gray-200"
@@ -116,7 +116,7 @@ export default function Landing({
               />
             </div>
             <span
-              className={`text-[15px] font-[510] tracking-[-0.015em] flex items-center gap-2 transition-colors ${
+              className={`text-[14px] sm:text-[15px] font-[510] tracking-[-0.015em] flex items-center gap-2 transition-colors whitespace-nowrap ${
                 isDark ? "text-white" : "text-[#09090b]"
               }`}
             >
@@ -171,13 +171,13 @@ export default function Landing({
           </nav>
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Theme Toggle Button */}
             {onThemeToggle && (
               <button
                 type="button"
                 onClick={onThemeToggle}
-                className={`w-8 h-8 rounded-[6px] flex items-center justify-center transition-all cursor-pointer ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-[6px] flex items-center justify-center transition-all cursor-pointer shrink-0 ${
                   isDark
                     ? "bg-[#161718] border border-[#23252a] text-[#8a8f98] hover:text-white hover:border-[#383b3f]"
                     : "bg-gray-100 border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300"
@@ -186,16 +186,16 @@ export default function Landing({
                 aria-label="Toggle theme"
               >
                 {isDark ? (
-                  <Sun className="w-4 h-4 text-amber-400" />
+                  <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
                 ) : (
-                  <Moon className="w-4 h-4 text-gray-700" />
+                  <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-700" />
                 )}
               </button>
             )}
 
             <button
               onClick={handleLogin}
-              className={`text-[13px] px-3.5 py-1.5 rounded-[6px] font-[510] transition-colors cursor-pointer ${
+              className={`text-xs sm:text-[13px] px-2.5 sm:px-3.5 py-1.5 rounded-[6px] font-[510] transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                 isDark
                   ? "linear-btn-ghost"
                   : "border border-gray-300 bg-transparent text-gray-700 hover:text-gray-900 hover:border-gray-400 hover:bg-gray-100"
@@ -206,7 +206,7 @@ export default function Landing({
 
             <button
               onClick={regEnabled ? handleRegister : handleLogin}
-              className={`text-[13px] px-4 py-1.5 rounded-[9999px] font-[510] transition-all cursor-pointer ${
+              className={`text-xs sm:text-[13px] px-3 sm:px-4 py-1.5 rounded-[9999px] font-[510] transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 isDark
                   ? "linear-btn-pill-white"
                   : "bg-[#09090b] text-white hover:bg-black shadow-sm"
@@ -219,10 +219,56 @@ export default function Landing({
       </header>
 
       {/* ── Main Hero Section ────────────────────────────────────────────────── */}
-      <section className="relative pt-28 pb-16 md:pt-36 md:pb-20 max-w-[1200px] mx-auto px-6 text-center">
-        {/* Subtle background glow */}
+      <section className="relative pt-28 pb-16 md:pt-36 md:pb-20 overflow-hidden text-center">
+        {/* Responsive Background Motion Graphic Videos (Dark & Light Mode) */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0">
+          {/* Dark Mode Video */}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            poster={`${import.meta.env.BASE_URL}vid/hero-dark-poster.jpg`}
+            aria-hidden="true"
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-700 ease-in-out ${
+              isDark ? "opacity-50" : "opacity-0"
+            }`}
+          >
+            <source src={`${import.meta.env.BASE_URL}vid/hero-dark-opt.webm`} type="video/webm" />
+            <source src={`${import.meta.env.BASE_URL}vid/hero-dark-opt.mp4`} type="video/mp4" />
+          </video>
+
+          {/* Light Mode Video */}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            poster={`${import.meta.env.BASE_URL}vid/hero-light-poster.jpg`}
+            aria-hidden="true"
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-700 ease-in-out ${
+              !isDark ? "opacity-40" : "opacity-0"
+            }`}
+          >
+            <source src={`${import.meta.env.BASE_URL}vid/hero-light-opt.webm`} type="video/webm" />
+            <source src={`${import.meta.env.BASE_URL}vid/hero-light-opt.mp4`} type="video/mp4" />
+          </video>
+
+          {/* Gradient Overlay for Text Legibility & Smooth Edge Blending */}
+          <div
+            className={`absolute inset-0 transition-colors duration-500 ${
+              isDark
+                ? "bg-gradient-to-b from-[#08090a]/85 via-[#08090a]/40 to-[#08090a]"
+                : "bg-gradient-to-b from-white/85 via-white/40 to-white"
+            }`}
+          />
+        </div>
+
+        {/* Subtle background dot pattern */}
         <div
-          className={`absolute inset-0 pointer-events-none ${
+          className={`absolute inset-0 pointer-events-none z-0 ${
             isDark ? "opacity-[0.03]" : "opacity-[0.04]"
           }`}
           style={{
@@ -233,7 +279,7 @@ export default function Landing({
           }}
         />
 
-        <div className="max-w-[760px] mx-auto relative z-10">
+        <div className="max-w-[760px] mx-auto px-6 relative z-10">
           {/* Status Badge */}
           <div
             className={`inline-flex items-center gap-2 px-3 py-1 rounded-[9999px] text-[12px] font-berkeley-mono mb-6 transition-colors ${
@@ -917,7 +963,7 @@ export default function Landing({
                 </svg>
               </a>
               <a
-                href="mailto:bhanukadilshan2002@gmail.com"
+                href="mailto:adss@sci.ruh.ac.lk"
                 className={`w-8 h-8 rounded-[6px] border flex items-center justify-center transition-colors ${
                   isDark
                     ? "border-[#23252a] bg-[#0f1011] text-[#8a8f98] hover:text-white hover:border-[#383b3f]"

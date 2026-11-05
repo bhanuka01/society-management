@@ -37,6 +37,8 @@ import {
   BookOpen,
   ShieldCheck
 } from "lucide-react";
+import { useCycle } from "../context/CycleContext";
+import CycleSelector from "../components/CycleSelector";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -93,6 +95,7 @@ const EMPTY_FORM = { id: "", category: "OFFICIAL", title: "", content: "", is_pu
 
 export default function Notices({ isAdmin = false, session, theme }) {
   const isDark = theme ? theme === "dark" : (typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true);
+  const { selectedCycle, isWithinCycle } = useCycle();
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -185,6 +188,15 @@ export default function Notices({ isAdmin = false, session, theme }) {
       query = query.eq("is_public", false);
     }
 
+    if (selectedCycle) {
+      if (selectedCycle.startDate) {
+        query = query.gte("created_at", `${selectedCycle.startDate}T00:00:00.000Z`);
+      }
+      if (selectedCycle.endDate) {
+        query = query.lte("created_at", `${selectedCycle.endDate}T23:59:59.999Z`);
+      }
+    }
+
     try {
       const { data, count, error } = await query;
       if (error) throw error;
@@ -200,7 +212,7 @@ export default function Notices({ isAdmin = false, session, theme }) {
 
   useEffect(() => {
     load(page, search);
-  }, [page, search, isAdmin, scopeFilter]);
+  }, [page, search, isAdmin, scopeFilter, selectedCycle]);
 
   // Frontend category filtering
   const filteredNotices = useMemo(() => {
@@ -470,6 +482,10 @@ export default function Notices({ isAdmin = false, session, theme }) {
                   </button>
                 )}
               </div>
+
+              <div className={`h-3.5 w-px hidden sm:block ${isDark ? "bg-[#23252a]" : "bg-gray-200"}`} />
+
+              <CycleSelector variant="toolbar" theme={theme} />
 
               <div className={`h-3.5 w-px hidden sm:block ${isDark ? "bg-[#23252a]" : "bg-gray-200"}`} />
 

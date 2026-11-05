@@ -340,8 +340,8 @@ export default function App() {
     };
   }, []);
 
-  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, setup: Setup, my_info: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage, privacy: PrivacyPolicy, terms: TermsOfService, documents: Documents };
-  const PageComponent = pages[page];
+  const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, setup: Setup, my_info: MyInfo, profile: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage, privacy: PrivacyPolicy, terms: TermsOfService, documents: Documents };
+  const PageComponent = pages[page] || Dashboard;
   const isRealStaff = canEdit(session.role);
   const effectiveRole = (viewAsMember && isRealStaff) ? "member" : session.role;
   const isEditor = canEdit(effectiveRole);
@@ -712,13 +712,7 @@ export default function App() {
             />
             {sidebarOpen && (
               <div className="logo-text min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="logo-title">ADSS RUHUNA</span>
-                  <span className="text-[9px] font-berkeley-mono text-[#8a8f98] bg-[#161718] border border-[#23252a] px-1 py-0.5 rounded-[3px]">
-                    v2.6
-                  </span>
-                </div>
-                <span className="logo-sub">2024/25 Active Cycle</span>
+                <span className="logo-title">ADSS RUHUNA</span>
               </div>
             )}
           </div>

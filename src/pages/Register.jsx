@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
+import { useCycle } from "../context/CycleContext";
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,6 +33,7 @@ export default function Register({
   const isDark = theme ? theme === "dark" : (typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true);
   const [roleMode, setRoleMode] = useState("member"); // "member" | "staff"
   const [staffRole, setStaffRole] = useState("editor"); // "editor" | "admin"
+  const { activeCycle } = useCycle();
 
   // Form fields
   const [name, setName] = useState("");
@@ -422,7 +424,7 @@ export default function Register({
                     isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-gray-100 border-gray-200 text-gray-600"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${isDark ? "bg-[#e4f222]" : "bg-lime-500"}`} />
-                    <span>ONBOARDING // 2024-25 CYCLE</span>
+                    <span>ONBOARDING // {activeCycle?.name || "2024/2025"} CYCLE</span>
                   </div>
                   <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>
                     STUDENT REGISTRY
