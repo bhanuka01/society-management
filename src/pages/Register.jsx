@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
 import { useCycle } from "../context/CycleContext";
+import PlacementQuestionnaire, {
+  OFFICIAL_FUNCTIONAL_TEAMS,
+  INITIAL_QUESTIONNAIRE,
+} from "../components/PlacementQuestionnaire";
 import {
   ArrowLeft,
   ArrowRight,
@@ -21,7 +25,8 @@ import {
   CheckCircle2,
   Trash2,
   UploadCloud,
-  FileCheck
+  FileCheck,
+  Sparkles,
 } from "lucide-react";
 
 export default function Register({
@@ -47,6 +52,34 @@ export default function Register({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreedTerms, setAgreedTerms] = useState(false);
 
+  // Membership & Questionnaire State
+  const [isExistingMember, setIsExistingMember] = useState(null); // null | "yes" | "no"
+  const [questionnaire, setQuestionnaire] = useState(INITIAL_QUESTIONNAIRE);
+  const [validationErrors, setValidationErrors] = useState({});
+
+  // Multi-step Wizard State
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = roleMode === "member" && isExistingMember === "no" ? 4 : 2;
+
+  // Clamp currentStep if totalSteps changes
+  useEffect(() => {
+    if (currentStep > totalSteps) {
+      setCurrentStep(totalSteps);
+    }
+  }, [totalSteps, currentStep]);
+
+  const stepLabels = totalSteps === 4
+    ? [
+        { num: 1, title: "Identity", desc: "Academic details" },
+        { num: 2, title: "Preferences", desc: "Focus & choices" },
+        { num: 3, title: "Domain Skills", desc: "Skills & scenario" },
+        { num: 4, title: "Credentials", desc: "Photo & account" },
+      ]
+    : [
+        { num: 1, title: "Identity", desc: "Academic & role" },
+        { num: 2, title: "Credentials", desc: "Photo & account" },
+      ];
+
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -59,6 +92,24 @@ export default function Register({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successInfo, setSuccessInfo] = useState(null);
+
+  // Clean toggle between Yes and No: re-initialize dependent state without stale data
+  const handleMembershipStatusChange = (status) => {
+    setIsExistingMember(status);
+    setErrorMessage("");
+    setValidationErrors({});
+    if (status === "yes") {
+      // Clear questionnaire to prevent stale data
+      setQuestionnaire(INITIAL_QUESTIONNAIRE);
+      if (!memberFunction || memberFunction === "Pending Review") {
+        setMemberFunction("Finance");
+      }
+    } else if (status === "no") {
+      // Lock functional team and reset questionnaire to fresh state
+      setMemberFunction("Pending Review");
+      setQuestionnaire(INITIAL_QUESTIONNAIRE);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -114,9 +165,199 @@ export default function Register({
   const trimmedStId = stId.trim();
   const isValidStIdFormat = /^(?:SC\/)?\d{4}\/\d{5}$/i.test(trimmedStId);
 
+  // Smooth scroll helper to focus on the first invalid field
+  const scrollToFirstError = (errs) => {
+    setTimeout(() => {
+      const keys = Object.keys(errs);
+      if (keys.length > 0) {
+        const firstKey = keys[0];
+        const el = document.getElementById(`field-${firstKey}`) || document.getElementById(`field-${firstKey}-input`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          const input = el.querySelector("input, textarea, select") || el;
+          if (input && typeof input.focus === "function") {
+            try { input.focus(); } catch (_) {}
+          }
+        }
+      }
+    }, 60);
+  };
+
+  const handleQuestionnaireChange = (nextVal) => {
+    setQuestionnaire(nextVal);
+    setValidationErrors((prev) => {
+      if (!prev || Object.keys(prev).length === 0) return prev;
+      const updated = { ...prev };
+      if (nextVal.academicStanding && updated.academicStanding) delete updated.academicStanding;
+      if (nextVal.focusAreas?.length > 0 && updated.focusAreas) delete updated.focusAreas;
+      if (nextVal.firstChoiceFunction && nextVal.secondChoiceFunction && nextVal.firstChoiceFunction !== nextVal.secondChoiceFunction && updated.choices) delete updated.choices;
+      if (nextVal.weeklyCommitment && updated.weeklyCommitment) delete updated.weeklyCommitment;
+      if (nextVal.contributionNote?.trim()?.length >= 5 && updated.contributionNote) delete updated.contributionNote;
+      return updated;
+    });
+  };
+
+  const validateCurrentStep = () => {
+    setErrorMessage("");
+    const errs = {};
+
+    if (currentStep === 1) {
+      if (!name.trim()) {
+        errs.name = "Full Name is required.";
+      }
+      if (roleMode === "member") {
+        if (!trimmedStId) {
+          errs.stId = "Student ID is required.";
+        } else if (!isValidStIdFormat) {
+          errs.stId = "Invalid Student ID format. Expected format: SC/2022/12984";
+        }
+        if (isExistingMember === null) {
+          errs.isExistingMember = "Please select whether you are an existing ADSS member or a new applicant.";
+        }
+        if (isExistingMember === "yes" && !memberFunction) {
+          errs.memberFunction = "Please select your Society Functional Team.";
+        }
+      }
+
+      if (Object.keys(errs).length > 0) {
+        setValidationErrors(errs);
+        setErrorMessage(Object.values(errs)[0]);
+        scrollToFirstError(errs);
+        return false;
+      }
+      setValidationErrors({});
+      return true;
+    }
+
+    if (totalSteps === 4) {
+      if (currentStep === 2) {
+        if (!questionnaire.academicStanding) {
+          errs.academicStanding = "BSc FMIS Academic Standing is required.";
+        }
+        if (!questionnaire.focusAreas || questionnaire.focusAreas.length === 0) {
+          errs.focusAreas = "Please select at least 1 preferred focus area (max 2).";
+        }
+        if (!questionnaire.firstChoiceFunction || !questionnaire.secondChoiceFunction) {
+          errs.choices = "Both 1st and 2nd choice functional teams are required.";
+        } else if (questionnaire.firstChoiceFunction === questionnaire.secondChoiceFunction) {
+          errs.choices = "1st and 2nd choices must be different functional teams.";
+        }
+        if (!questionnaire.weeklyCommitment) {
+          errs.weeklyCommitment = "Weekly commitment is required.";
+        }
+
+        if (Object.keys(errs).length > 0) {
+          setValidationErrors(errs);
+          setErrorMessage(Object.values(errs)[0] || "Please complete all required fields in Placement Preferences.");
+          scrollToFirstError(errs);
+          return false;
+        }
+        setValidationErrors({});
+        return true;
+      }
+
+      if (currentStep === 3) {
+        if (!questionnaire.contributionNote || questionnaire.contributionNote.trim().length < 5) {
+          errs.contributionNote = "Practical contribution note is required (minimum 5 characters). Please describe your experience, projects, or skills.";
+          setValidationErrors(errs);
+          setErrorMessage("Please provide your practical contribution note before continuing.");
+          scrollToFirstError(errs);
+          return false;
+        }
+        setValidationErrors({});
+        return true;
+      }
+    }
+
+    return true;
+  };
+
+  const validateFinalStep = () => {
+    setErrorMessage("");
+    const errs = {};
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      errs.email = "Email address is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      errs.email = "Please enter a valid email address.";
+    }
+
+    if (roleMode === "member" && !phone.trim()) {
+      errs.phone = "Mobile / WhatsApp number is required.";
+    }
+
+    if (!password) {
+      errs.password = "Password is required.";
+    } else if (password.length < 6) {
+      errs.password = "Password must be at least 6 characters long.";
+    }
+
+    if (!confirmPassword) {
+      errs.confirmPassword = "Please confirm your password.";
+    } else if (password !== confirmPassword) {
+      errs.confirmPassword = "Passwords do not match. Please re-check both fields.";
+    }
+
+    if (!agreedTerms) {
+      errs.agreedTerms = "You must agree to the Terms of Service & Privacy Policy.";
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setValidationErrors(errs);
+      setErrorMessage(Object.values(errs)[0] || "Please fill all required credentials.");
+      scrollToFirstError(errs);
+      return false;
+    }
+    setValidationErrors({});
+    return true;
+  };
+
+  const handleNextStep = (e) => {
+    if (e) e.preventDefault();
+    if (validateCurrentStep()) {
+      setErrorMessage("");
+      setCurrentStep((prev) => Math.min(totalSteps, prev + 1));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handlePrevStep = () => {
+    setErrorMessage("");
+    setCurrentStep((prev) => Math.max(1, prev - 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleJumpToStep = (targetStep) => {
+    if (targetStep < currentStep) {
+      setErrorMessage("");
+      setCurrentStep(targetStep);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (targetStep > currentStep) {
+      if (validateCurrentStep()) {
+        setErrorMessage("");
+        setCurrentStep(targetStep);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    if (currentStep < totalSteps) {
+      handleNextStep(e);
+    } else {
+      handleSubmit(e);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
+
+    if (!validateFinalStep()) {
+      return;
+    }
 
     const targetRole = roleMode === "member" ? "member" : staffRole;
     const cleanEmail = email.trim().toLowerCase();
@@ -141,6 +382,45 @@ export default function Register({
     if (!agreedTerms) {
       setErrorMessage("You must accept the Terms of Service and Privacy Policy to create an account.");
       return;
+    }
+
+    if (roleMode === "member") {
+      if (isExistingMember === null) {
+        setErrorMessage("Please answer the required question: Are you an existing ADSS member?");
+        return;
+      }
+
+      if (isExistingMember === "yes") {
+        if (!memberFunction) {
+          setErrorMessage("Please select your Society Functional Team.");
+          return;
+        }
+      } else {
+        const errors = {};
+        if (!questionnaire.academicStanding) {
+          errors.academicStanding = "BSc FMIS Academic Standing is required.";
+        }
+        if (!questionnaire.focusAreas || questionnaire.focusAreas.length === 0) {
+          errors.focusAreas = "Please select at least 1 preferred focus area (max 2).";
+        }
+        if (!questionnaire.firstChoiceFunction || !questionnaire.secondChoiceFunction) {
+          errors.choices = "Both 1st and 2nd choice functional teams are required.";
+        } else if (questionnaire.firstChoiceFunction === questionnaire.secondChoiceFunction) {
+          errors.choices = "1st and 2nd choices must be different functional teams.";
+        }
+        if (!questionnaire.weeklyCommitment) {
+          errors.weeklyCommitment = "Weekly commitment is required.";
+        }
+        if (!questionnaire.contributionNote || questionnaire.contributionNote.trim().length < 5) {
+          errors.contributionNote = "Please provide a brief note on your practical skills or past experience.";
+        }
+
+        if (Object.keys(errors).length > 0) {
+          setValidationErrors(errors);
+          setErrorMessage("Please complete all required fields in the Placement & Skills Assessment Questionnaire.");
+          return;
+        }
+      }
     }
 
     setLoading(true);
@@ -215,34 +495,61 @@ export default function Register({
 
       // 5. Upload profile picture if chosen
       let profileImageUrl = null;
+      let optimizedFile = null;
+      let photoUploadDeferred = false;
+
       if (profileImageFile) {
         try {
-          const optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
+          optimizedFile = await resizeImage(profileImageFile, 500, 600, 0.85);
           const cleanStId = (finalStId || "user").replace(/\//g, "-");
           const fileName = `${cleanStId}_${Date.now()}.jpg`;
 
+          // Attempt upload before signup (works when bucket has public insert policy)
           const { error: uploadError } = await supabase.storage
             .from("profile_images")
             .upload(fileName, optimizedFile, {
               cacheControl: "3600",
-              upsert: true,
+              upsert: false,
             });
 
           if (uploadError) {
-            throw new Error("Failed to upload profile image: " + uploadError.message);
+            // Check if error is due to RLS policy or unauthenticated anon upload restriction
+            const isRlsOrAuthError =
+              uploadError.message?.toLowerCase().includes("row-level security") ||
+              uploadError.message?.toLowerCase().includes("violates") ||
+              uploadError.statusCode === "42501" ||
+              uploadError.statusCode === 403 ||
+              uploadError.error === "Unauthorized";
+
+            if (isRlsOrAuthError) {
+              console.warn("Storage RLS prevented pre-signup upload. Photo upload will be retried after session is established.");
+              photoUploadDeferred = true;
+            } else {
+              throw new Error("Failed to upload profile image: " + uploadError.message);
+            }
+          } else {
+            const { data: urlData } = supabase.storage
+              .from("profile_images")
+              .getPublicUrl(fileName);
+
+            profileImageUrl = urlData?.publicUrl || null;
           }
-
-          const { data: urlData } = supabase.storage
-            .from("profile_images")
-            .getPublicUrl(fileName);
-
-          profileImageUrl = urlData?.publicUrl;
         } catch (imgErr) {
-          setErrorMessage(imgErr.message || "Failed to process photo upload.");
-          setLoading(false);
-          return;
+          if (!photoUploadDeferred) {
+            setErrorMessage(imgErr.message || "Failed to process photo upload.");
+            setLoading(false);
+            return;
+          }
         }
       }
+
+      const finalLevel = (roleMode === "member" && isExistingMember === "no")
+        ? (questionnaire.academicStanding === "Level IV" ? "4" : questionnaire.academicStanding === "Level III" ? "3" : questionnaire.academicStanding === "Level II" ? "2" : "1")
+        : (level || "1");
+
+      const applicantStatus = (roleMode === "member" && isExistingMember === "no")
+        ? "pending_editor_review"
+        : "pending";
 
       // 6. Sign up user via Supabase
       const { data, error } = await supabase.auth.signUp({
@@ -254,10 +561,16 @@ export default function Register({
             preferred_name: v_preferred_name,
             role: targetRole,
             st_id: finalStId,
-            level: level || "1",
+            level: finalLevel,
             mobile_number: isPreRegistered ? null : phone.trim(),
-            member_function: isPreRegistered ? null : (targetRole === "member" ? memberFunction : null),
+            member_function: isPreRegistered ? null : (targetRole === "member" ? (isExistingMember === "yes" ? memberFunction : "Pending Review") : null),
             profile_image_url: profileImageUrl,
+            is_existing_member: isExistingMember === "yes",
+            membership_status: isExistingMember === "yes" ? "existing" : "new",
+            applicant_status: applicantStatus,
+            skills_assessment: isExistingMember === "no" ? questionnaire : null,
+            portfolio_url: isExistingMember === "no" ? (questionnaire.portfolioLink?.trim() || null) : null,
+            contribution_note: isExistingMember === "no" ? (questionnaire.contributionNote?.trim() || null) : null,
           },
         },
       });
@@ -270,13 +583,82 @@ export default function Register({
 
       // 7. Check if session was returned immediately or requires email confirmation
       if (data?.session) {
+        // If photo upload was deferred due to RLS, retry now with the authenticated user session
+        if (photoUploadDeferred && optimizedFile) {
+          try {
+            const cleanStId = (finalStId || "user").replace(/\//g, "-");
+            const fileName = `${cleanStId}_${Date.now()}.jpg`;
+            const { error: authUploadErr } = await supabase.storage
+              .from("profile_images")
+              .upload(fileName, optimizedFile, {
+                cacheControl: "3600",
+                upsert: false,
+              });
+
+            if (!authUploadErr) {
+              const { data: urlData } = supabase.storage
+                .from("profile_images")
+                .getPublicUrl(fileName);
+              profileImageUrl = urlData?.publicUrl || null;
+
+              if (profileImageUrl) {
+                const targetStId = isPreRegistered ? v_st_id : finalStId;
+                if (targetStId) {
+                  await supabase
+                    .from("members")
+                    .update({ profile_image_url: profileImageUrl })
+                    .eq("st_id", targetStId);
+                }
+                await supabase.auth.updateUser({
+                  data: { profile_image_url: profileImageUrl }
+                }).catch(() => {});
+              }
+            } else {
+              console.warn("Authenticated photo upload failed:", authUploadErr.message);
+            }
+          } catch (postUploadErr) {
+            console.warn("Deferred photo upload error:", postUploadErr);
+          }
+        }
+
+        // Persist skills assessment to profiles and members if new applicant
+        if (roleMode === "member" && isExistingMember === "no") {
+          await supabase
+            .from("profiles")
+            .update({
+              status: "pending_editor_review",
+              membership_status: "new",
+              skills_assessment: questionnaire,
+              portfolio_url: questionnaire.portfolioLink?.trim() || null,
+              contribution_note: questionnaire.contributionNote?.trim() || null,
+            })
+            .eq("id", data.user.id)
+            .catch(() => {});
+
+          if (finalStId) {
+            await supabase
+              .from("members")
+              .update({
+                member_function: "Pending Review",
+                st_position: "Pending Review",
+                membership_status: "new",
+                skills_assessment: questionnaire,
+              })
+              .eq("st_id", finalStId)
+              .catch(() => {});
+          }
+        }
+
         const { data: profile } = await supabase
           .from("profiles")
           .select("status, role, st_id, full_name, preferred_name, email")
           .eq("id", data.user.id)
           .maybeSingle();
 
-        const userStatus = profile?.status || "approved";
+        const userStatus = (roleMode === "member" && isExistingMember === "no")
+          ? "pending_editor_review"
+          : (profile?.status || "approved");
+
         const userRole = profile?.role || targetRole;
 
         const profileData = {
@@ -291,7 +673,10 @@ export default function Register({
         };
 
         if (onRegisterSuccess) {
-          onRegisterSuccess(profileData, userStatus === "pending");
+          onRegisterSuccess(
+            profileData,
+            userStatus === "pending" || userStatus === "pending_editor_review"
+          );
         } else {
           try {
             localStorage.setItem("adss-profile-cache", JSON.stringify(profileData));
@@ -304,6 +689,8 @@ export default function Register({
         setSuccessInfo({
           email: cleanEmail,
           name: v_name,
+          photoDeferred: photoUploadDeferred,
+          pendingEditorReview: roleMode === "member" && isExistingMember === "no",
         });
       }
     } catch (err) {
@@ -408,6 +795,32 @@ export default function Register({
                   </strong>
                   . Please check your inbox or spam folder to activate your account, then sign in.
                 </p>
+
+                {successInfo.pendingEditorReview && (
+                  <div className={`max-w-[480px] mx-auto mb-6 p-4 rounded-[8px] border text-[13px] text-left flex items-start gap-3 ${
+                    isDark ? "bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]" : "bg-amber-50 border-amber-200 text-amber-900"
+                  }`}>
+                    <ShieldAlert className="w-5 h-5 flex-shrink-0 mt-0.5 text-[#f59e0b]" />
+                    <div>
+                      <strong className="block text-[13.5px] font-[510] mb-0.5">
+                        Registration Submitted for Editorial Review
+                      </strong>
+                      <span className="leading-relaxed block">
+                        Registration submitted for editorial review. Your functional team will be assigned by the executive committee based on your skills assessment.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {successInfo.photoDeferred && (
+                  <div className={`max-w-[440px] mx-auto mb-6 p-3 rounded-[8px] border text-[12.5px] text-left flex items-start gap-2.5 ${
+                    isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-amber-50 border-amber-200 text-amber-800"
+                  }`}>
+                    <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#e4f222]" />
+                    <span>Your account details were registered. Once you confirm your email and log in, you can add your digital pass photo under <strong>My Info</strong>.</span>
+                  </div>
+                )}
+
                 <button
                   onClick={handleNavigateLogin}
                   className="linear-btn-primary px-6 py-2.5 text-[14px]"
@@ -540,462 +953,1033 @@ export default function Register({
                   </div>
                 )}
 
-                {/* Registration Form */}
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  {/* ── Section: Academic Identity ── */}
-                  <div className="space-y-4">
-                    <div className={`flex items-center gap-2 pb-1 border-b ${
-                      isDark ? "border-[#23252a]/60" : "border-gray-200"
-                    }`}>
-                      <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
-                        isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
-                      }`}>
-                        01 // Academic Identity
+                {/* Registration Multi-Step Form */}
+                <form onSubmit={handleFormSubmit} className="space-y-6">
+                  {/* Stepper Progress Bar */}
+                  <div className="space-y-2.5 pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider font-semibold px-2 py-0.5 rounded-[4px] border ${
+                          isDark
+                            ? "bg-[#161718] border-[#23252a] text-[#e4f222]"
+                            : "bg-lime-50 border-lime-200 text-lime-800"
+                        }`}>
+                          STEP {currentStep} OF {totalSteps}
+                        </span>
+                        <span className={`text-[13px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+                          {stepLabels[currentStep - 1]?.title}
+                        </span>
+                      </div>
+                      <span className={`text-[11.5px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                        {Math.round((currentStep / totalSteps) * 100)}% Complete
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Full Name */}
-                      <div>
-                        <label className={`block text-[13px] font-[510] mb-1.5 ${
-                          isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                        }`}>
-                          Full Name <span className="text-[#eb5757]">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. A.B. Pathum Nissanka"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                              isDark
-                                ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
-                                : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
-                            }`}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Preferred / Calling Name */}
-                      <div>
-                        <label className={`block text-[13px] font-[510] mb-1.5 ${
-                          isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                        }`}>
-                          Calling Name <span className={`font-[400] text-[12px] ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>(Badge / ID)</span>
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Pathum"
-                          value={preferredName}
-                          onChange={(e) => setPreferredName(e.target.value)}
-                          className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                            isDark
-                              ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
-                              : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
-                          }`}
-                        />
-                      </div>
+                    {/* Progress Bar Track */}
+                    <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? "bg-[#161718]" : "bg-gray-100"}`}>
+                      <div
+                        className="h-full bg-gradient-to-r from-[#e4f222] to-emerald-400 transition-all duration-300 ease-out"
+                        style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+                      />
                     </div>
 
-                    {/* Member Specific Fields: ST ID & Level */}
-                    {roleMode === "member" && (
-                      <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {/* Student ID */}
-                          <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <label className={`text-[13px] font-[510] ${
-                                isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                    {/* Segmented Step Buttons */}
+                    <div className={`grid ${totalSteps === 4 ? "grid-cols-4" : "grid-cols-2"} gap-1.5 pt-1`}>
+                      {stepLabels.map((s) => {
+                        const isPast = s.num < currentStep;
+                        const isCurrent = s.num === currentStep;
+                        return (
+                          <button
+                            key={s.num}
+                            type="button"
+                            onClick={() => handleJumpToStep(s.num)}
+                            disabled={!isPast && !isCurrent}
+                            className={`text-left py-1.5 px-2 rounded-[5px] border transition-all text-[11px] truncate flex items-center gap-1.5 ${
+                              isCurrent
+                                ? isDark
+                                  ? "bg-[#161718] border-[#e4f222]/50 text-white font-[510]"
+                                  : "bg-white border-lime-500 text-gray-900 shadow-sm font-semibold"
+                                : isPast
+                                ? isDark
+                                  ? "bg-[#0f1011] border-[#23252a] text-[#27a644] hover:border-[#383b3f] cursor-pointer"
+                                  : "bg-gray-50 border-gray-200 text-emerald-600 hover:border-gray-300 cursor-pointer"
+                                : isDark
+                                ? "bg-transparent border-transparent text-[#62666d] cursor-not-allowed opacity-50"
+                                : "bg-transparent border-transparent text-gray-400 cursor-not-allowed opacity-50"
+                            }`}
+                          >
+                            {isPast ? (
+                              <Check className="w-3 h-3 text-[#27a644] flex-shrink-0" />
+                            ) : (
+                              <span className={`w-3.5 h-3.5 rounded-full text-[9px] flex items-center justify-center font-berkeley-mono flex-shrink-0 ${
+                                isCurrent
+                                  ? isDark
+                                    ? "bg-[#e4f222] text-[#08090a] font-bold"
+                                    : "bg-gray-900 text-white font-bold"
+                                  : isDark
+                                  ? "bg-[#23252a] text-[#8a8f98]"
+                                  : "bg-gray-200 text-gray-600"
                               }`}>
-                                Student ID (ST ID) <span className="text-[#eb5757]">*</span>
-                              </label>
-                              {trimmedStId && (
-                                <span
-                                  className={`text-[11px] font-berkeley-mono inline-flex items-center gap-1 ${isValidStIdFormat
-                                    ? "text-[#27a644]"
-                                    : "text-[#eb5757]"
-                                    }`}
-                                >
-                                  {isValidStIdFormat ? (
-                                    <>
-                                      <Check className="w-3 h-3" />
-                                      <span>Valid ID</span>
-                                    </>
-                                  ) : (
-                                    <span>SC/YYYY/NNNNN</span>
-                                  )}
-                                </span>
-                              )}
-                            </div>
+                                {s.num}
+                              </span>
+                            )}
+                            <span className="truncate">{s.title}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ── STEP 1: Academic Identity & Membership Status ── */}
+                  {currentStep === 1 && (
+                    <div className="space-y-4 animate-in fade-in-50 duration-200">
+                      <div className={`flex items-center gap-2 pb-1 border-b ${
+                        isDark ? "border-[#23252a]/60" : "border-gray-200"
+                      }`}>
+                        <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
+                          isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
+                        }`}>
+                          01 // Academic Identity
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Full Name */}
+                        <div id="field-name">
+                          <label className={`block text-[13px] font-[510] mb-1.5 ${
+                            isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                          }`}>
+                            Full Name <span className="text-[#eb5757]">*</span>
+                          </label>
+                          <div className="relative">
                             <input
                               type="text"
                               required
-                              placeholder="e.g. SC/2022/12984"
-                              value={stId}
-                              onChange={(e) => setStId(e.target.value)}
-                              className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] font-berkeley-mono transition-colors focus:outline-none ${
-                                isDark
+                              placeholder="e.g. A.B. Pathum Nissanka"
+                              value={name}
+                              onChange={(e) => {
+                                setName(e.target.value);
+                                if (validationErrors.name) {
+                                  setValidationErrors((prev) => ({ ...prev, name: null }));
+                                }
+                              }}
+                              className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                validationErrors.name
+                                  ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                  : isDark
                                   ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
                                   : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
                               }`}
                             />
                           </div>
-
-                          {/* Academic Year / Level */}
-                          <div>
-                            <label className={`block text-[13px] font-[510] mb-1.5 ${
-                              isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                            }`}>
-                              Academic Year / Level
-                            </label>
-                            <select
-                              value={level}
-                              onChange={(e) => setLevel(e.target.value)}
-                              className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                                isDark
-                                  ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
-                                  : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 shadow-sm"
-                              }`}
-                            >
-                              <option value="1">Year 1 (Level I)</option>
-                              <option value="2">Year 2 (Level II)</option>
-                              <option value="3">Year 3 (Level III)</option>
-                              <option value="4">Year 4 (Level IV)</option>
-                            </select>
-                          </div>
+                          {validationErrors.name && (
+                            <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span>{validationErrors.name}</span>
+                            </p>
+                          )}
                         </div>
 
-                        {/* Functional Division */}
+                        {/* Preferred / Calling Name */}
                         <div>
                           <label className={`block text-[13px] font-[510] mb-1.5 ${
                             isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
                           }`}>
-                            Society Functional Team
+                            Calling Name <span className={`font-[400] text-[12px] ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>(Badge / ID)</span>
                           </label>
-                          <select
-                            value={memberFunction}
-                            onChange={(e) => setMemberFunction(e.target.value)}
+                          <input
+                            type="text"
+                            placeholder="e.g. Pathum"
+                            value={preferredName}
+                            onChange={(e) => setPreferredName(e.target.value)}
                             className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
                               isDark
-                                ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
-                                : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 shadow-sm"
+                                ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Member Specific Fields: ST ID & Level */}
+                      {roleMode === "member" && (
+                        <>
+                          <div className={`grid grid-cols-1 ${isExistingMember === "yes" ? "sm:grid-cols-2" : "sm:grid-cols-1"} gap-4`}>
+                            {/* Student ID */}
+                            <div id="field-stId">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <label className={`text-[13px] font-[510] ${
+                                  isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                                }`}>
+                                  Student ID (ST ID) <span className="text-[#eb5757]">*</span>
+                                </label>
+                                {trimmedStId && (
+                                  <span
+                                    className={`text-[11px] font-berkeley-mono inline-flex items-center gap-1 ${isValidStIdFormat
+                                      ? "text-[#27a644]"
+                                      : "text-[#eb5757]"
+                                      }`}
+                                  >
+                                    {isValidStIdFormat ? (
+                                      <>
+                                        <Check className="w-3 h-3" />
+                                        <span>Valid ID</span>
+                                      </>
+                                    ) : (
+                                      <span>SC/YYYY/NNNNN</span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="text"
+                                required
+                                placeholder="e.g. SC/2022/12984"
+                                value={stId}
+                                onChange={(e) => {
+                                  setStId(e.target.value);
+                                  if (validationErrors.stId) {
+                                    setValidationErrors((prev) => ({ ...prev, stId: null }));
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] font-berkeley-mono transition-colors focus:outline-none ${
+                                  validationErrors.stId
+                                    ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                    : isDark
+                                    ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                    : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
+                                }`}
+                              />
+                              {validationErrors.stId && (
+                                <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                  <span>{validationErrors.stId}</span>
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Academic Year / Level (Only visible when existing member = yes; for new applicants, standing is collected in step 2) */}
+                            {isExistingMember === "yes" && (
+                              <div>
+                                <label className={`block text-[13px] font-[510] mb-1.5 ${
+                                  isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                                }`}>
+                                  Academic Year / Level
+                                </label>
+                                <select
+                                  value={level}
+                                  onChange={(e) => setLevel(e.target.value)}
+                                  className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                    isDark
+                                      ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
+                                      : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 shadow-sm"
+                                  }`}
+                                >
+                                  <option value="1">Year 1 (Level I)</option>
+                                  <option value="2">Year 2 (Level II)</option>
+                                  <option value="3">Year 3 (Level III)</option>
+                                  <option value="4">Year 4 (Level IV)</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ── Required Question: Membership Status ── */}
+                          <div id="field-isExistingMember" className={`space-y-2 pt-1 p-2.5 -mx-2.5 rounded-[8px] transition-all ${
+                            validationErrors.isExistingMember
+                              ? "border border-[#eb5757] ring-1 ring-[#eb5757] bg-[#eb5757]/5"
+                              : ""
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <label className={`block text-[13px] font-[510] ${
+                                isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                              }`}>
+                                Are you an existing ADSS member? <span className="text-[#eb5757]">*</span>
+                              </label>
+                              <span className={`text-[11px] font-berkeley-mono ${
+                                validationErrors.isExistingMember
+                                  ? "text-[#eb5757] font-semibold"
+                                  : isDark ? "text-[#8a8f98]" : "text-gray-500"
+                              }`}>
+                                Required
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {/* Option: Yes */}
+                              <label className={`p-3 rounded-[6px] border flex items-center gap-3 cursor-pointer transition-all ${
+                                isExistingMember === "yes"
+                                  ? isDark
+                                    ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
+                                    : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm"
+                                  : isDark
+                                  ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
+                                  : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                              }`}>
+                                <input
+                                  type="radio"
+                                  name="is_existing_member"
+                                  checked={isExistingMember === "yes"}
+                                  onChange={() => handleMembershipStatusChange("yes")}
+                                  className="sr-only"
+                                />
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                                  isExistingMember === "yes"
+                                    ? isDark
+                                      ? "border-[#e4f222] bg-[#e4f222]"
+                                      : "border-indigo-600 bg-indigo-600"
+                                    : isDark
+                                    ? "border-[#383b3f] bg-[#0f1011]"
+                                    : "border-gray-300 bg-white"
+                                }`}>
+                                  {isExistingMember === "yes" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[13px] font-[510] block leading-tight">Yes</span>
+                                  <span className={`text-[11px] block truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                    Current ADSS society member
+                                  </span>
+                                </div>
+                              </label>
+
+                              {/* Option: No */}
+                              <label className={`p-3 rounded-[6px] border flex items-center gap-3 cursor-pointer transition-all ${
+                                isExistingMember === "no"
+                                  ? isDark
+                                    ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
+                                    : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm"
+                                  : isDark
+                                  ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
+                                  : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                              }`}>
+                                <input
+                                  type="radio"
+                                  name="is_existing_member"
+                                  checked={isExistingMember === "no"}
+                                  onChange={() => handleMembershipStatusChange("no")}
+                                  className="sr-only"
+                                />
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                                  isExistingMember === "no"
+                                    ? isDark
+                                      ? "border-[#e4f222] bg-[#e4f222]"
+                                      : "border-indigo-600 bg-indigo-600"
+                                    : isDark
+                                    ? "border-[#383b3f] bg-[#0f1011]"
+                                    : "border-gray-300 bg-white"
+                                }`}>
+                                  {isExistingMember === "no" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[13px] font-[510] block leading-tight">No</span>
+                                  <span className={`text-[11px] block truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                    New applicant (Skills assessment)
+                                  </span>
+                                </div>
+                              </label>
+                            </div>
+                            {validationErrors.isExistingMember && (
+                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{validationErrors.isExistingMember}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* ── Society Functional Team Section ── */}
+                          <div id="field-memberFunction">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className={`block text-[13px] font-[510] ${
+                                isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                              }`}>
+                                Society Functional Team {isExistingMember === "yes" && <span className="text-[#eb5757]">*</span>}
+                              </label>
+                              {isExistingMember === "no" && (
+                                <span className="text-[11px] font-berkeley-mono text-[#f59e0b] flex items-center gap-1">
+                                  <Lock className="w-3 h-3" /> Locked for review
+                                </span>
+                              )}
+                            </div>
+
+                            {isExistingMember === "no" ? (
+                              <div className="space-y-1.5">
+                                <div className={`w-full px-3 py-2 rounded-[6px] border text-[13px] flex items-center justify-between ${
+                                  isDark
+                                    ? "bg-[#111214] border-[#23252a] text-[#71767e] cursor-not-allowed opacity-80"
+                                    : "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
+                                }`}>
+                                  <span className="font-berkeley-mono">Pending Executive Committee Assignment</span>
+                                  <Lock className="w-3.5 h-3.5 opacity-60" />
+                                </div>
+                                <p className={`text-[11.5px] italic ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                  Your functional team will be assigned by the executive committee.
+                                </p>
+                              </div>
+                            ) : (
+                              <>
+                                <select
+                                  value={memberFunction}
+                                  disabled={isExistingMember !== "yes"}
+                                  required={isExistingMember === "yes"}
+                                  onChange={(e) => {
+                                    setMemberFunction(e.target.value);
+                                    if (validationErrors.memberFunction) {
+                                      setValidationErrors((prev) => ({ ...prev, memberFunction: null }));
+                                    }
+                                  }}
+                                  className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                    validationErrors.memberFunction
+                                      ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                      : isDark
+                                      ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
+                                      : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 shadow-sm"
+                                  }`}
+                                >
+                                  {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => (
+                                    <option key={fn} value={fn}>
+                                      {fn}
+                                    </option>
+                                  ))}
+                                </select>
+                                {validationErrors.memberFunction && (
+                                  <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span>{validationErrors.memberFunction}</span>
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Step 1 Inline Error Banner */}
+                      {errorMessage && (
+                        <div className={`p-3 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
+                          isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
+                        }`}>
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <div className="leading-snug">{errorMessage}</div>
+                        </div>
+                      )}
+
+                      {/* Step 1 Actions */}
+                      <div className="pt-2 flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="linear-btn-primary px-5 py-2.5 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
+                        >
+                          <span>
+                            {roleMode === "member" && isExistingMember === "no"
+                              ? "Next: Placement Preferences"
+                              : "Next: Pass Photo & Credentials"}
+                          </span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── STEP 2 (when 4 steps): Placement & Focus Preferences ── */}
+                  {totalSteps === 4 && currentStep === 2 && (
+                    <div className="space-y-4 animate-in fade-in-50 duration-200">
+                      <div className={`flex items-center gap-2 pb-1 border-b ${
+                        isDark ? "border-[#23252a]/60" : "border-gray-200"
+                      }`}>
+                        <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
+                          isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
+                        }`}>
+                          02 // Placement & Focus Preferences
+                        </span>
+                      </div>
+
+                      <PlacementQuestionnaire
+                        step="preferences"
+                        value={questionnaire}
+                        onChange={handleQuestionnaireChange}
+                        isDark={isDark}
+                        validationErrors={validationErrors}
+                      />
+
+                      {/* Step 2 Inline Error Banner */}
+                      {errorMessage && (
+                        <div className={`p-3 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
+                          isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
+                        }`}>
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <div className="leading-snug">{errorMessage}</div>
+                        </div>
+                      )}
+
+                      {/* Step 2 Actions */}
+                      <div className={`pt-4 flex items-center justify-between border-t ${
+                        isDark ? "border-[#23252a]/60" : "border-gray-200"
+                      }`}>
+                        <button
+                          type="button"
+                          onClick={handlePrevStep}
+                          className={`px-4 py-2 rounded-[6px] border text-[13px] font-[510] flex items-center gap-2 cursor-pointer transition-colors ${
+                            isDark
+                              ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#383b3f]"
+                              : "bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:bg-gray-50 shadow-sm"
+                          }`}
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          <span>Back to Identity</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="linear-btn-primary px-5 py-2 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
+                        >
+                          <span>Next: Skills & Evaluation</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── STEP 3 (when 4 steps): Domain Skills & Evaluation ── */}
+                  {totalSteps === 4 && currentStep === 3 && (
+                    <div className="space-y-4 animate-in fade-in-50 duration-200">
+                      <div className={`flex items-center gap-2 pb-1 border-b ${
+                        isDark ? "border-[#23252a]/60" : "border-gray-200"
+                      }`}>
+                        <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
+                          isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
+                        }`}>
+                          03 // Domain Skills & Evaluation
+                        </span>
+                      </div>
+
+                      <PlacementQuestionnaire
+                        step="skills"
+                        value={questionnaire}
+                        onChange={handleQuestionnaireChange}
+                        isDark={isDark}
+                        validationErrors={validationErrors}
+                      />
+
+                      {/* Step 3 Inline Error Banner */}
+                      {errorMessage && (
+                        <div className={`p-3 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
+                          isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
+                        }`}>
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <div className="leading-snug">{errorMessage}</div>
+                        </div>
+                      )}
+
+                      {/* Step 3 Actions */}
+                      <div className={`pt-4 flex items-center justify-between border-t ${
+                        isDark ? "border-[#23252a]/60" : "border-gray-200"
+                      }`}>
+                        <button
+                          type="button"
+                          onClick={handlePrevStep}
+                          className={`px-4 py-2 rounded-[6px] border text-[13px] font-[510] flex items-center gap-2 cursor-pointer transition-colors ${
+                            isDark
+                              ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#383b3f]"
+                              : "bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:bg-gray-50 shadow-sm"
+                          }`}
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          <span>Back to Preferences</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="linear-btn-primary px-5 py-2 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
+                        >
+                          <span>Next: Pass Photo & Credentials</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── FINAL STEP: Digital Pass Photo & Account Credentials ── */}
+                  {currentStep === totalSteps && (
+                    <div className="space-y-5 animate-in fade-in-50 duration-200">
+                      {/* Photo Section */}
+                      <div className="space-y-3">
+                        <div className={`flex items-center gap-2 pb-1 border-b ${
+                          isDark ? "border-[#23252a]/60" : "border-gray-200"
+                        }`}>
+                          <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
+                            isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
+                          }`}>
+                            {totalSteps === 4 ? "04" : "02"} // Member Photo (For Digital Pass)
+                          </span>
+                        </div>
+
+                        <div className={`p-3.5 rounded-[8px] border flex items-center gap-4 ${
+                          isDark ? "bg-[#161718]/60 border-[#23252a]" : "bg-gray-50 border-gray-200"
+                        }`}>
+                          {/* Avatar preview */}
+                          <div className="relative flex-shrink-0">
+                            {previewUrl ? (
+                              <img
+                                src={previewUrl}
+                                alt="Preview"
+                                className="w-14 h-14 rounded-full object-cover border-2 border-[#e4f222]"
+                              />
+                            ) : (
+                              <div className={`w-14 h-14 rounded-full border flex items-center justify-center ${
+                                isDark ? "bg-[#08090a] border-[#23252a] text-[#62666d]" : "bg-white border-gray-200 text-gray-400"
+                              }`}>
+                                <Camera className="w-5 h-5" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Photo actions */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <label
+                                htmlFor="register-photo-upload"
+                                className={`text-[12px] px-3 py-1.5 rounded-[6px] border cursor-pointer inline-flex items-center font-[510] transition-colors ${
+                                  isDark
+                                    ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#383b3f]"
+                                    : "bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:bg-gray-100 shadow-sm"
+                                }`}
+                              >
+                                <UploadCloud className="w-3.5 h-3.5 mr-1" />
+                                <span>Choose Photo</span>
+                              </label>
+                              {previewUrl && (
+                                <button
+                                  type="button"
+                                  onClick={handleRemovePhoto}
+                                  className="text-[12px] text-[#eb5757] hover:underline cursor-pointer flex items-center gap-1 p-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Remove</span>
+                                </button>
+                              )}
+                            </div>
+                            <input
+                              id="register-photo-upload"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleFileChange}
+                              className="hidden"
+                            />
+                            <p className={`text-[11.5px] truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                              {profileImageFile
+                                ? profileImageFile.name
+                                : "Auto-optimized to 500×600px for gate scanner identity"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Contact & Security Credentials */}
+                      <div className="space-y-4 pt-1">
+                        <div className={`flex items-center gap-2 pb-1 border-b ${
+                          isDark ? "border-[#23252a]/60" : "border-gray-200"
+                        }`}>
+                          <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
+                            isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
+                          }`}>
+                            Contact & Credentials
+                          </span>
+                        </div>
+
+                        {/* Email & Phone */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* Email */}
+                          <div id="field-email">
+                            <label className={`block text-[13px] font-[510] mb-1.5 ${
+                              isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                            }`}>
+                              Email address <span className="text-[#eb5757]">*</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="email"
+                                required
+                                autoComplete="email"
+                                placeholder="student@email.com"
+                                value={email}
+                                onChange={(e) => {
+                                  setEmail(e.target.value);
+                                  if (validationErrors.email) {
+                                    setValidationErrors((prev) => ({ ...prev, email: null }));
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                  validationErrors.email
+                                    ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                    : isDark
+                                    ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                    : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
+                                }`}
+                              />
+                            </div>
+                            {validationErrors.email && (
+                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{validationErrors.email}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Phone */}
+                          <div id="field-phone">
+                            <label className={`block text-[13px] font-[510] mb-1.5 ${
+                              isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                            }`}>
+                              Mobile / WhatsApp{" "}
+                              {roleMode === "member" && (
+                                <span className="text-[#eb5757]">*</span>
+                              )}
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="tel"
+                                required={roleMode === "member"}
+                                placeholder="+94 77 123 4567"
+                                value={phone}
+                                onChange={(e) => {
+                                  setPhone(e.target.value);
+                                  if (validationErrors.phone) {
+                                    setValidationErrors((prev) => ({ ...prev, phone: null }));
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                  validationErrors.phone
+                                    ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                    : isDark
+                                    ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                    : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
+                                }`}
+                              />
+                            </div>
+                            {validationErrors.phone && (
+                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{validationErrors.phone}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Password & Confirm Password */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* Password */}
+                          <div id="field-password">
+                            <label className={`block text-[13px] font-[510] mb-1.5 ${
+                              isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                            }`}>
+                              Password <span className="text-[#eb5757]">*</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showPassword ? "text" : "password"}
+                                required
+                                autoComplete="new-password"
+                                placeholder="Min. 6 characters"
+                                value={password}
+                                onChange={(e) => {
+                                  setPassword(e.target.value);
+                                  if (validationErrors.password) {
+                                    setValidationErrors((prev) => ({ ...prev, password: null }));
+                                  }
+                                }}
+                                className={`w-full pl-3 pr-9 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                  validationErrors.password
+                                    ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                    : isDark
+                                    ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                    : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className={`absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors cursor-pointer p-0.5 ${
+                                  isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-400 hover:text-gray-700"
+                                }`}
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            {validationErrors.password && (
+                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{validationErrors.password}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Confirm Password */}
+                          <div id="field-confirmPassword">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className={`text-[13px] font-[510] ${
+                                isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                              }`}>
+                                Confirm Password <span className="text-[#eb5757]">*</span>
+                              </label>
+                              {confirmPassword && (
+                                <span
+                                  className={`text-[11px] font-berkeley-mono ${password === confirmPassword
+                                    ? "text-[#27a644]"
+                                    : "text-[#eb5757]"
+                                    }`}
+                                >
+                                  {password === confirmPassword ? "Match" : "Mismatch"}
+                                </span>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                required
+                                autoComplete="new-password"
+                                placeholder="Re-enter password"
+                                value={confirmPassword}
+                                onChange={(e) => {
+                                  setConfirmPassword(e.target.value);
+                                  if (validationErrors.confirmPassword) {
+                                    setValidationErrors((prev) => ({ ...prev, confirmPassword: null }));
+                                  }
+                                }}
+                                className={`w-full pl-3 pr-9 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                  validationErrors.confirmPassword
+                                    ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                    : isDark
+                                    ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                    : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowConfirmPassword(!showConfirmPassword)
+                                }
+                                className={`absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors cursor-pointer p-0.5 ${
+                                  isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-400 hover:text-gray-700"
+                                }`}
+                              >
+                                {showConfirmPassword ? (
+                                  <EyeOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Eye className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            {validationErrors.confirmPassword && (
+                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{validationErrors.confirmPassword}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Terms & Agreement Touch-Friendly Card */}
+                      <div id="field-agreedTerms" className="pt-2">
+                        <label
+                          className={`p-3.5 sm:p-4 rounded-[8px] border transition-all cursor-pointer select-none flex items-start gap-3.5 group ${
+                            validationErrors.agreedTerms
+                              ? "border-[#eb5757] ring-1 ring-[#eb5757] bg-[#eb5757]/5"
+                              : agreedTerms
+                              ? isDark
+                                ? "bg-[#e4f222]/[0.05] border-[#e4f222]/50 shadow-sm shadow-[#e4f222]/5"
+                                : "bg-lime-50/80 border-lime-500 shadow-sm"
+                              : isDark
+                              ? "bg-[#121316] border-[#2d3038] hover:border-[#424652] hover:bg-[#16171b]"
+                              : "bg-gray-50 border-gray-200 hover:border-gray-300 hover:bg-white"
+                          }`}
+                        >
+                          {/* Hidden native input for full screen-reader and form accessibility */}
+                          <input
+                            type="checkbox"
+                            required
+                            checked={agreedTerms}
+                            onChange={(e) => {
+                              setAgreedTerms(e.target.checked);
+                              if (validationErrors.agreedTerms) {
+                                setValidationErrors((prev) => ({ ...prev, agreedTerms: null }));
+                              }
+                            }}
+                            className="sr-only"
+                          />
+
+                          {/* Custom Touch-Friendly Checkbox (Highly visible on all screens & mobile) */}
+                          <div
+                            className={`w-5 h-5 min-w-[20px] min-h-[20px] rounded-[5px] border-2 mt-0.5 flex items-center justify-center flex-shrink-0 transition-all ${
+                              validationErrors.agreedTerms
+                                ? "border-[#eb5757] bg-[#eb5757]/10"
+                                : agreedTerms
+                                ? isDark
+                                  ? "bg-[#e4f222] border-[#e4f222] text-[#08090a] shadow-sm shadow-[#e4f222]/20 scale-105"
+                                  : "bg-gray-900 border-gray-900 text-white shadow-sm scale-105"
+                                : isDark
+                                ? "border-[#4e5360] bg-[#090a0b] group-hover:border-[#e4f222] group-hover:bg-[#16171a]"
+                                : "border-gray-400 bg-white group-hover:border-gray-900 group-hover:bg-gray-50"
                             }`}
                           >
-                            <option value="Finance">Finance</option>
-                            <option value="Marketing">Marketing</option>
-                            <option value="Operation & Academic Management">
-                              Operation & Academic Management
-                            </option>
-                            <option value="Personal Development">
-                              Personal Development
-                            </option>
-                            <option value="Public Relations">
-                              Public Relations
-                            </option>
-                            <option value="Research & Analyst">
-                              Research & Analyst
-                            </option>
-                          </select>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* ── Section: Profile Photo for Digital Pass ── */}
-                  <div className="space-y-3 pt-2">
-                    <div className={`flex items-center gap-2 pb-1 border-b ${
-                      isDark ? "border-[#23252a]/60" : "border-gray-200"
-                    }`}>
-                      <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
-                        isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
-                      }`}>
-                        02 // Member Photo (For Digital Pass)
-                      </span>
-                    </div>
-
-                    <div className={`p-3.5 rounded-[8px] border flex items-center gap-4 ${
-                      isDark ? "bg-[#161718]/60 border-[#23252a]" : "bg-gray-50 border-gray-200"
-                    }`}>
-                      {/* Avatar preview */}
-                      <div className="relative flex-shrink-0">
-                        {previewUrl ? (
-                          <img
-                            src={previewUrl}
-                            alt="Preview"
-                            className="w-14 h-14 rounded-full object-cover border-2 border-[#e4f222]"
-                          />
-                        ) : (
-                          <div className={`w-14 h-14 rounded-full border flex items-center justify-center ${
-                            isDark ? "bg-[#08090a] border-[#23252a] text-[#62666d]" : "bg-white border-gray-200 text-gray-400"
-                          }`}>
-                            <Camera className="w-5 h-5" />
+                            {agreedTerms ? (
+                              <Check className="w-3.5 h-3.5 stroke-[3] animate-in zoom-in-75 duration-150" />
+                            ) : (
+                              <div className="w-1.5 h-1.5 rounded-full opacity-0 group-hover:opacity-40 bg-[#e4f222] transition-opacity" />
+                            )}
                           </div>
+
+                          {/* Terms Agreement Label & Links */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span
+                                className={`text-[13px] font-[510] leading-snug transition-colors ${
+                                  agreedTerms
+                                    ? isDark
+                                      ? "text-white"
+                                      : "text-gray-900"
+                                    : isDark
+                                    ? "text-[#d0d6e0] group-hover:text-white"
+                                    : "text-gray-800"
+                                }`}
+                              >
+                                Society Terms & Academic Consent <span className="text-[#eb5757]">*</span>
+                              </span>
+
+                              {/* Status Badge */}
+                              <span
+                                className={`text-[10.5px] font-berkeley-mono px-2 py-0.5 rounded-[4px] border uppercase tracking-wider flex-shrink-0 transition-colors ${
+                                  agreedTerms
+                                    ? isDark
+                                      ? "bg-[#27a644]/15 border-[#27a644]/30 text-[#27a644] font-medium"
+                                      : "bg-emerald-50 border-emerald-200 text-emerald-700 font-medium"
+                                    : isDark
+                                    ? "bg-[#1c1d21] border-[#2e3138] text-[#8a8f98] group-hover:border-[#e4f222]/40 group-hover:text-[#e4f222]"
+                                    : "bg-gray-100 border-gray-200 text-gray-500 group-hover:border-gray-400 group-hover:text-gray-700"
+                                }`}
+                              >
+                                {agreedTerms ? "Agreed ✓" : "Tap to Agree"}
+                              </span>
+                            </div>
+
+                            <p className={`text-[12px] leading-relaxed ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+                              I agree to the society{" "}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.history.pushState({}, "", "/terms");
+                                  window.dispatchEvent(new Event("popstate"));
+                                }}
+                                className={`underline font-medium hover:text-[#e4f222] transition-colors ${
+                                  isDark ? "text-[#d0d6e0]" : "text-gray-900 font-semibold"
+                                }`}
+                              >
+                                Terms of Service
+                              </button>{" "}
+                              and{" "}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.history.pushState({}, "", "/privacy");
+                                  window.dispatchEvent(new Event("popstate"));
+                                }}
+                                className={`underline font-medium hover:text-[#e4f222] transition-colors ${
+                                  isDark ? "text-[#d0d6e0]" : "text-gray-900 font-semibold"
+                                }`}
+                              >
+                                Privacy Policy
+                              </button>
+                              . My details will be preserved for academic verification.
+                            </p>
+                          </div>
+                        </label>
+                        {validationErrors.agreedTerms && (
+                          <p className="text-[11.5px] text-[#eb5757] mt-1.5 font-berkeley-mono flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{validationErrors.agreedTerms}</span>
+                          </p>
                         )}
                       </div>
 
-                      {/* Photo actions */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <label
-                            htmlFor="register-photo-upload"
-                            className={`text-[12px] px-3 py-1.5 rounded-[6px] border cursor-pointer inline-flex items-center font-[510] transition-colors ${
-                              isDark
-                                ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#383b3f]"
-                                : "bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:bg-gray-100 shadow-sm"
-                            }`}
-                          >
-                            <UploadCloud className="w-3.5 h-3.5 mr-1" />
-                            <span>Choose Photo</span>
-                          </label>
-                          {previewUrl && (
-                            <button
-                              type="button"
-                              onClick={handleRemovePhoto}
-                              className="text-[12px] text-[#eb5757] hover:underline cursor-pointer flex items-center gap-1 p-1"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              <span>Remove</span>
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          id="register-photo-upload"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
-                        <p className={`text-[11.5px] truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
-                          {profileImageFile
-                            ? profileImageFile.name
-                            : "Auto-optimized to 500×600px for gate scanner identity"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── Section: Contact & Security ── */}
-                  <div className="space-y-4 pt-2">
-                    <div className={`flex items-center gap-2 pb-1 border-b ${
-                      isDark ? "border-[#23252a]/60" : "border-gray-200"
-                    }`}>
-                      <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
-                        isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
-                      }`}>
-                        03 // Contact & Credentials
-                      </span>
-                    </div>
-
-                    {/* Email & Phone */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Email */}
-                      <div>
-                        <label className={`block text-[13px] font-[510] mb-1.5 ${
-                          isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                        }`}>
-                          Email address <span className="text-[#eb5757]">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="email"
-                            required
-                            autoComplete="email"
-                            placeholder="student@email.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                              isDark
-                                ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
-                                : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
-                            }`}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Phone */}
-                      <div>
-                        <label className={`block text-[13px] font-[510] mb-1.5 ${
-                          isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                        }`}>
-                          Mobile / WhatsApp{" "}
-                          {roleMode === "member" && (
-                            <span className="text-[#eb5757]">*</span>
-                          )}
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="tel"
-                            required={roleMode === "member"}
-                            placeholder="+94 77 123 4567"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                              isDark
-                                ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
-                                : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Password & Confirm Password */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Password */}
-                      <div>
-                        <label className={`block text-[13px] font-[510] mb-1.5 ${
-                          isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                        }`}>
-                          Password <span className="text-[#eb5757]">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showPassword ? "text" : "password"}
-                            required
-                            autoComplete="new-password"
-                            placeholder="Min. 6 characters"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className={`w-full pl-3 pr-9 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                              isDark
-                                ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
-                                : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
-                            }`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className={`absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors cursor-pointer p-0.5 ${
-                              isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-400 hover:text-gray-700"
-                            }`}
-                          >
-                            {showPassword ? (
-                              <EyeOff className="w-3.5 h-3.5" />
-                            ) : (
-                              <Eye className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Confirm Password */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className={`text-[13px] font-[510] ${
-                            isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                          }`}>
-                            Confirm Password <span className="text-[#eb5757]">*</span>
-                          </label>
-                          {confirmPassword && (
-                            <span
-                              className={`text-[11px] font-berkeley-mono ${password === confirmPassword
-                                ? "text-[#27a644]"
-                                : "text-[#eb5757]"
-                                }`}
-                            >
-                              {password === confirmPassword ? "Match" : "Mismatch"}
-                            </span>
-                          )}
-                        </div>
-                        <div className="relative">
-                          <input
-                            type={showConfirmPassword ? "text" : "password"}
-                            required
-                            autoComplete="new-password"
-                            placeholder="Re-enter password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            className={`w-full pl-3 pr-9 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                              isDark
-                                ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
-                                : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
-                            }`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setShowConfirmPassword(!showConfirmPassword)
-                            }
-                            className={`absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors cursor-pointer p-0.5 ${
-                              isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-400 hover:text-gray-700"
-                            }`}
-                          >
-                            {showConfirmPassword ? (
-                              <EyeOff className="w-3.5 h-3.5" />
-                            ) : (
-                              <Eye className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Terms & Agreement Checkbox */}
-                  <div className="pt-2">
-                    <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={agreedTerms}
-                        onChange={(e) => setAgreedTerms(e.target.checked)}
-                        className={`mt-1 w-4 h-4 rounded-[4px] cursor-pointer ${
+                      {/* Editorial Review Notice Banner (when No is selected) */}
+                      {roleMode === "member" && isExistingMember === "no" && (
+                        <div className={`p-3.5 rounded-[8px] border text-[13px] flex items-start gap-2.5 ${
                           isDark
-                            ? "border-[#23252a] text-[#e4f222] bg-[#08090a] focus:ring-0"
-                            : "border-gray-300 text-gray-900 bg-white focus:ring-0"
-                        }`}
-                      />
-                      <span className={`text-[12.5px] leading-snug ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
-                        I agree to the society{" "}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.history.pushState({}, "", "/terms");
-                            window.dispatchEvent(new Event("popstate"));
-                          }}
-                          className={`hover:underline font-medium ${isDark ? "text-[#d0d6e0]" : "text-gray-900"}`}
-                        >
-                          Terms of Service
-                        </button>{" "}
-                        and{" "}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.history.pushState({}, "", "/privacy");
-                            window.dispatchEvent(new Event("popstate"));
-                          }}
-                          className={`hover:underline font-medium ${isDark ? "text-[#d0d6e0]" : "text-gray-900"}`}
-                        >
-                          Privacy Policy
-                        </button>
-                        . My details will be preserved for academic verification.
-                      </span>
-                    </label>
-                  </div>
+                            ? "bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]"
+                            : "bg-amber-50 border-amber-200 text-amber-900"
+                        }`}>
+                          <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#f59e0b]" />
+                          <div className="leading-relaxed">
+                            <strong className="font-[510] block mb-0.5">
+                              Registration Submitted for Editorial Review
+                            </strong>
+                            <span>
+                              Your functional team will be assigned by the executive committee based on your skills assessment.
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Primary Acid Lime CTA Button */}
-                  <button
-                    type="submit"
-                    disabled={
-                      loading ||
-                      (!regEnabled && roleMode === "member") ||
-                      !agreedTerms
-                    }
-                    className="linear-btn-primary w-full mt-6 py-2.5 text-[14px] font-[510] tracking-[-0.011em] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <>
-                        <span className={`w-4 h-4 border-2 ${isDark ? "border-[#08090a]" : "border-white"} border-t-transparent rounded-full animate-spin`} />
-                        <span>Creating member profile...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Complete Registration</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
+                      {/* Step 4 Inline Error Banner */}
+                      {errorMessage && (
+                        <div className={`p-3 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
+                          isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
+                        }`}>
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <div className="leading-snug">{errorMessage}</div>
+                        </div>
+                      )}
+
+                      {/* Final Step Navigation Actions */}
+                      <div className={`pt-4 flex items-center justify-between border-t ${
+                        isDark ? "border-[#23252a]/60" : "border-gray-200"
+                      } gap-3`}>
+                        <button
+                          type="button"
+                          onClick={handlePrevStep}
+                          className={`px-4 py-2.5 rounded-[6px] border text-[13px] font-[510] flex items-center gap-2 cursor-pointer transition-colors ${
+                            isDark
+                              ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#383b3f]"
+                              : "bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:bg-gray-50 shadow-sm"
+                          }`}
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          <span>Back</span>
+                        </button>
+
+                        <button
+                          type="submit"
+                          disabled={loading || (!regEnabled && roleMode === "member")}
+                          className="linear-btn-primary flex-1 py-2.5 text-[14px] font-[510] tracking-[-0.011em] disabled:opacity-50 disabled:cursor-not-allowed justify-center"
+                        >
+                          {loading ? (
+                            <>
+                              <span className={`w-4 h-4 border-2 ${isDark ? "border-[#08090a]" : "border-white"} border-t-transparent rounded-full animate-spin`} />
+                              <span>Creating member profile...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>
+                                {roleMode === "member" && isExistingMember === "no"
+                                  ? "Submit Application for Editorial Review"
+                                  : "Complete Registration"}
+                              </span>
+                              <ArrowRight className="w-4 h-4" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </form>
 
                 {/* Switch to Login */}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import Pagination, { PAGE_SIZE } from "../components/Pagination";
 import {
@@ -242,7 +242,7 @@ export default function Documents({
 
   const isDark = currentTheme === "dark";
   const isOfficer = isAdmin; // Only admin or editor can upload, edit, and delete
-  const { selectedCycle } = useCycle();
+  const { selectedCycle, selectedCycleId, setSelectedCycleId } = useCycle();
 
   // Data states
   const [documents, setDocuments] = useState([]);
@@ -416,8 +416,10 @@ export default function Documents({
   // Determine permitted categories for current user
   const userPermittedCategories = useMemo(() => {
     if (isOfficer) return ALL_CATEGORY_IDS;
-    return getMemberDocCategories(session?.stId, session?.email, docAccessMap);
-  }, [isOfficer, session?.stId, session?.email, docAccessMap]);
+    const cats = getMemberDocCategories(session?.stId, session?.email, docAccessMap);
+    if (cats.length > 0) return cats;
+    return getMemberCategoriesFromMap(docAccessMap, session);
+  }, [isOfficer, session?.stId, session?.email, session, docAccessMap]);
 
   const isAuthorized = isOfficer || userPermittedCategories.length > 0;
 
@@ -429,10 +431,15 @@ export default function Documents({
   }, [isOfficer, userPermittedCategories, selectedFolder]);
 
   // Load documents and category counts
+  const loadReqRef = useRef(0);
   const loadDocuments = async (pageToLoad = page) => {
+    // Guard against stale responses (e.g. first load before access settings arrive) overwriting newer results
+    const reqId = ++loadReqRef.current;
     setLoading(true);
     try {
-      if (!isOfficer && userPermittedCategories.length === 0) {
+      const myStId = (session?.stId || "").trim().toUpperCase();
+
+      if (!isOfficer && userPermittedCategories.length === 0 && !myStId) {
         setDocuments([]);
         setTotalCount(0);
         setCategoryCounts({ All: 0, Events: 0, Budgets: 0, Permissions: 0, Guidance: 0 });
@@ -444,11 +451,21 @@ export default function Documents({
       }
 
       // 1. Fetch category counts and storage sizes
-      let countsQuery = supabase.from("documents").select("category, visibility, file_size, file_type, created_at");
+      let countsQuery = supabase.from("documents").select("category, visibility, file_size, file_type, created_at, st_id");
       if (!isOfficer) {
-        countsQuery = countsQuery.in("category", userPermittedCategories);
+        if (myStId && userPermittedCategories.length > 0) {
+          countsQuery = countsQuery.or(`category.in.(${userPermittedCategories.join(",")}),st_id.eq.${myStId}`);
+        } else if (userPermittedCategories.length > 0) {
+          countsQuery = countsQuery.in("category", userPermittedCategories);
+        } else if (myStId) {
+          countsQuery = countsQuery.eq("st_id", myStId);
+        }
       }
       const countsRes = await countsQuery;
+      if (reqId !== loadReqRef.current) return;
+      if (countsRes.error) {
+        console.error("Error loading document counts:", countsRes.error);
+      }
       if (countsRes.data) {
         const counts = { All: 0, Events: 0, Budgets: 0, Permissions: 0, Guidance: 0 };
         const sizes = { All: 0, Events: 0, Budgets: 0, Permissions: 0, Guidance: 0 };
@@ -459,12 +476,14 @@ export default function Documents({
           const sz = Number(d.file_size) || 0;
           totalBytes += sz;
 
-          // If not officer and doc is officers_only, skip in count
-          if (!isOfficer && d.visibility === "officers_only") return;
-          if (!isOfficer && !userPermittedCategories.includes(d.category)) return;
+          const isAssignedToMe = Boolean(myStId && d.st_id && d.st_id.trim().toUpperCase() === myStId);
 
-          // If a cycle is selected, only tally folder counts and type sizes for documents within the cycle
-          if (selectedCycle) {
+          // If not officer and doc is officers_only, skip in count unless directly assigned to this member
+          if (!isOfficer && d.visibility === "officers_only" && !isAssignedToMe) return;
+          if (!isOfficer && !userPermittedCategories.includes(d.category) && !isAssignedToMe) return;
+
+          // If a cycle is selected, only tally folder counts and type sizes for documents within the cycle (unless directly assigned)
+          if (selectedCycle && !isAssignedToMe) {
             if (selectedCycle.startDate && d.created_at < `${selectedCycle.startDate}T00:00:00.000Z`) return;
             if (selectedCycle.endDate && d.created_at > `${selectedCycle.endDate}T23:59:59.999Z`) return;
           }
@@ -501,12 +520,19 @@ export default function Documents({
         .from("documents")
         .select("*", { count: "exact" });
 
-      // Non-officers only query categories they are permitted to view
+      // Non-officers query categories they are permitted to view OR files linked to their student ID
       if (!isOfficer) {
-        query = query.in("category", userPermittedCategories);
+        if (myStId && userPermittedCategories.length > 0) {
+          query = query.or(`category.in.(${userPermittedCategories.join(",")}),st_id.eq.${myStId}`);
+        } else if (userPermittedCategories.length > 0) {
+          query = query.in("category", userPermittedCategories);
+        } else if (myStId) {
+          query = query.eq("st_id", myStId);
+        }
       }
 
       // Active Academic Cycle date filter
+      // Note: Documents directly assigned to this member are always shown regardless of cycle date
       if (selectedCycle) {
         if (selectedCycle.startDate) query = query.gte("created_at", `${selectedCycle.startDate}T00:00:00.000Z`);
         if (selectedCycle.endDate) query = query.lte("created_at", `${selectedCycle.endDate}T23:59:59.999Z`);
@@ -560,6 +586,7 @@ export default function Documents({
       query = query.range(from, to);
 
       const { data, count, error } = await query;
+      if (reqId !== loadReqRef.current) return;
 
       if (error) {
         console.error("Error loading documents:", error);
@@ -601,7 +628,7 @@ export default function Documents({
       console.error("Load documents error:", err);
       setFeedbackMsg({ type: "error", text: "Network or database connection error." });
     } finally {
-      setLoading(false);
+      if (reqId === loadReqRef.current) setLoading(false);
     }
   };
 
@@ -1531,18 +1558,39 @@ export default function Documents({
               ? `No documents have been uploaded for the ${selectedCycle.name} cycle yet.`
               : "No documents have been uploaded to this category yet."}
           </p>
-          {isOfficer && (
-            <button
-              onClick={() => {
-                setForm(prev => ({ ...prev, category: selectedFolder === "All" ? "Events" : selectedFolder }));
-                setUploadModalOpen(true);
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] ${isDark ? "bg-[#e4f222] text-black" : "bg-indigo-600 text-white shadow-xs"} text-xs font-[510]`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Upload First File
-            </button>
+          {!isOfficer && (
+            <p className={`text-[10px] font-berkeley-mono mb-3 ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>
+              Access check: ID {session?.stId || "—"} • Categories: {userPermittedCategories.join(", ") || "none"} • Cycle: {selectedCycle?.name || "All"}
+            </p>
           )}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {selectedCycle && (
+              <button
+                type="button"
+                onClick={() => setSelectedCycleId("all")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-xs font-[510] border transition-colors ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-[#e4f222] hover:bg-[#23252a]"
+                    : "bg-gray-100 border-gray-300 text-indigo-700 hover:bg-gray-200 shadow-xs"
+                }`}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                View Files Across All Academic Cycles
+              </button>
+            )}
+            {isOfficer && (
+              <button
+                onClick={() => {
+                  setForm(prev => ({ ...prev, category: selectedFolder === "All" ? "Events" : selectedFolder }));
+                  setUploadModalOpen(true);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] ${isDark ? "bg-[#e4f222] text-black" : "bg-indigo-600 text-white shadow-xs"} text-xs font-[510]`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Upload First File
+              </button>
+            )}
+          </div>
         </div>
       ) : viewMode === "grid" ? (
         /* ── GRID VIEW ──────────────────────────────────────────────────────── */

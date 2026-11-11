@@ -113,16 +113,38 @@ BEGIN
 END;
 $$;
 
+-- Ensure profile_images storage bucket exists
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'profile_images',
+  'profile_images',
+  true,
+  5242880,
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
+)
+ON CONFLICT (id) DO UPDATE
+SET public = true;
 
+-- Drop previous policies
+DROP POLICY IF EXISTS "Allow public inserts" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated inserts for profile_images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public inserts for profile_images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public select for profile_images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public select" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated updates for profile_images" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated deletes for profile_images" ON storage.objects;
 
--- Allow public uploads to profile_images bucket
-CREATE POLICY "Allow public inserts" ON storage.objects
-FOR INSERT WITH CHECK (bucket_id = 'profile_images');
+-- Allow public uploads to profile_images bucket (used during registration)
+CREATE POLICY "Allow public inserts for profile_images" ON storage.objects
+FOR INSERT TO public WITH CHECK (bucket_id = 'profile_images');
 
--- Allow public reading of objects
-CREATE POLICY "Allow public select" ON storage.objects
-FOR SELECT USING (bucket_id = 'profile_images');
+-- Allow public reading of objects (used for digital pass and scanner)
+CREATE POLICY "Allow public select for profile_images" ON storage.objects
+FOR SELECT TO public USING (bucket_id = 'profile_images');
 
+-- Allow authenticated users to update/delete their photos
+CREATE POLICY "Allow authenticated updates for profile_images" ON storage.objects
+FOR UPDATE TO authenticated USING (bucket_id = 'profile_images') WITH CHECK (bucket_id = 'profile_images');
 
---Go to your Supabase Dashboard → Storage:
---Make sure your bucket is named profile_images.
+CREATE POLICY "Allow authenticated deletes for profile_images" ON storage.objects
+FOR DELETE TO authenticated USING (bucket_id = 'profile_images');

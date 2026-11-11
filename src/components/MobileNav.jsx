@@ -104,7 +104,7 @@ export default function MobileNav({
   // Find active page title for the top header
   const allNavItems = visibleSections.flatMap((s) => s.items);
   const activeItem = allNavItems.find((i) => i.id === page);
-  const activeTitle = activeItem ? activeItem.label : (page ? String(page).replace("_", " ").toUpperCase() : "DASHBOARD");
+  const activeTitle = activeItem ? activeItem.label : (page ? String(page).replace("_", " ").toUpperCase() : (isStaff && !viewAsMember ? "DASHBOARD" : "ATTENDANCE"));
 
   const handleTabClick = (tabId) => {
     setDrawerOpen(false);
@@ -117,7 +117,7 @@ export default function MobileNav({
       <header className="mobile-topbar" role="banner">
         <div
           className="mobile-topbar-left cursor-pointer"
-          onClick={() => handleTabClick("dashboard")}
+          onClick={() => handleTabClick(isStaff && !viewAsMember ? "dashboard" : "attendance")}
         >
           <img
             src={`${import.meta.env.BASE_URL}${theme === "dark" ? "logo_trans_light.png" : "logo_trans_dark.png"}`}

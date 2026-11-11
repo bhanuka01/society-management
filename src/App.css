@@ -141,6 +141,19 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
+/* Cross-browser scrollbar hiding utilities */
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
 ::selection {
   background: var(--accent);
   color: white;
@@ -3273,6 +3286,42 @@ select option {
   
   .messages-back-btn {
     display: inline-flex !important;
+  }
+
+  .page-wrapper:has(.messages-page-container) {
+    padding: 6px 6px calc(76px + env(safe-area-inset-bottom, 12px)) !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1023px) {
+  .messages-layout.mobile-view-list .messages-sidebar {
+    width: 100% !important;
+    display: flex !important;
+  }
+  .messages-layout.mobile-view-list .messages-chat {
+    display: none !important;
+  }
+  .messages-layout.mobile-view-chat .messages-sidebar {
+    display: none !important;
+  }
+  .messages-layout.mobile-view-chat .messages-chat {
+    width: 100% !important;
+    display: flex !important;
+  }
+  .messages-back-btn {
+    display: inline-flex !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .messages-layout .messages-sidebar {
+    display: flex !important;
+  }
+  .messages-layout .messages-chat {
+    display: flex !important;
+  }
+  .messages-back-btn {
+    display: none !important;
   }
 }
 

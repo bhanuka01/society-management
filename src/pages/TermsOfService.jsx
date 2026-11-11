@@ -183,7 +183,7 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
   });
 
   return (
-    <div className="min-h-screen bg-[#08090a] text-[#d0d6e0] font-sans selection:bg-[#e4f222]/20 selection:text-[#ffffff] pb-20">
+    <div className="min-h-screen bg-[#f7f8f8] dark:bg-[#08090a] text-[#3f3f46] dark:text-[#d0d6e0] font-sans selection:bg-[#e4f222]/20 selection:text-[#0a0a0b] dark:selection:text-[#ffffff] pb-20">
       {/* ── Print Styling ── */}
       <style>{`
         @media print {
@@ -196,7 +196,7 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
       `}</style>
 
       {/* ── Precision Top Navigation Bar ── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#08090a]/85 backdrop-blur-md border-b border-[#23252a] px-4 md:px-8 py-3 no-print">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#f7f8f8]/85 dark:bg-[#08090a]/85 backdrop-blur-md border-b border-[#e4e4e7] dark:border-[#23252a] px-4 md:px-8 py-3 no-print">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           {/* Brand & Document ID */}
           <div
@@ -204,14 +204,14 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
             onClick={handleNavigateBack}
             title="Return to home"
           >
-            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#e4f222] font-berkeley-mono text-[11px] font-[510]">
+            <div className="w-7 h-7 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#5f6b00] dark:text-[#e4f222] font-berkeley-mono text-[11px] font-[510]">
               §
             </div>
             <div className="flex flex-col">
-              <span className="font-[510] text-[#ffffff] text-[13px] group-hover:text-[#e4f222] transition-colors leading-tight">
+              <span className="font-[510] text-[#0a0a0b] dark:text-[#ffffff] text-[13px] group-hover:text-[#5f6b00] dark:group-hover:text-[#e4f222] transition-colors leading-tight">
                 ADSS Ruhuna
               </span>
-              <span className="font-berkeley-mono text-[10px] text-[#8a8f98]">
+              <span className="font-berkeley-mono text-[10px] text-[#62666d] dark:text-[#8a8f98]">
                 DOC-ADSS-TERMS-V2
               </span>
             </div>
@@ -222,7 +222,7 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
             <button
               type="button"
               onClick={handleCopyLink}
-              className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#8a8f98] hover:text-[#ffffff] transition-colors font-berkeley-mono text-[11px] flex items-center gap-1.5 cursor-pointer"
+              className="h-8 px-3 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] hover:bg-[#e4e4e7] dark:hover:bg-[#23252a] border border-[#e4e4e7] dark:border-[#23252a] text-[#62666d] dark:text-[#8a8f98] hover:text-[#0a0a0b] dark:hover:text-[#ffffff] transition-colors font-berkeley-mono text-[11px] flex items-center gap-1.5 cursor-pointer"
               title="Copy link to clipboard"
             >
               {copiedLink ? <Check className="w-3.5 h-3.5 text-[#27a644]" /> : <Share2 className="w-3.5 h-3.5" />}
@@ -232,7 +232,7 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
             <button
               type="button"
               onClick={handlePrint}
-              className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#8a8f98] hover:text-[#ffffff] transition-colors font-berkeley-mono text-[11px] hidden sm:flex items-center gap-1.5 cursor-pointer"
+              className="h-8 px-3 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] hover:bg-[#e4e4e7] dark:hover:bg-[#23252a] border border-[#e4e4e7] dark:border-[#23252a] text-[#62666d] dark:text-[#8a8f98] hover:text-[#0a0a0b] dark:hover:text-[#ffffff] transition-colors font-berkeley-mono text-[11px] hidden sm:flex items-center gap-1.5 cursor-pointer"
               title="Print document"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -255,35 +255,35 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
       {/* ── Main Content Container ── */}
       <main className="max-w-5xl mx-auto px-4 md:px-8 pt-24 space-y-8">
         {/* ── Document Classification Header Banner ── */}
-        <div className="bg-[#0f1011] border border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-8 space-y-5">
+        <div className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#e4e4e7] dark:shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-8 space-y-5">
           {/* Classification Tags */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#23252a] pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e4e4e7] dark:border-[#23252a] pb-4">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-berkeley-mono text-[10px] font-[510] text-[#8a8f98] uppercase bg-[#161718] border border-[#23252a] px-2 py-0.5 rounded-[4px]">
+              <span className="font-berkeley-mono text-[10px] font-[510] text-[#62666d] dark:text-[#8a8f98] uppercase bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] px-2 py-0.5 rounded-[4px]">
                 OFFICIAL TERMS // GOVERNANCE
               </span>
               <span className="font-berkeley-mono text-[10px] font-[510] text-[#27a644] bg-[#27a644]/10 border border-[#27a644]/30 px-2 py-0.5 rounded-[4px] inline-flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#27a644] animate-pulse" />
                 ENFORCED BY ADSS COUNCIL
               </span>
-              <span className="font-berkeley-mono text-[10px] text-[#62666d]">
+              <span className="font-berkeley-mono text-[10px] text-[#8a8f98] dark:text-[#62666d]">
                 REV 2026.08
               </span>
             </div>
 
-            <div className="font-berkeley-mono text-[11px] text-[#8a8f98]">
-              Effective: <span className="text-[#ffffff]">August 2026</span>
+            <div className="font-berkeley-mono text-[11px] text-[#62666d] dark:text-[#8a8f98]">
+              Effective: <span className="text-[#0a0a0b] dark:text-[#ffffff]">August 2026</span>
             </div>
           </div>
 
           {/* Hero Title Block */}
           <div className="space-y-2">
-            <h1 className="text-[28px] sm:text-[36px] font-[510] text-[#ffffff] tracking-[-0.022em] leading-tight">
+            <h1 className="text-[28px] sm:text-[36px] font-[510] text-[#0a0a0b] dark:text-[#ffffff] tracking-[-0.022em] leading-tight">
               Terms of Service & Member Charter
             </h1>
-            <p className="text-[14px] sm:text-[15px] text-[#8a8f98] leading-relaxed max-w-3xl">
+            <p className="text-[14px] sm:text-[15px] text-[#62666d] dark:text-[#8a8f98] leading-relaxed max-w-3xl">
               Binding operational standards, digital credential rules, and code of conduct for members, event participants, and website visitors of the{" "}
-              <strong className="text-[#d0d6e0] font-[510]">
+              <strong className="text-[#3f3f46] dark:text-[#d0d6e0] font-[510]">
                 Actuarial & Data Science Society (ADSS)
               </strong>
               , Faculty of Science, University of Ruhuna.
@@ -294,19 +294,19 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
           <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 no-print">
             {/* Search Input */}
             <div className="relative flex-1 max-w-md">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8a8f98]" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#62666d] dark:text-[#8a8f98]" />
               <input
                 type="text"
                 placeholder="Search terms, QR pass rules, or conduct guidelines..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#161718] border border-[#23252a] focus:border-[#d0d6e0] rounded-[6px] pl-9 pr-8 py-2 text-[12.5px] text-[#ffffff] placeholder-[#62666d] outline-none transition-colors font-sans"
+                className="w-full bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] focus:border-[#62666d] dark:focus:border-[#d0d6e0] rounded-[6px] pl-9 pr-8 py-2 text-[12.5px] text-[#0a0a0b] dark:text-[#ffffff] placeholder-[#8a8f98] dark:placeholder-[#62666d] outline-none transition-colors font-sans"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a8f98] hover:text-[#ffffff] text-[11px] font-berkeley-mono"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#62666d] dark:text-[#8a8f98] hover:text-[#0a0a0b] dark:hover:text-[#ffffff] text-[11px] font-berkeley-mono"
                 >
                   Clear
                 </button>
@@ -314,7 +314,7 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
             </div>
 
             {/* Quick Segment Filter Pills */}
-            <div className="flex items-center gap-1 bg-[#161718] p-1 rounded-[6px] border border-[#23252a] overflow-x-auto">
+            <div className="flex items-center gap-1 bg-[#f4f5f6] dark:bg-[#161718] p-1 rounded-[6px] border border-[#e4e4e7] dark:border-[#23252a] overflow-x-auto">
               {[
                 { id: "all", label: "All" },
                 { id: "conduct", label: "Conduct" },
@@ -328,8 +328,8 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
                   onClick={() => setSelectedCategory(tab.id)}
                   className={`px-2.5 py-1 rounded-[4px] font-berkeley-mono text-[10.5px] whitespace-nowrap transition-colors cursor-pointer ${
                     selectedCategory === tab.id
-                      ? "bg-[#08090a] text-[#ffffff] border border-[#383b3f]"
-                      : "text-[#8a8f98] hover:text-[#ffffff]"
+                      ? "bg-[#f7f8f8] dark:bg-[#08090a] text-[#0a0a0b] dark:text-[#ffffff] border border-[#d4d4d8] dark:border-[#383b3f]"
+                      : "text-[#62666d] dark:text-[#8a8f98] hover:text-[#0a0a0b] dark:hover:text-[#ffffff]"
                   }`}
                 >
                   {tab.label}
@@ -341,49 +341,49 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
 
         {/* ── Student Charter Matrix (4 Core Ground Rules) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-sans">
-          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
-            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#27a644]">
+          <div className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#27a644]">
               <FileCheck2 className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-[13px] font-[510] text-[#ffffff]">Academic Integrity</h4>
-              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+              <h4 className="text-[13px] font-[510] text-[#0a0a0b] dark:text-[#ffffff]">Academic Integrity</h4>
+              <p className="text-[11.5px] text-[#62666d] dark:text-[#8a8f98] leading-relaxed mt-0.5">
                 All participant engagement must reflect University of Ruhuna student ethics and mutual respect.
               </p>
             </div>
           </div>
 
-          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
-            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#02b8cc]">
+          <div className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#02b8cc]">
               <QrCode className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-[13px] font-[510] text-[#ffffff]">Anti-Fraud QR Passes</h4>
-              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+              <h4 className="text-[13px] font-[510] text-[#0a0a0b] dark:text-[#ffffff]">Anti-Fraud QR Passes</h4>
+              <p className="text-[11.5px] text-[#62666d] dark:text-[#8a8f98] leading-relaxed mt-0.5">
                 Dynamic QR credentials are non-transferable and verified live at gate scanners.
               </p>
             </div>
           </div>
 
-          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
-            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#6366f1]">
+          <div className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#6366f1]">
               <Lock className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-[13px] font-[510] text-[#ffffff]">Platform Security</h4>
-              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+              <h4 className="text-[13px] font-[510] text-[#0a0a0b] dark:text-[#ffffff]">Platform Security</h4>
+              <p className="text-[11.5px] text-[#62666d] dark:text-[#8a8f98] leading-relaxed mt-0.5">
                 Zero tolerance for credential sharing, automated scraping, or unauthorized access attempts.
               </p>
             </div>
           </div>
 
-          <div className="bg-[#0f1011] border border-[#23252a] rounded-[10px] p-4 space-y-2">
-            <div className="w-7 h-7 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#e4f222]">
+          <div className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[10px] p-4 space-y-2">
+            <div className="w-7 h-7 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#5f6b00] dark:text-[#e4f222]">
               <Award className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-[13px] font-[510] text-[#ffffff]">Educational Licensing</h4>
-              <p className="text-[11.5px] text-[#8a8f98] leading-relaxed mt-0.5">
+              <h4 className="text-[13px] font-[510] text-[#0a0a0b] dark:text-[#ffffff]">Educational Licensing</h4>
+              <p className="text-[11.5px] text-[#62666d] dark:text-[#8a8f98] leading-relaxed mt-0.5">
                 Society slide decks and resources are strictly for non-commercial personal learning.
               </p>
             </div>
@@ -393,8 +393,8 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
         {/* ── The 4 Shortened Policy Pillars ── */}
         <div className="space-y-4">
           {filteredPillars.length === 0 ? (
-            <div className="bg-[#0f1011] border border-[#23252a] rounded-[12px] p-10 text-center font-berkeley-mono text-[12px] text-[#8a8f98] space-y-2">
-              <Search className="w-6 h-6 mx-auto text-[#62666d]" />
+            <div className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[12px] p-10 text-center font-berkeley-mono text-[12px] text-[#62666d] dark:text-[#8a8f98] space-y-2">
+              <Search className="w-6 h-6 mx-auto text-[#8a8f98] dark:text-[#62666d]" />
               <p>No terms clauses match "{searchTerm}".</p>
               <button
                 type="button"
@@ -402,7 +402,7 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
                   setSearchTerm("");
                   setSelectedCategory("all");
                 }}
-                className="text-[#e4f222] hover:underline"
+                className="text-[#5f6b00] dark:text-[#e4f222] hover:underline"
               >
                 Reset Search Filters
               </button>
@@ -414,24 +414,24 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
                 <section
                   key={pillar.id}
                   id={pillar.id}
-                  className="bg-[#0f1011] border border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-7 space-y-4"
+                  className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#e4e4e7] dark:shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-7 space-y-4"
                 >
                   {/* Pillar Header */}
-                  <div className="flex items-start justify-between gap-3 border-b border-[#23252a] pb-3">
+                  <div className="flex items-start justify-between gap-3 border-b border-[#e4e4e7] dark:border-[#23252a] pb-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-[6px] bg-[#161718] border border-[#23252a] flex items-center justify-center text-[#d0d6e0] flex-shrink-0">
+                      <div className="w-8 h-8 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#3f3f46] dark:text-[#d0d6e0] flex-shrink-0">
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-berkeley-mono text-[10.5px] text-[#e4f222]">
+                          <span className="font-berkeley-mono text-[10.5px] text-[#5f6b00] dark:text-[#e4f222]">
                             {pillar.code}
                           </span>
-                          <h2 className="text-[16px] sm:text-[18px] font-[510] text-[#ffffff] tracking-[-0.012em]">
+                          <h2 className="text-[16px] sm:text-[18px] font-[510] text-[#0a0a0b] dark:text-[#ffffff] tracking-[-0.012em]">
                             {pillar.title}
                           </h2>
                         </div>
-                        <p className="text-[12px] text-[#8a8f98] mt-0.5">
+                        <p className="text-[12px] text-[#62666d] dark:text-[#8a8f98] mt-0.5">
                           {pillar.summary}
                         </p>
                       </div>
@@ -443,13 +443,13 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
                     {pillar.items.map((item, idx) => (
                       <div
                         key={idx}
-                        className="bg-[#161718] border border-[#23252a] rounded-[8px] p-3.5 space-y-1"
+                        className="bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] rounded-[8px] p-3.5 space-y-1"
                       >
-                        <h3 className="text-[12.5px] font-[510] text-[#ffffff] flex items-center gap-1.5">
+                        <h3 className="text-[12.5px] font-[510] text-[#0a0a0b] dark:text-[#ffffff] flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#383b3f]" />
                           {item.label}
                         </h3>
-                        <p className="text-[11.5px] text-[#8a8f98] leading-relaxed pl-3">
+                        <p className="text-[11.5px] text-[#62666d] dark:text-[#8a8f98] leading-relaxed pl-3">
                           {item.detail}
                         </p>
                       </div>
@@ -462,16 +462,16 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
         </div>
 
         {/* ── Privacy Policy Bridge & Official Governing Council ── */}
-        <section className="bg-[#0f1011] border border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-7 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#23252a] pb-4">
+        <section className="bg-[#ffffff] dark:bg-[#0f1011] border border-[#e4e4e7] dark:border-[#23252a] rounded-[12px] shadow-[inset_0_0_0_1px_#e4e4e7] dark:shadow-[inset_0_0_0_1px_#23252a] p-6 sm:p-7 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e4e4e7] dark:border-[#23252a] pb-4">
             <div>
-              <span className="font-berkeley-mono text-[10px] text-[#8a8f98] uppercase">
+              <span className="font-berkeley-mono text-[10px] text-[#62666d] dark:text-[#8a8f98] uppercase">
                 GOVERNING COUNCIL & INQUIRIES
               </span>
-              <h3 className="text-[16px] font-[510] text-[#ffffff] mt-0.5">
+              <h3 className="text-[16px] font-[510] text-[#0a0a0b] dark:text-[#ffffff] mt-0.5">
                 Actuarial & Data Science Society (ADSS)
               </h3>
-              <p className="text-[12px] text-[#8a8f98]">
+              <p className="text-[12px] text-[#62666d] dark:text-[#8a8f98]">
                 Faculty of Science, University of Ruhuna, Matara, Sri Lanka
               </p>
             </div>
@@ -482,7 +482,7 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
               <button
                 type="button"
                 onClick={handleNavigatePrivacy}
-                className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#818cf8] hover:text-[#ffffff] font-berkeley-mono text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="h-8 px-3 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] hover:bg-[#e4e4e7] dark:hover:bg-[#23252a] border border-[#e4e4e7] dark:border-[#23252a] text-[#818cf8] hover:text-[#0a0a0b] dark:hover:text-[#ffffff] font-berkeley-mono text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer"
                 title="View Privacy Policy"
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -493,25 +493,25 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
                 href="https://www.math.ruh.ac.lk/adss/"
                 target="_blank"
                 rel="noreferrer"
-                className="h-8 px-3 rounded-[6px] bg-[#161718] hover:bg-[#23252a] border border-[#23252a] text-[#d0d6e0] hover:text-[#ffffff] font-berkeley-mono text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="h-8 px-3 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] hover:bg-[#e4e4e7] dark:hover:bg-[#23252a] border border-[#e4e4e7] dark:border-[#23252a] text-[#3f3f46] dark:text-[#d0d6e0] hover:text-[#0a0a0b] dark:hover:text-[#ffffff] font-berkeley-mono text-[11px] transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Globe className="w-3.5 h-3.5 text-[#02b8cc]" />
                 <span>math.ruh.ac.lk/adss</span>
-                <ExternalLink className="w-3 h-3 text-[#62666d]" />
+                <ExternalLink className="w-3 h-3 text-[#8a8f98] dark:text-[#62666d]" />
               </a>
 
-              <div className="flex items-center bg-[#161718] border border-[#23252a] rounded-[6px] overflow-hidden">
+              <div className="flex items-center bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] rounded-[6px] overflow-hidden">
                 <a
                   href="mailto:adss@sci.ruh.ac.lk"
-                  className="h-8 px-3 text-[#d0d6e0] hover:text-[#ffffff] font-berkeley-mono text-[11px] flex items-center gap-1.5 transition-colors"
+                  className="h-8 px-3 text-[#3f3f46] dark:text-[#d0d6e0] hover:text-[#0a0a0b] dark:hover:text-[#ffffff] font-berkeley-mono text-[11px] flex items-center gap-1.5 transition-colors"
                 >
-                  <Mail className="w-3.5 h-3.5 text-[#e4f222]" />
+                  <Mail className="w-3.5 h-3.5 text-[#5f6b00] dark:text-[#e4f222]" />
                   <span>adss@sci.ruh.ac.lk</span>
                 </a>
                 <button
                   type="button"
                   onClick={handleCopyEmail}
-                  className="h-8 px-2.5 border-l border-[#23252a] hover:bg-[#23252a] text-[#8a8f98] hover:text-[#ffffff] transition-colors flex items-center justify-center cursor-pointer"
+                  className="h-8 px-2.5 border-l border-[#e4e4e7] dark:border-[#23252a] hover:bg-[#e4e4e7] dark:hover:bg-[#23252a] text-[#62666d] dark:text-[#8a8f98] hover:text-[#0a0a0b] dark:hover:text-[#ffffff] transition-colors flex items-center justify-center cursor-pointer"
                   title="Copy email address"
                 >
                   {copiedEmail ? <Check className="w-3.5 h-3.5 text-[#27a644]" /> : <Copy className="w-3.5 h-3.5" />}
@@ -520,12 +520,12 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-berkeley-mono text-[#62666d]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-berkeley-mono text-[#8a8f98] dark:text-[#62666d]">
             <div>
-              Legal Authority: <span className="text-[#8a8f98]">University of Ruhuna Student Society Charter</span>
+              Legal Authority: <span className="text-[#62666d] dark:text-[#8a8f98]">University of Ruhuna Student Society Charter</span>
             </div>
             <div>
-              Last Revised: <span className="text-[#8a8f98]">August 2026</span>
+              Last Revised: <span className="text-[#62666d] dark:text-[#8a8f98]">August 2026</span>
             </div>
           </div>
         </section>

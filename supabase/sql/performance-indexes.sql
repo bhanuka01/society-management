@@ -74,19 +74,34 @@ AS $$
   SELECT clock_timestamp(); 
 $$;
 
--- 7. SECURITY HARDENING: SECURE STORAGE POLICIES
--- Require authentication for uploading to profile_images bucket
+-- 7. STORAGE POLICIES FOR PROFILE IMAGES
+-- Allow public inserts so registering members can upload their digital pass photo,
+-- and authenticated users can update/delete photos.
 -- ------------------------------------------------------------------------------
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'profile_images') THEN
     DROP POLICY IF EXISTS "Allow public inserts" ON storage.objects;
     DROP POLICY IF EXISTS "Allow authenticated inserts for profile_images" ON storage.objects;
+    DROP POLICY IF EXISTS "Allow public inserts for profile_images" ON storage.objects;
+    DROP POLICY IF EXISTS "Allow authenticated updates for profile_images" ON storage.objects;
+    DROP POLICY IF EXISTS "Allow authenticated deletes for profile_images" ON storage.objects;
     
-    CREATE POLICY "Allow authenticated inserts for profile_images" 
+    CREATE POLICY "Allow public inserts for profile_images" 
       ON storage.objects FOR INSERT 
-      TO authenticated 
+      TO public 
       WITH CHECK (bucket_id = 'profile_images');
+
+    CREATE POLICY "Allow authenticated updates for profile_images"
+      ON storage.objects FOR UPDATE
+      TO authenticated
+      USING (bucket_id = 'profile_images')
+      WITH CHECK (bucket_id = 'profile_images');
+
+    CREATE POLICY "Allow authenticated deletes for profile_images"
+      ON storage.objects FOR DELETE
+      TO authenticated
+      USING (bucket_id = 'profile_images');
   END IF;
 END $$;
 

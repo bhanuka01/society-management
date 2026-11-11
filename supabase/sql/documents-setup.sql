@@ -60,6 +60,13 @@ VALUES ('document_access_members', '[]')
 ON CONFLICT (key) DO NOTHING;
 
 -- 5. Helper function to verify if caller is an officer or an admin-selected member
+-- Drop existing policies first so function signatures can be modified without dependency conflicts
+DROP POLICY IF EXISTS "Officers can view all docs and members can view public docs" ON public.documents;
+DROP POLICY IF EXISTS "Officers and authorized members can view docs" ON public.documents;
+
+DROP FUNCTION IF EXISTS public.is_document_authorized();
+DROP FUNCTION IF EXISTS public.is_document_authorized(text);
+
 CREATE OR REPLACE FUNCTION public.is_document_authorized(p_category text DEFAULT NULL)
 RETURNS boolean
 LANGUAGE plpgsql
@@ -71,13 +78,29 @@ DECLARE
   v_st_id text;
   v_email text;
   v_allowed jsonb;
-  v_mem_cats jsonb;
+  v_item text;
+  v_key text;
+  v_val jsonb;
+  v_mem_cats jsonb := NULL;
+  v_cat text;
 BEGIN
   IF public.is_staff() THEN
     RETURN true;
   END IF;
 
   SELECT st_id, email INTO v_st_id, v_email FROM public.profiles WHERE id = auth.uid();
+
+  -- Fallback to members table if st_id is empty in profiles
+  IF (v_st_id IS NULL OR trim(v_st_id) = '') AND (v_email IS NOT NULL AND trim(v_email) != '') THEN
+    SELECT st_id INTO v_st_id FROM public.members WHERE lower(trim(email)) = lower(trim(v_email)) LIMIT 1;
+  END IF;
+
+  v_st_id := upper(trim(coalesce(v_st_id, '')));
+  v_email := lower(trim(coalesce(v_email, '')));
+
+  IF v_st_id = '' AND v_email = '' THEN
+    RETURN false;
+  END IF;
 
   SELECT value::jsonb INTO v_allowed
   FROM public.system_settings
@@ -89,29 +112,40 @@ BEGIN
 
   -- 1. Legacy format: JSON Array of student IDs or emails ["SC/2022/...", ...]
   IF jsonb_typeof(v_allowed) = 'array' THEN
-    RETURN (v_st_id IS NOT NULL AND v_st_id != '' AND v_allowed ? v_st_id)
-        OR (v_email IS NOT NULL AND v_email != '' AND v_allowed ? v_email);
+    FOR v_item IN SELECT * FROM jsonb_array_elements_text(v_allowed) LOOP
+      IF (v_st_id != '' AND upper(trim(v_item)) = v_st_id)
+         OR (v_email != '' AND lower(trim(v_item)) = v_email) THEN
+        RETURN true;
+      END IF;
+    END LOOP;
+    RETURN false;
   END IF;
 
   -- 2. Granular Category Map format: { "SC/2022/...": ["Guidance", "Permissions"], ... }
   IF jsonb_typeof(v_allowed) = 'object' THEN
-    IF v_st_id IS NOT NULL AND v_st_id != '' AND v_allowed ? v_st_id THEN
-      v_mem_cats := v_allowed -> v_st_id;
-    ELSIF v_email IS NOT NULL AND v_email != '' AND v_allowed ? v_email THEN
-      v_mem_cats := v_allowed -> v_email;
-    ELSE
+    FOR v_key, v_val IN SELECT * FROM jsonb_each(v_allowed) LOOP
+      IF (v_st_id != '' AND upper(trim(v_key)) = v_st_id)
+         OR (v_email != '' AND lower(trim(v_key)) = v_email) THEN
+        v_mem_cats := v_val;
+        EXIT;
+      END IF;
+    END LOOP;
+
+    IF v_mem_cats IS NULL OR jsonb_typeof(v_mem_cats) != 'array' THEN
       RETURN false;
     END IF;
 
     -- If no category parameter provided, check if user has access to at least 1 category
-    IF p_category IS NULL THEN
-      RETURN jsonb_typeof(v_mem_cats) = 'array' AND jsonb_array_length(v_mem_cats) > 0;
+    IF p_category IS NULL OR trim(p_category) = '' THEN
+      RETURN jsonb_array_length(v_mem_cats) > 0;
     END IF;
 
     -- Check if requested category is in member's allowed categories array
-    IF jsonb_typeof(v_mem_cats) = 'array' THEN
-      RETURN v_mem_cats ? p_category;
-    END IF;
+    FOR v_cat IN SELECT * FROM jsonb_array_elements_text(v_mem_cats) LOOP
+      IF lower(trim(v_cat)) = lower(trim(p_category)) THEN
+        RETURN true;
+      END IF;
+    END LOOP;
   END IF;
 
   RETURN false;
@@ -121,22 +155,49 @@ EXCEPTION
 END;
 $$;
 
+-- Provide 0-arg overload for backward compatibility
+CREATE OR REPLACE FUNCTION public.is_document_authorized()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT public.is_document_authorized(NULL::text);
+$$;
+
 -- 6. Enable Row Level Security (RLS)
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 
 -- SELECT Policy:
 -- - Society officers (admin, editor) can read all documents (including officers_only)
--- - Only admin-selected members can view documents in their permitted categories marked 'public_to_members'
+-- - Document directly assigned to member via st_id can be read by that member
+-- - Admin-selected members can view documents in their permitted categories marked 'public_to_members'
 DROP POLICY IF EXISTS "Officers can view all docs and members can view public docs" ON public.documents;
-CREATE POLICY "Officers can view all docs and members can view public docs"
+DROP POLICY IF EXISTS "Officers and authorized members can view docs" ON public.documents;
+
+CREATE POLICY "Officers and authorized members can view docs"
 ON public.documents
 FOR SELECT
 TO authenticated
 USING (
   public.is_staff()
   OR (
-    visibility = 'public_to_members'
-    AND public.is_document_authorized(category)
+    (
+      st_id IS NOT NULL 
+      AND (
+        upper(trim(st_id)) = upper(trim(coalesce((SELECT p.st_id FROM public.profiles p WHERE p.id = auth.uid()), '')))
+        OR upper(trim(st_id)) = upper(trim(coalesce((
+          SELECT m.st_id FROM public.members m 
+          JOIN public.profiles p ON lower(trim(m.email)) = lower(trim(p.email)) 
+          WHERE p.id = auth.uid() LIMIT 1
+        ), '')))
+      )
+    )
+    OR (
+      visibility = 'public_to_members'
+      AND public.is_document_authorized(category)
+    )
   )
 );
 

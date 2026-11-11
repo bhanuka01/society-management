@@ -366,7 +366,7 @@ export default function Dashboard({ onNavigate, isAdmin = false, theme }) {
       {/* ── Quick Operations Command Toolbar ──────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
-          onClick={() => onNavigate("scan_attendance")}
+          onClick={() => onNavigate("attendance")}
           className={`p-3 rounded-[12px] border flex items-center justify-between transition-all group cursor-pointer text-left ${
             isDark
               ? "bg-[#0f1011] border-[#23252a] shadow-[inset_0_0_0_1px_#23252a] hover:border-[#383b3f] hover:bg-[#161718]"

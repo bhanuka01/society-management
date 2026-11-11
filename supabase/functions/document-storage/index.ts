@@ -355,85 +355,106 @@ serve(async (req: Request) => {
         );
       }
 
-      // Check category visibility rules:
-      // 'officers_only' documents can ONLY be retrieved by officers (admin or editor)
-      if (doc.visibility === 'officers_only' && !isStaff) {
-        return new Response(
-          JSON.stringify({ error: 'Forbidden: This document is restricted to society officers only.' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // For non-officer users, verify they are admin-selected members permitted to access this document's category
+      // For non-officer users, verify permissions
       if (!isStaff) {
-        const { data: settingData } = await supabaseAdmin
-          .from('system_settings')
-          .select('value')
-          .eq('key', 'document_access_members')
-          .maybeSingle();
+        let userStId = (profile?.st_id || '').trim().toUpperCase();
+        const userEmail = (profile?.email || user.email || '').trim().toLowerCase();
 
-        let parsedSetting: any = null;
-        try {
-          if (settingData?.value) {
-            parsedSetting = JSON.parse(settingData.value);
-          }
-        } catch (_) {
-          parsedSetting = null;
+        // Fallback: If st_id is missing in profile, resolve from members table via email
+        if (!userStId && userEmail) {
+          try {
+            const { data: memRecord } = await supabaseAdmin
+              .from('members')
+              .select('st_id')
+              .ilike('email', userEmail)
+              .maybeSingle();
+            if (memRecord?.st_id) {
+              userStId = memRecord.st_id.trim().toUpperCase();
+            }
+          } catch (_) {}
         }
 
-        const userStId = (profile?.st_id || '').trim().toUpperCase();
-        const userEmail = (profile?.email || user.email || '').trim().toLowerCase();
-        let userAllowedCategories: string[] = [];
-        let hasAnyAccess = false;
+        // Check if document is directly assigned to this member via st_id
+        const isDirectlyAssigned = Boolean(
+          doc.st_id && userStId && doc.st_id.trim().toUpperCase() === userStId
+        );
 
-        if (Array.isArray(parsedSetting)) {
-          // Legacy array format: member has access to all categories
-          const isMemberListed = parsedSetting.some(id => {
-            const val = (id || '').trim();
-            return (userStId && val.toUpperCase() === userStId) ||
-                   (userEmail && val.toLowerCase() === userEmail);
-          });
-          if (isMemberListed) {
-            hasAnyAccess = true;
-            userAllowedCategories = ALLOWED_CATEGORIES;
+        if (!isDirectlyAssigned) {
+          // 'officers_only' documents can ONLY be retrieved by officers unless directly assigned
+          if (doc.visibility === 'officers_only') {
+            return new Response(
+              JSON.stringify({ error: 'Forbidden: This document is restricted to society officers only.' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
           }
-        } else if (parsedSetting && typeof parsedSetting === 'object') {
-          // Granular dictionary format: { "ST_ID": ["Guidance", "Permissions"] }
-          for (const [key, categories] of Object.entries(parsedSetting)) {
-            const normKey = (key || '').trim();
-            if (
-              (userStId && normKey.toUpperCase() === userStId) ||
-              (userEmail && normKey.toLowerCase() === userEmail)
-            ) {
-              if (Array.isArray(categories)) {
-                hasAnyAccess = true;
-                userAllowedCategories = categories as string[];
+
+          const { data: settingData } = await supabaseAdmin
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'document_access_members')
+            .maybeSingle();
+
+          let parsedSetting: any = null;
+          try {
+            if (settingData?.value) {
+              parsedSetting = JSON.parse(settingData.value);
+            }
+          } catch (_) {
+            parsedSetting = null;
+          }
+
+          let userAllowedCategories: string[] = [];
+          let hasAnyAccess = false;
+
+          if (Array.isArray(parsedSetting)) {
+            // Legacy array format: member has access to all categories
+            const isMemberListed = parsedSetting.some(id => {
+              const val = (id || '').trim();
+              return (userStId && val.toUpperCase() === userStId) ||
+                     (userEmail && val.toLowerCase() === userEmail);
+            });
+            if (isMemberListed) {
+              hasAnyAccess = true;
+              userAllowedCategories = ALLOWED_CATEGORIES;
+            }
+          } else if (parsedSetting && typeof parsedSetting === 'object') {
+            // Granular dictionary format: { "ST_ID": ["Guidance", "Permissions"] }
+            for (const [key, categories] of Object.entries(parsedSetting)) {
+              const normKey = (key || '').trim();
+              if (
+                (userStId && normKey.toUpperCase() === userStId) ||
+                (userEmail && normKey.toLowerCase() === userEmail)
+              ) {
+                if (Array.isArray(categories)) {
+                  hasAnyAccess = true;
+                  userAllowedCategories = categories as string[];
+                }
+                break;
               }
-              break;
             }
           }
-        }
 
-        if (!hasAnyAccess) {
-          return new Response(
-            JSON.stringify({ error: 'Forbidden: You do not have permission to view or download society documents.' }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          if (!hasAnyAccess) {
+            return new Response(
+              JSON.stringify({ error: 'Forbidden: You do not have permission to view or download society documents.' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Check if user is authorized for this specific document's category
+          const docCategory = doc.category;
+          const isCategoryAllowed = userAllowedCategories.some(
+            cat => (cat || '').trim().toLowerCase() === (docCategory || '').trim().toLowerCase()
           );
-        }
 
-        // Check if user is authorized for this specific document's category
-        const docCategory = doc.category;
-        const isCategoryAllowed = userAllowedCategories.some(
-          cat => (cat || '').toLowerCase() === (docCategory || '').toLowerCase()
-        );
-
-        if (!isCategoryAllowed) {
-          return new Response(
-            JSON.stringify({
-              error: `Forbidden: You do not have permission to access documents in the "${docCategory}" category.`
-            }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          if (!isCategoryAllowed) {
+            return new Response(
+              JSON.stringify({
+                error: `Forbidden: You do not have permission to access documents in the "${docCategory}" category.`
+              }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
         }
       }
 
