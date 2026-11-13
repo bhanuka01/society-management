@@ -145,13 +145,13 @@ export default function App() {
   // Read cached profile synchronously on startup — instant dashboard, no loading screen
   const _cached = getCachedProfile();
   const _hasAuth = hasStoredAuth();
-  const _isReturningUser = !!(_cached && _hasAuth);
+  const _isReturningUser = !!(_cached && _hasAuth && _cached.userId && _cached.userId === _hasAuth.id);
 
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const [page, setPage] = useState(() => {
     if (_isReturningUser) {
       // Instantly set the correct page from cache
-      return _cached.role === "member" ? "attendance" : (_cached.role === "admin" ? "dashboard" : "members");
+      return _cached.role === "member" ? "my_info" : "dashboard";
     }
     return "dashboard";
   });
@@ -317,7 +317,7 @@ export default function App() {
                 .from("profiles")
                 .update({ st_id: resolvedStId })
                 .eq("id", user.id)
-                .then(() => {});
+                .then(() => {}, () => {});
             }
           } catch (_) {}
         }
@@ -338,17 +338,18 @@ export default function App() {
         setCachedProfile(profileData);  // Cache for instant startup next time
         setViewAsMember(false);
         setPage(prev => {
+          const isStaff = userRole === "admin" || userRole === "editor";
           if (userStatus === "pending" || userStatus === "pending_editor_review") {
-            return userRole === "member" ? "attendance" : (userRole === "admin" ? "dashboard" : "members");
+            return userRole === "member" ? "my_info" : "dashboard";
           }
           if (userRole === "member") {
             // Normal members are NEVER allowed to access dashboard or staff-only pages
             if (prev === "dashboard" || prev === "members" || prev === "access" || prev === "letters" || prev === "about") {
-              return "attendance";
+              return "my_info";
             }
           }
           if (prev === "about") {
-            return userRole === "admin" ? "dashboard" : "members";
+            return "dashboard";
           }
           return prev;
         });
@@ -399,7 +400,7 @@ export default function App() {
           setCachedProfile(updatedProfile);
           setSession(updatedProfile);
           const isStaff = userRole === "admin" || userRole === "editor";
-          setPage(isStaff ? (userRole === "admin" ? "dashboard" : "members") : "attendance");
+          setPage(isStaff ? "dashboard" : "my_info");
         }
       })
       .subscribe();
@@ -420,13 +421,13 @@ export default function App() {
       return;
     }
     if (!isEditor && (page === "dashboard" || page === "members" || page === "access" || page === "letters")) {
-      setPage("attendance");
+      setPage("my_info");
     }
   }, [page, isEditor, session.role, session.status]);
 
   const navigateSafe = (dest) => {
     if (!isEditor && (dest === "dashboard" || dest === "members" || dest === "access" || dest === "letters")) {
-      setPage("attendance");
+      setPage("my_info");
     } else {
       setPage(dest);
     }
@@ -434,10 +435,10 @@ export default function App() {
 
   const pages = { dashboard: Dashboard, notices: Notices, members: Members, committee: Committee, events: Events, attendance: Attendance, access: Access, setup: Setup, my_info: MyInfo, profile: MyInfo, messages: Messages, tasks: Tasks, letters: Letters, assistant: AssistantPage, privacy: PrivacyPolicy, terms: TermsOfService, documents: Documents };
 
-  // Fallback: If non-editor attempts to render dashboard or staff pages, render Attendance
+  // Fallback: If non-editor attempts to render dashboard or staff pages, render MyInfo
   const PageComponent = (!isEditor && (page === "dashboard" || page === "members" || page === "access" || page === "letters"))
-    ? Attendance
-    : (pages[page] || (isEditor ? Dashboard : Attendance));
+    ? MyInfo
+    : (pages[page] || (isEditor ? Dashboard : MyInfo));
 
   const handleRefreshStatus = async () => {
     setRefreshingStatus(true);
@@ -488,7 +489,7 @@ export default function App() {
 
           if (userStatus !== "pending" && userStatus !== "pending_editor_review") {
             const isStaff = userRole === "admin" || userRole === "editor";
-            setPage(isStaff ? (userRole === "admin" ? "dashboard" : "members") : "attendance");
+            setPage(isStaff ? "dashboard" : "my_info");
           }
         }
       }
@@ -539,11 +540,11 @@ export default function App() {
       const nextVal = !prev;
       if (nextVal) {
         if (page === "dashboard" || page === "members" || page === "access") {
-          setPage("attendance");
+          setPage("my_info");
         }
       } else {
-        if (page === "attendance") {
-          setPage(session.role === "admin" ? "dashboard" : "members");
+        if (page === "my_info") {
+          setPage("dashboard");
         }
       }
       return nextVal;
@@ -673,9 +674,8 @@ export default function App() {
             setSession(profileData);
             setCachedProfile(profileData);
             setViewAsMember(false);
-            setPage(profileData.status === "pending" || profileData.status === "pending_editor_review"
-              ? (profileData.role === "member" ? "attendance" : (profileData.role === "admin" ? "dashboard" : "members"))
-              : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
+            const isStaff = profileData.role === "admin" || profileData.role === "editor";
+            setPage(isStaff ? "dashboard" : "my_info");
             window.history.pushState({}, "", "/");
             window.dispatchEvent(new Event("popstate"));
           }}
@@ -703,9 +703,8 @@ export default function App() {
             setSession(profileData);
             setCachedProfile(profileData);
             setViewAsMember(false);
-            setPage(isPending
-              ? (profileData.role === "member" ? "attendance" : (profileData.role === "admin" ? "dashboard" : "members"))
-              : profileData.role === "member" ? "attendance" : profileData.role === "admin" ? "dashboard" : "members");
+            const isStaff = profileData.role === "admin" || profileData.role === "editor";
+            setPage(isStaff ? "dashboard" : "my_info");
             window.history.pushState({}, "", "/");
             window.dispatchEvent(new Event("popstate"));
           }}

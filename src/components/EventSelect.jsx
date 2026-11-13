@@ -149,7 +149,6 @@ export default function EventSelect({
           {/* Search Box */}
           <div className={`p-2 border-b ${isDark ? "border-[#23252a] bg-[#161718]/60" : "border-gray-200 bg-gray-50/70"}`}>
             <div className="relative">
-              <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
               <input
                 type="text"
                 placeholder="Search event name, ID, or date..."
@@ -157,7 +156,7 @@ export default function EventSelect({
                 onChange={e => handleSearchChange(e.target.value)}
                 autoFocus
                 onClick={e => e.stopPropagation()}
-                className={`w-full pl-8 pr-2.5 py-1.5 border rounded-[6px] text-[12px] outline-none transition-colors ${
+                className={`w-full pl-3 pr-2.5 py-1.5 border rounded-[6px] text-[12px] outline-none transition-colors ${
                   isDark 
                     ? "bg-[#08090a] border-[#23252a] focus:border-[#d0d6e0] text-white placeholder-[#62666d]" 
                     : "bg-white border-gray-300 focus:border-indigo-500 text-gray-900 placeholder-gray-400"

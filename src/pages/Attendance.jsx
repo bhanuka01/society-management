@@ -1437,7 +1437,6 @@ export default function Attendance({
               <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                 {/* Search Bar */}
                 <div className="relative flex-1 min-w-[200px]">
-                  <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
                   <input
                     type="text"
                     value={search}
@@ -1447,7 +1446,7 @@ export default function Attendance({
                       isDark 
                         ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#d0d6e0]" 
                         : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    } border rounded-[6px] pl-8 pr-7 py-1.5 text-[12px] transition-colors focus:outline-none`}
+                    } border rounded-[6px] pl-3 pr-7 py-1.5 text-[12px] transition-colors focus:outline-none`}
                   />
                   {search && (
                     <button
@@ -2119,7 +2118,6 @@ export default function Attendance({
                 <div className={`${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200 shadow-sm"} border rounded-[12px] p-3 space-y-2`}>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     <div className="relative flex-1">
-                      <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
                       <input
                         type="text"
                         value={csvSearch}
@@ -2129,7 +2127,7 @@ export default function Attendance({
                           isDark
                             ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#d0d6e0]"
                             : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                        } border rounded-[6px] pl-8 pr-7 py-1.5 text-[12px] focus:outline-none transition-colors`}
+                        } border rounded-[6px] pl-3 pr-7 py-1.5 text-[12px] focus:outline-none transition-colors`}
                       />
                       {csvSearch && (
                         <button
@@ -2506,7 +2504,6 @@ export default function Attendance({
             {/* Search Filter Strip */}
             <div className={`${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200 shadow-sm"} border rounded-[12px] p-3 flex items-center justify-between`}>
               <div className="relative flex-1 max-w-sm">
-                <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
                 <input
                   type="text"
                   value={mySearch}
@@ -2516,7 +2513,7 @@ export default function Attendance({
                     isDark
                       ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#d0d6e0]"
                       : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  } border rounded-[6px] pl-8 pr-7 py-1.5 text-[12px] focus:outline-none transition-colors`}
+                  } border rounded-[6px] pl-3 pr-7 py-1.5 text-[12px] focus:outline-none transition-colors`}
                 />
                 {mySearch && (
                   <button

@@ -177,7 +177,7 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
           onClick={handleNavigateHome}
           className="flex items-center gap-2.5 cursor-pointer"
         >
-          <div className={`w-6 h-6 rounded-[4px] border flex items-center justify-center p-1 ${
+          <div className={`w-9 h-9 rounded-[7px] border flex items-center justify-center p-1 ${
             isDark ? "bg-[#161718] border-[#23252a]" : "bg-white border-gray-200 shadow-sm"
           }`}>
             <img
@@ -186,7 +186,7 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
               src={`${import.meta.env.BASE_URL}${isDark ? "logo_trans_light.png" : "logo_trans_dark.png"}`}
             />
           </div>
-          <span className={`text-[14px] font-[510] tracking-[-0.015em] hidden sm:inline ${
+          <span className={`text-[15px] font-[590] tracking-[-0.015em] hidden sm:inline ${
             isDark ? "text-white" : "text-gray-900 font-semibold"
           }`}>
             ADSS Ruhuna

@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import {
   OFFICIAL_FUNCTIONAL_TEAMS,
+  DEFAULT_FUNCTION_AVAILABILITY,
+  normalizeFunctionName,
   SkillsAssessmentReview,
 } from "../components/PlacementQuestionnaire";
 
@@ -208,6 +210,21 @@ export default function Members({ isAdmin = false, theme }) {
   const [editSettingsModal, setEditSettingsModal] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState(null);
+
+  // Function Availability Settings State (Registration Capacities)
+  const [functionAvailabilityModal, setFunctionAvailabilityModal] = useState(false);
+  const [funcAvailability, setFuncAvailability] = useState(() => ({
+    ...DEFAULT_FUNCTION_AVAILABILITY,
+  }));
+  const [liveFuncCounts, setLiveFuncCounts] = useState({});
+  const [savingFuncAvailability, setSavingFuncAvailability] = useState(false);
+  const [funcAvailabilityMsg, setFuncAvailabilityMsg] = useState(null);
+  const [regTrackGates, setRegTrackGates] = useState({
+    memberOpen: true,
+    execOpen: true,
+    memberAuto: false,
+    execAuto: false,
+  });
   const [editPermissions, setEditPermissions] = useState({
     name: false,
     preferred_name: true,
@@ -227,6 +244,152 @@ export default function Members({ isAdmin = false, theme }) {
       setPendingCount(count || 0);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const loadFunctionAvailability = async () => {
+    setFuncAvailabilityMsg(null);
+    const [settingRes, countsRes] = await Promise.all([
+      supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", [
+          "function_availability",
+          "registration_enabled",
+          "registration_enabled_member",
+          "registration_enabled_executive",
+          "registration_auto_approve",
+          "registration_auto_approve_member",
+          "registration_auto_approve_executive",
+        ]),
+      supabase
+        .from("members")
+        .select("member_function, level")
+        .not("member_function", "is", null),
+    ]);
+
+    const settingsMap = {};
+    (settingRes.data || []).forEach((item) => {
+      settingsMap[item.key] = item.value;
+    });
+
+    const fallbackReg = settingsMap.registration_enabled !== undefined ? settingsMap.registration_enabled === "true" : true;
+    const fallbackAuto = settingsMap.registration_auto_approve === "true";
+    setRegTrackGates({
+      memberOpen:
+        settingsMap.registration_enabled_member !== undefined
+          ? settingsMap.registration_enabled_member === "true"
+          : fallbackReg,
+      execOpen:
+        settingsMap.registration_enabled_executive !== undefined
+          ? settingsMap.registration_enabled_executive === "true"
+          : fallbackReg,
+      memberAuto:
+        settingsMap.registration_auto_approve_member !== undefined
+          ? settingsMap.registration_auto_approve_member === "true"
+          : fallbackAuto,
+      execAuto:
+        settingsMap.registration_auto_approve_executive !== undefined
+          ? settingsMap.registration_auto_approve_executive === "true"
+          : fallbackAuto,
+    });
+
+    const counts = {};
+    OFFICIAL_FUNCTIONAL_TEAMS.forEach((fn) => {
+      counts[fn] = 0;
+    });
+    if (countsRes.data) {
+      countsRes.data.forEach((row) => {
+        if (row.level && Number(row.level) > 4) return;
+        const norm = normalizeFunctionName(row.member_function);
+        if (norm && counts[norm] !== undefined) {
+          counts[norm] += 1;
+        }
+      });
+    }
+    setLiveFuncCounts(counts);
+
+    let parsed = {};
+    if (settingsMap.function_availability) {
+      try {
+        parsed = JSON.parse(settingsMap.function_availability);
+      } catch {
+        parsed = {};
+      }
+    }
+
+    const merged = {};
+    OFFICIAL_FUNCTIONAL_TEAMS.forEach((fn) => {
+      const defaults = DEFAULT_FUNCTION_AVAILABILITY[fn] || { filled: 0, capacity: 30, isFull: false };
+      const saved = parsed[fn] || {};
+      const capacity = Number.isFinite(Number(saved.capacity)) && Number(saved.capacity) >= 0
+        ? Number(saved.capacity)
+        : defaults.capacity;
+      const filled = saved.filled !== undefined && saved.filled !== null && saved.filled !== ""
+        ? Math.max(0, Number(saved.filled) || 0)
+        : (counts[fn] || 0);
+      merged[fn] = {
+        capacity,
+        filled,
+        isFull: Boolean(saved.isFull),
+      };
+    });
+    setFuncAvailability(merged);
+  };
+
+  const syncAllCountsFromDb = () => {
+    setFuncAvailability((prev) => {
+      const next = { ...prev };
+      OFFICIAL_FUNCTIONAL_TEAMS.forEach((fn) => {
+        const current = next[fn] || { capacity: 30, filled: 0, isFull: false };
+        next[fn] = {
+          ...current,
+          filled: liveFuncCounts[fn] ?? 0,
+        };
+      });
+      return next;
+    });
+    setFuncAvailabilityMsg({
+      type: "success",
+      text: "Filled counts synced from active member records. Click Save Availability to apply.",
+    });
+  };
+
+  const saveFunctionAvailability = async () => {
+    setSavingFuncAvailability(true);
+    setFuncAvailabilityMsg(null);
+    const payload = {};
+    OFFICIAL_FUNCTIONAL_TEAMS.forEach((fn) => {
+      const cfg = funcAvailability[fn] || { capacity: 30, filled: 0, isFull: false };
+      payload[fn] = {
+        capacity: Math.max(0, Number(cfg.capacity) || 0),
+        filled: Math.max(0, Number(cfg.filled) || 0),
+        isFull: Boolean(cfg.isFull),
+      };
+    });
+
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert(
+        [
+          { key: "function_availability", value: JSON.stringify(payload) },
+          { key: "registration_enabled_member", value: regTrackGates.memberOpen ? "true" : "false" },
+          { key: "registration_enabled_executive", value: regTrackGates.execOpen ? "true" : "false" },
+          {
+            key: "registration_enabled",
+            value: regTrackGates.memberOpen || regTrackGates.execOpen ? "true" : "false",
+          },
+          { key: "registration_auto_approve_member", value: regTrackGates.memberAuto ? "true" : "false" },
+          { key: "registration_auto_approve_executive", value: regTrackGates.execAuto ? "true" : "false" },
+        ],
+        { onConflict: "key" }
+      );
+
+    setSavingFuncAvailability(false);
+    if (error) {
+      setFuncAvailabilityMsg({ type: "error", text: "Failed to save availability: " + error.message });
+    } else {
+      setFuncAvailabilityMsg({ type: "success", text: "Registration gates, auto-approve settings, and function availability updated." });
     }
   };
 
@@ -330,7 +493,7 @@ export default function Members({ isAdmin = false, theme }) {
       const extRes = await supabase
         .from("profiles")
         .select(
-          "id, email, full_name, preferred_name, role, st_id, status, created_at, membership_status, skills_assessment, portfolio_url, contribution_note, members(mobile_number, level, member_function, profile_image_url, preferred_name, membership_status, skills_assessment)"
+          "id, email, full_name, preferred_name, role, st_id, status, created_at, membership_status, skills_assessment, portfolio_url, contribution_note, members(mobile_number, level, st_position, member_function, profile_image_url, preferred_name, membership_status, skills_assessment)"
         )
         .in("status", ["pending", "pending_editor_review", "rejected"])
         .order("created_at", { ascending: false });
@@ -339,7 +502,7 @@ export default function Members({ isAdmin = false, theme }) {
         const baseRes = await supabase
           .from("profiles")
           .select(
-            "id, email, full_name, preferred_name, role, st_id, status, created_at, members(mobile_number, level, member_function, profile_image_url, preferred_name)"
+            "id, email, full_name, preferred_name, role, st_id, status, created_at, members(mobile_number, level, st_position, member_function, profile_image_url, preferred_name)"
           )
           .in("status", ["pending", "pending_editor_review", "rejected"])
           .order("created_at", { ascending: false });
@@ -363,6 +526,7 @@ export default function Members({ isAdmin = false, theme }) {
           email: p.email,
           role: p.role,
           level: p.members?.level || 1,
+          st_position: p.members?.st_position || "",
           mobile_number: p.members?.mobile_number || "",
           member_function: p.members?.member_function || "",
           profile_image_url: p.members?.profile_image_url || "",
@@ -932,19 +1096,53 @@ export default function Members({ isAdmin = false, theme }) {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm(`Delete member ${id}? This will also remove their OC and attendance records.`)) return;
-    const { error } = await supabase.from("members").delete().eq("st_id", id);
-    if (error) alert(error.message);
-    else load(page, search);
+    const target = members.find((item) => item.st_id === id);
+    if (
+      !confirm(
+        `Delete member ${id}? This will permanently remove their member record, OC/attendance records, and their login account from Supabase Authentication.`
+      )
+    ) {
+      return;
+    }
+
+    const { error: rpcErr } = await supabase.rpc("delete_member_and_auth_user", {
+      p_st_id: id,
+      p_profile_id: target?.profile_id || null,
+      p_email: target?.email || null,
+    });
+
+    if (rpcErr) {
+      const missingRpc =
+        rpcErr.code === "PGRST202" ||
+        rpcErr.message?.includes("delete_member_and_auth_user");
+      if (!missingRpc) {
+        alert("Failed to delete member & auth account: " + rpcErr.message);
+        return;
+      }
+
+      // Fallback if SQL migration has not yet been executed
+      await supabase.from("profiles").delete().eq("st_id", id);
+      const { error } = await supabase.from("members").delete().eq("st_id", id);
+      if (error) {
+        alert(error.message);
+        return;
+      }
+    }
+
+    load(page, search);
   };
 
   const openReviewModal = (m) => {
     setReviewApplicant(m);
-    const firstChoice = m.skills_assessment?.firstChoiceFunction;
-    if (firstChoice && OFFICIAL_FUNCTIONAL_TEAMS.includes(firstChoice)) {
+    const appealTarget = normalizeFunctionName(m.skills_assessment?.appealFunction);
+    const firstChoice = normalizeFunctionName(m.skills_assessment?.firstChoiceFunction);
+    const currentFn = normalizeFunctionName(m.member_function);
+    if (appealTarget && OFFICIAL_FUNCTIONAL_TEAMS.includes(appealTarget)) {
+      setAssignedFunction(appealTarget);
+    } else if (firstChoice && OFFICIAL_FUNCTIONAL_TEAMS.includes(firstChoice)) {
       setAssignedFunction(firstChoice);
-    } else if (m.member_function && OFFICIAL_FUNCTIONAL_TEAMS.includes(m.member_function)) {
-      setAssignedFunction(m.member_function);
+    } else if (currentFn && OFFICIAL_FUNCTIONAL_TEAMS.includes(currentFn)) {
+      setAssignedFunction(currentFn);
     } else {
       setAssignedFunction("Finance");
     }
@@ -965,10 +1163,15 @@ export default function Members({ isAdmin = false, theme }) {
       return;
     }
 
+    const isExecutiveApplicant = m.skills_assessment?.type === "executive_board";
+    const resolvedPosition = isExecutiveApplicant
+      ? (m.st_position || m.skills_assessment?.executiveManager || "Executive")
+      : (m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin");
+
     const { error: memberErr } = await supabase
       .from("members")
       .update({
-        st_position: m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin",
+        st_position: resolvedPosition,
         member_function: teamToAssign || "General",
       })
       .eq("st_id", m.st_id);
@@ -983,7 +1186,8 @@ export default function Members({ isAdmin = false, theme }) {
   };
 
   const handleApprove = async (m) => {
-    if (m.skills_assessment || m.status === "pending_editor_review") {
+    const isExecutiveApplicant = m.skills_assessment?.type === "executive_board";
+    if (!isExecutiveApplicant && (m.skills_assessment || m.status === "pending_editor_review")) {
       openReviewModal(m);
       return;
     }
@@ -1002,16 +1206,22 @@ export default function Members({ isAdmin = false, theme }) {
       return;
     }
 
+    const resolvedPosition = isExecutiveApplicant
+      ? (m.st_position || m.skills_assessment?.executiveManager || "Executive")
+      : (m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin");
+
+    const resolvedFunction =
+      m.role === "member"
+        ? m.member_function && m.member_function !== "Pending Review"
+          ? m.member_function
+          : m.skills_assessment?.executiveFunction || "General"
+        : "Staff";
+
     const { error: memberErr } = await supabase
       .from("members")
       .update({
-        st_position: m.role === "member" ? "Member" : m.role === "editor" ? "Editor" : "Admin",
-        member_function:
-          m.role === "member"
-            ? m.member_function && m.member_function !== "Pending Review"
-              ? m.member_function
-              : "General"
-            : "Staff",
+        st_position: resolvedPosition,
+        member_function: resolvedFunction,
       })
       .eq("st_id", m.st_id);
 
@@ -1039,25 +1249,48 @@ export default function Members({ isAdmin = false, theme }) {
   };
 
   const handleDeletePending = async (m) => {
-    if (!confirm(`Permanently delete registration and details for ${m.name} from the database? This cannot be undone.`))
+    if (
+      !confirm(
+        `Permanently delete registration, details, and authentication account for ${m.name}? This cannot be undone.`
+      )
+    )
       return;
     setLoading(true);
 
-    const { error: profileErr } = await supabase.from("profiles").delete().eq("id", m.profile_id);
+    const { error: rpcErr } = await supabase.rpc("delete_member_and_auth_user", {
+      p_st_id: m.st_id || null,
+      p_profile_id: m.profile_id || null,
+      p_email: m.email || null,
+    });
 
-    if (profileErr) {
-      alert("Error deleting profile: " + profileErr.message);
-      setLoading(false);
-      return;
+    if (rpcErr) {
+      const missingRpc =
+        rpcErr.code === "PGRST202" ||
+        rpcErr.message?.includes("delete_member_and_auth_user");
+      if (!missingRpc) {
+        alert("Error deleting account: " + rpcErr.message);
+        setLoading(false);
+        return;
+      }
+
+      // Fallback if SQL migration has not yet been executed
+      if (m.profile_id) {
+        const { error: profileErr } = await supabase.from("profiles").delete().eq("id", m.profile_id);
+        if (profileErr) {
+          alert("Error deleting profile: " + profileErr.message);
+          setLoading(false);
+          return;
+        }
+      }
+      if (m.st_id) {
+        const { error: memberErr } = await supabase.from("members").delete().eq("st_id", m.st_id);
+        if (memberErr) {
+          console.error("Error deleting member row: ", memberErr.message);
+        }
+      }
     }
 
-    const { error: memberErr } = await supabase.from("members").delete().eq("st_id", m.st_id);
-
-    if (memberErr) {
-      console.error("Error deleting member row: ", memberErr.message);
-    }
-
-    alert(`Deleted registration for ${m.name} completely.`);
+    alert(`Deleted registration and auth account for ${m.name} completely.`);
     load(page, search);
   };
 
@@ -1141,6 +1374,21 @@ export default function Members({ isAdmin = false, theme }) {
 
               {isAdmin && (
                 <>
+                  <button
+                    onClick={() => {
+                      loadFunctionAvailability();
+                      setFunctionAvailabilityModal(true);
+                    }}
+                    className={`h-7 px-2.5 rounded-[6px] border font-berkeley-mono text-[11px] font-[510] transition-colors flex items-center gap-1.5 ${
+                      isDark
+                        ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
+                        : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-sm"
+                    }`}
+                    title="Manage registration slot limits per function"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Availability</span>
+                  </button>
                   <button
                     onClick={() => {
                       setSettingsMsg(null);
@@ -1258,11 +1506,6 @@ export default function Members({ isAdmin = false, theme }) {
 
             {/* Search Input */}
             <div className="relative w-full sm:w-64">
-              <Search
-                className={`absolute left-2.5 top-2 w-3.5 h-3.5 ${
-                  isDark ? "text-[#62666d]" : "text-gray-400"
-                }`}
-              />
               <input
                 type="text"
                 value={search}
@@ -1271,7 +1514,7 @@ export default function Members({ isAdmin = false, theme }) {
                   setSearch(e.target.value);
                 }}
                 placeholder="Search by ID, name, function..."
-                className={`w-full rounded-[6px] pl-8 pr-7 py-1 text-[12px] transition-colors font-sans border ${
+                className={`w-full rounded-[6px] pl-3 pr-7 py-1 text-[12px] transition-colors font-sans border ${
                   isDark
                     ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:outline-none focus:border-[#d0d6e0]"
                     : "bg-white border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-indigo-500 shadow-sm"
@@ -1502,7 +1745,17 @@ export default function Members({ isAdmin = false, theme }) {
                                 >
                                   {m.status === "pending_editor_review" ? "EDITORIAL REVIEW" : m.status}
                                 </span>
-                                {m.membership_status === "existing" ? (
+                                {m.skills_assessment?.type === "executive_board" ? (
+                                  <span className="font-berkeley-mono text-[9px] px-1.5 py-0.5 rounded-[3px] bg-sky-500/10 text-sky-400 border border-sky-500/30">
+                                    {(m.st_position || m.skills_assessment?.executiveManager || "").startsWith("Vice President")
+                                      ? "VICE PRESIDENT"
+                                      : "EXECUTIVE"}
+                                  </span>
+                                ) : m.skills_assessment?.type === "function_appeal" ? (
+                                  <span className="font-berkeley-mono text-[9px] px-1.5 py-0.5 rounded-[3px] bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                    APPEAL
+                                  </span>
+                                ) : m.membership_status === "existing" ? (
                                   <span className="font-berkeley-mono text-[9px] px-1.5 py-0.5 rounded-[3px] bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30">
                                     EXISTING
                                   </span>
@@ -1531,20 +1784,28 @@ export default function Members({ isAdmin = false, theme }) {
                                 >
                                   Year {m.level}
                                 </span>
-                                <span className={`text-[11px] font-sans truncate max-w-[140px] ${
+                                <span className={`text-[11px] font-sans truncate max-w-[160px] ${
                                   m.member_function === "Pending Review"
                                     ? isDark ? "text-amber-400 italic" : "text-amber-700 italic"
                                     : isDark ? "text-[#d0d6e0]" : "text-gray-700"
                                 }`}>
                                   {m.member_function || "Unassigned"}
                                 </span>
+                                {(m.st_position || m.skills_assessment?.executiveManager) &&
+                                  !["Member", "Pending Review"].includes(m.st_position) && (
+                                  <span className={`font-berkeley-mono text-[10px] truncate max-w-[160px] ${
+                                    isDark ? "text-[#8a8f98]" : "text-gray-500"
+                                  }`}>
+                                    {m.st_position || m.skills_assessment?.executiveManager}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
                             {/* Pending Actions */}
                             <td className="py-3 px-4 align-middle text-right">
                               <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                                {m.skills_assessment ? (
+                                {m.skills_assessment && m.skills_assessment.type !== "executive_board" ? (
                                   <button
                                     onClick={() => openReviewModal(m)}
                                     className={`h-6 px-2.5 rounded-[4px] border font-berkeley-mono text-[10px] font-[510] transition-colors flex items-center gap-1 ${
@@ -1552,7 +1813,7 @@ export default function Members({ isAdmin = false, theme }) {
                                         ? "bg-[#e4f222]/15 hover:bg-[#e4f222]/25 text-[#e4f222] border-[#e4f222]/40 shadow-sm"
                                         : "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 shadow-sm"
                                     }`}
-                                    title="Review Placement Assessment & Assign Function"
+                                    title="Review Appeal & Assign Function"
                                   >
                                     <Sparkles className="w-3 h-3" />
                                     <span>Review & Assign</span>
@@ -1982,8 +2243,7 @@ export default function Members({ isAdmin = false, theme }) {
                   >
                     Member Function
                   </label>
-                  <input
-                    placeholder="e.g. Finance, Logistics, PR..."
+                  <select
                     value={form.member_function}
                     onChange={(e) => setForm({ ...form, member_function: e.target.value })}
                     className={`w-full rounded-[6px] px-3 py-1.5 text-[13px] border transition-colors ${
@@ -1991,7 +2251,20 @@ export default function Members({ isAdmin = false, theme }) {
                         ? "bg-[#161718] border-[#23252a] text-white focus:outline-none focus:border-[#d0d6e0]"
                         : "bg-white border-gray-300 text-gray-900 focus:outline-none focus:border-indigo-500 shadow-sm"
                     }`}
-                  />
+                  >
+                    <option value="">Select Function...</option>
+                    {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => (
+                      <option key={fn} value={fn}>
+                        {fn}
+                      </option>
+                    ))}
+                    {form.member_function &&
+                      !OFFICIAL_FUNCTIONAL_TEAMS.includes(form.member_function) && (
+                        <option value={form.member_function}>
+                          {form.member_function}
+                        </option>
+                      )}
+                  </select>
                 </div>
               </div>
             )}
@@ -2675,6 +2948,305 @@ export default function Members({ isAdmin = false, theme }) {
         </div>
       )}
 
+      {/* ═══════════════════════════════════════════════
+          MODAL 3B: Function Availability & Capacities
+         ═══════════════════════════════════════════════ */}
+      {functionAvailabilityModal && (
+        <div
+          className={`fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto ${
+            isDark ? "bg-[#08090a]/80" : "bg-slate-900/40"
+          }`}
+          onClick={(e) => e.target === e.currentTarget && setFunctionAvailabilityModal(false)}
+        >
+          <div
+            className={`border rounded-[12px] w-full max-w-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto ${
+              isDark
+                ? "bg-[#0f1011] border-[#23252a] text-[#d0d6e0]"
+                : "bg-white border-gray-200 text-gray-800 shadow-xl"
+            }`}
+          >
+            <div
+              className={`flex justify-between items-center pb-3 border-b ${
+                isDark ? "border-[#23252a]" : "border-gray-200"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Users
+                  className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`}
+                />
+                <h2
+                  className={`text-[15px] font-[590] ${
+                    isDark ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Function Registration Availability
+                </h2>
+              </div>
+              <button
+                onClick={() => setFunctionAvailabilityModal(false)}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition-colors ${
+                  isDark
+                    ? "hover:bg-[#161718] text-[#8a8f98] hover:text-white"
+                    : "hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Separate Member & Executive Open/Close + Auto-Approve Gates */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Members Track */}
+              <div className={`p-3 rounded-[8px] border space-y-2 ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[12px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+                    Member Registration
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRegTrackGates((prev) => ({ ...prev, memberOpen: !prev.memberOpen }))}
+                    className={`font-berkeley-mono text-[10px] px-2 py-0.5 rounded border cursor-pointer ${
+                      regTrackGates.memberOpen
+                        ? isDark ? "bg-[#27a644]/15 text-[#27a644] border-[#27a644]/30" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : isDark ? "bg-[#eb5757]/15 text-[#eb5757] border-[#eb5757]/30" : "bg-rose-50 text-rose-700 border-rose-200"
+                    }`}
+                  >
+                    {regTrackGates.memberOpen ? "OPEN" : "CLOSED"}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`font-berkeley-mono text-[10px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Member Auto-Approve
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRegTrackGates((prev) => ({ ...prev, memberAuto: !prev.memberAuto }))}
+                    className={`font-berkeley-mono text-[10px] px-2 py-0.5 rounded border cursor-pointer ${
+                      regTrackGates.memberAuto
+                        ? isDark ? "bg-[#e4f222]/15 text-[#e4f222] border-[#e4f222]/30" : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                        : isDark ? "bg-[#0b0c0d] text-[#8a8f98] border-[#2e3137]" : "bg-white text-gray-600 border-gray-300"
+                    }`}
+                  >
+                    {regTrackGates.memberAuto ? "AUTO APPROVE" : "MANUAL REVIEW"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Executives Track */}
+              <div className={`p-3 rounded-[8px] border space-y-2 ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[12px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+                    Executive Registration
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRegTrackGates((prev) => ({ ...prev, execOpen: !prev.execOpen }))}
+                    className={`font-berkeley-mono text-[10px] px-2 py-0.5 rounded border cursor-pointer ${
+                      regTrackGates.execOpen
+                        ? isDark ? "bg-[#27a644]/15 text-[#27a644] border-[#27a644]/30" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : isDark ? "bg-[#eb5757]/15 text-[#eb5757] border-[#eb5757]/30" : "bg-rose-50 text-rose-700 border-rose-200"
+                    }`}
+                  >
+                    {regTrackGates.execOpen ? "OPEN" : "CLOSED"}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`font-berkeley-mono text-[10px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Executive Auto-Approve
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRegTrackGates((prev) => ({ ...prev, execAuto: !prev.execAuto }))}
+                    className={`font-berkeley-mono text-[10px] px-2 py-0.5 rounded border cursor-pointer ${
+                      regTrackGates.execAuto
+                        ? isDark ? "bg-[#e4f222]/15 text-[#e4f222] border-[#e4f222]/30" : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                        : isDark ? "bg-[#0b0c0d] text-[#8a8f98] border-[#2e3137]" : "bg-white text-gray-600 border-gray-300"
+                    }`}
+                  >
+                    {regTrackGates.execAuto ? "AUTO APPROVE" : "MANUAL REVIEW"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p
+                className={`text-[12px] leading-relaxed ${
+                  isDark ? "text-[#8a8f98]" : "text-gray-600"
+                }`}
+              >
+                Configure slot capacities and open/full status shown on the portal Registration page (default capacity: 30).
+              </p>
+              <button
+                type="button"
+                onClick={syncAllCountsFromDb}
+                className={`px-2.5 py-1.5 rounded-[6px] border text-[11px] font-berkeley-mono flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:border-[#383b3f]"
+                    : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Sync from DB</span>
+              </button>
+            </div>
+
+            {funcAvailabilityMsg && (
+              <div
+                className={`p-2.5 rounded-[6px] text-[11px] font-berkeley-mono border ${
+                  funcAvailabilityMsg.type === "error"
+                    ? isDark
+                      ? "bg-[#eb5757]/10 text-[#eb5757] border-[#eb5757]/30"
+                      : "bg-red-50 text-red-700 border-red-200"
+                    : isDark
+                    ? "bg-[#27a644]/10 text-[#27a644] border-[#27a644]/30"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                }`}
+              >
+                {funcAvailabilityMsg.text}
+              </div>
+            )}
+
+            <div className="space-y-2.5">
+              {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => {
+                const cfg = funcAvailability[fn] || { filled: 0, capacity: 30, isFull: false };
+                const dbCount = liveFuncCounts[fn] ?? 0;
+                const autoFull = cfg.isFull || (cfg.capacity >= 0 && cfg.filled >= cfg.capacity);
+                return (
+                  <div
+                    key={fn}
+                    className={`p-3 rounded-[8px] border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isDark
+                        ? "bg-[#161718] border-[#23252a]"
+                        : "bg-gray-50/70 border-gray-200"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[13px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+                          {fn}
+                        </span>
+                        <span
+                          className={`font-berkeley-mono text-[10px] px-1.5 py-0.5 rounded border ${
+                            autoFull
+                              ? isDark
+                                ? "bg-[#eb5757]/10 text-[#eb5757] border-[#eb5757]/30"
+                                : "bg-red-50 text-red-700 border-red-200"
+                              : isDark
+                              ? "bg-[#27a644]/10 text-[#27a644] border-[#27a644]/30"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {autoFull ? "FULL" : "OPEN"} ({cfg.filled}/{cfg.capacity})
+                        </span>
+                      </div>
+                      <span className={`font-berkeley-mono text-[10px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                        Live DB active count: {dbCount}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="flex items-center gap-1.5 text-[11px] font-berkeley-mono">
+                        <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>Filled</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={cfg.filled}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value || "0", 10) || 0);
+                            setFuncAvailability((prev) => ({
+                              ...prev,
+                              [fn]: { ...prev[fn], filled: val },
+                            }));
+                          }}
+                          className={`w-16 px-2 py-1 rounded-[5px] border text-[12px] font-berkeley-mono focus:outline-none ${
+                            isDark
+                              ? "bg-[#0b0c0d] border-[#2e3137] text-white"
+                              : "bg-white border-gray-300 text-gray-900"
+                          }`}
+                        />
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-[11px] font-berkeley-mono">
+                        <span className={isDark ? "text-[#8a8f98]" : "text-gray-500"}>Capacity</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={cfg.capacity}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value || "0", 10) || 0);
+                            setFuncAvailability((prev) => ({
+                              ...prev,
+                              [fn]: { ...prev[fn], capacity: val },
+                            }));
+                          }}
+                          className={`w-16 px-2 py-1 rounded-[5px] border text-[12px] font-berkeley-mono focus:outline-none ${
+                            isDark
+                              ? "bg-[#0b0c0d] border-[#2e3137] text-white"
+                              : "bg-white border-gray-300 text-gray-900"
+                          }`}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFuncAvailability((prev) => ({
+                            ...prev,
+                            [fn]: { ...prev[fn], isFull: !prev[fn]?.isFull },
+                          }))
+                        }
+                        className={`px-2.5 py-1 rounded-[5px] border text-[11px] font-berkeley-mono cursor-pointer transition-colors ${
+                          cfg.isFull
+                            ? isDark
+                              ? "bg-[#eb5757]/15 text-[#eb5757] border-[#eb5757]/40"
+                              : "bg-red-50 text-red-700 border-red-300"
+                            : isDark
+                            ? "bg-[#0b0c0d] text-[#8a8f98] border-[#2e3137] hover:text-white"
+                            : "bg-white text-gray-600 border-gray-300 hover:text-gray-900"
+                        }`}
+                      >
+                        {cfg.isFull ? "Marked Full" : "Open"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div
+              className={`pt-3 flex items-center justify-end gap-2 border-t ${
+                isDark ? "border-[#23252a]" : "border-gray-200"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setFunctionAvailabilityModal(false)}
+                className={`px-3.5 py-1.5 rounded-[6px] border text-[12px] font-[510] cursor-pointer ${
+                  isDark
+                    ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white"
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                disabled={savingFuncAvailability}
+                onClick={saveFunctionAvailability}
+                className={`px-4 py-1.5 rounded-[6px] text-[12px] font-[510] shadow-sm cursor-pointer disabled:opacity-50 ${
+                  isDark
+                    ? "bg-[#e4f222] text-[#08090a]"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                }`}
+              >
+                {savingFuncAvailability ? "Saving..." : "Save Availability"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Placement Assessment & Functional Team Assignment Modal ── */}
       {reviewApplicant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in-50 duration-200">
@@ -2786,11 +3358,28 @@ export default function Members({ isAdmin = false, theme }) {
                           : "bg-white border-gray-300 text-gray-900 focus:border-indigo-600 shadow-sm"
                       }`}
                     >
-                      {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => (
-                        <option key={fn} value={fn}>
-                          {fn} {fn === reviewApplicant.skills_assessment?.firstChoiceFunction ? "★ (1st Choice)" : fn === reviewApplicant.skills_assessment?.secondChoiceFunction ? "☆ (2nd Choice)" : ""}
-                        </option>
-                      ))}
+                      {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => {
+                        const isAppealTarget =
+                          fn === normalizeFunctionName(reviewApplicant.skills_assessment?.appealFunction);
+                        const isInitialSelection =
+                          fn === normalizeFunctionName(reviewApplicant.skills_assessment?.selectedFunction);
+                        const isLegacyFirst = fn === reviewApplicant.skills_assessment?.firstChoiceFunction;
+                        const isLegacySecond = fn === reviewApplicant.skills_assessment?.secondChoiceFunction;
+                        const tag = isAppealTarget
+                          ? "★ (Appealed Function)"
+                          : isInitialSelection
+                          ? "(Initial Selection)"
+                          : isLegacyFirst
+                          ? "★ (1st Choice)"
+                          : isLegacySecond
+                          ? "☆ (2nd Choice)"
+                          : "";
+                        return (
+                          <option key={fn} value={fn}>
+                            {fn} {tag}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 

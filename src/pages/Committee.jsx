@@ -1113,7 +1113,6 @@ export default function Committee({ isAdmin = false, session, theme }) {
           {/* Right: Candidate Search & Status Dropdown */}
           <div className="flex items-center gap-2 w-full lg:w-auto">
             <div className="relative flex-1 lg:w-64">
-              <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
               <input
                 type="text"
                 value={search}
@@ -1126,7 +1125,7 @@ export default function Committee({ isAdmin = false, session, theme }) {
                   }
                 }}
                 placeholder="Search candidate by name, ST ID, position..."
-                className={`w-full h-[38px] pl-8 pr-7 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] text-[#ffffff] focus:border-[#d0d6e0]" : "bg-gray-50 border-gray-300 text-gray-900 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"} border rounded-[6px] outline-none transition-colors`}
+                className={`w-full h-[38px] pl-3 pr-7 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] text-[#ffffff] focus:border-[#d0d6e0]" : "bg-gray-50 border-gray-300 text-gray-900 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"} border rounded-[6px] outline-none transition-colors`}
               />
               {search && (
                 <button
@@ -1497,7 +1496,6 @@ export default function Committee({ isAdmin = false, session, theme }) {
               </label>
 
               <div className="relative">
-                <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
                 <input
                   type="text"
                   placeholder="Filter interviewer by name or email..."
@@ -1506,7 +1504,7 @@ export default function Committee({ isAdmin = false, session, theme }) {
                     setInterviewerSearch(e.target.value);
                     setInterviewerPage(0);
                   }}
-                  className={`w-full h-8 pl-8 pr-3 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] text-white focus:border-[#d0d6e0]" : "bg-white border-gray-300 text-gray-900 focus:border-indigo-500 shadow-xs"} border rounded-[6px] outline-none transition-colors`}
+                  className={`w-full h-8 pl-3 pr-3 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] text-white focus:border-[#d0d6e0]" : "bg-white border-gray-300 text-gray-900 focus:border-indigo-500 shadow-xs"} border rounded-[6px] outline-none transition-colors`}
                 />
               </div>
 

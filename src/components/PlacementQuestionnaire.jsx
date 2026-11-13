@@ -18,13 +18,182 @@ import {
 } from "lucide-react";
 
 export const OFFICIAL_FUNCTIONAL_TEAMS = [
-  "Finance",
-  "Marketing",
-  "Personal Development",
+  "Research and Analysis",
   "Public Relations",
-  "Operations & Academics Management",
-  "Research & Analysis",
+  "Personal Development",
+  "Operations and Academic Management",
+  "Marketing",
+  "Finance",
 ];
+
+export const EXECUTIVE_FUNCTION_MANAGERS = {
+  "Research and Analysis": [
+    "Research Engage Manager",
+    "Process & Progress Monitoring Manager",
+    "Research Skill Development Manager",
+    "Publication & Opportunity Manager",
+  ],
+  "Public Relations": [
+    "Sustainability Manager",
+    "Sponsorship Manager",
+    "Communication Manager",
+    "Documentation Manager",
+  ],
+  "Personal Development": [
+    "Event & Engagement Manager",
+    "Career Development & Training Manager",
+    "Content & Training Manager",
+    "Communication & Community Manager",
+  ],
+  "Operations and Academic Management": [
+    "Statistics Studies Manager",
+    "Economics & Finance Studies",
+    "Software Developer Manager",
+    "Actuarial Studies Manager",
+    "Finance Manager",
+  ],
+  Marketing: [
+    "Brand Manager",
+    "Showcasing Manager",
+    "Web Development Manager",
+  ],
+  Finance: [
+    "Project Finance Specialist",
+    "Partnership Specialist",
+    "Audit & Legal Analyst",
+    "Financial Report Analyst",
+  ],
+};
+
+export const EXECUTIVE_FUNCTION_VICE_PRESIDENTS = {
+  "Research and Analysis": "Vice President — Research and Analysis",
+  "Public Relations": "Vice President — Public Relations",
+  "Personal Development": "Vice President — Personal Development",
+  "Operations and Academic Management": "Vice President — Operations and Academic Management",
+  Marketing: "Vice President — Marketing",
+  Finance: "Vice President — Finance",
+};
+
+export function getValidExecutivePositions(functionName) {
+  if (!functionName) return [];
+  return [
+    EXECUTIVE_FUNCTION_VICE_PRESIDENTS[functionName],
+    ...(EXECUTIVE_FUNCTION_MANAGERS[functionName] || []),
+  ].filter(Boolean);
+}
+
+export const FUNCTION_INFO_CARDS = [
+  {
+    id: "finance",
+    functionName: "Finance",
+    badge: "Budgeting & Partnerships",
+    icon: DollarSign,
+    color: "#10b981",
+    defaultCapacity: 30,
+    descriptionLines: [
+      "Manages society budgets, financial tracking, and project cost planning across events.",
+      "Prepares accurate financial reports, cashflow statements, and post-event reconciliations.",
+      "Supports corporate partnership financial proposals and sponsorship fund allocation.",
+      "Ensures audit compliance, legal documentation checks, and transparent governance.",
+    ],
+  },
+  {
+    id: "marketing",
+    functionName: "Marketing",
+    badge: "Brand & Web Presence",
+    icon: Megaphone,
+    color: "#ec4899",
+    defaultCapacity: 30,
+    descriptionLines: [
+      "Shapes the visual identity, brand guidelines, and creative direction of ADSS Ruhuna.",
+      "Designs promotional flyers, social media campaigns, and event showcasing materials.",
+      "Builds and maintains the society web portal, landing pages, and digital media assets.",
+      "Amplifies student achievements, workshops, and announcements across all channels.",
+    ],
+  },
+  {
+    id: "personalDevelopment",
+    functionName: "Personal Development",
+    badge: "Training & Community",
+    icon: UserCheck,
+    color: "#8b5cf6",
+    defaultCapacity: 30,
+    descriptionLines: [
+      "Plans interactive workshops, icebreakers, and member engagement sessions.",
+      "Organizes career development clinics, mentorship circles, and mock interviews.",
+      "Curates educational training materials, soft-skill guides, and study resources.",
+      "Fosters active community communication and supportive student onboarding.",
+    ],
+  },
+  {
+    id: "publicRelations",
+    functionName: "Public Relations",
+    badge: "Outreach & Sponsorship",
+    icon: Share2,
+    color: "#3b82f6",
+    defaultCapacity: 30,
+    descriptionLines: [
+      "Builds long-term sustainability initiatives and external industry collaborations.",
+      "Leads corporate sponsorship outreach, pitch decks, and partner relationship follow-ups.",
+      "Drafts official correspondence, university letters, and formal society documentation.",
+      "Coordinates external communications and represents ADSS with institutional stakeholders.",
+    ],
+  },
+  {
+    id: "operationsAcademics",
+    functionName: "Operations and Academic Management",
+    badge: "Actuarial, Stats & Tech",
+    icon: Cpu,
+    color: "#f59e0b",
+    defaultCapacity: 30,
+    descriptionLines: [
+      "Supports academic study circles in Statistics, Economics & Finance, and Actuarial Science.",
+      "Develops society software tools, data workflows, and technical project implementations.",
+      "Coordinates operational logistics, academic competitions, and study-track initiatives.",
+      "Bridges classroom theory with applied quantitative, financial, and software practice.",
+    ],
+  },
+  {
+    id: "researchAnalysis",
+    functionName: "Research and Analysis",
+    badge: "Research & Publications",
+    icon: FileSearch,
+    color: "#06b6d4",
+    defaultCapacity: 30,
+    descriptionLines: [
+      "Drives collaborative undergraduate research engagement and quantitative inquiry.",
+      "Monitors project milestones, analytical progress, and research team deliverables.",
+      "Conducts training in research methodology, LaTeX, data tools, and academic writing.",
+      "Identifies journal, conference, and publication opportunities for society members.",
+    ],
+  },
+];
+
+export function normalizeFunctionName(fn) {
+  if (!fn || typeof fn !== "string") return "";
+  const trimmed = fn.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === "operations & academics management" || lower === "operations and academic management") {
+    return "Operations and Academic Management";
+  }
+  if (lower === "research & analysis" || lower === "research and analysis") {
+    return "Research and Analysis";
+  }
+  if (lower === "public relations") return "Public Relations";
+  if (lower === "personal development") return "Personal Development";
+  if (lower === "marketing") return "Marketing";
+  if (lower === "finance") return "Finance";
+  return trimmed;
+}
+
+export const DEFAULT_FUNCTION_AVAILABILITY = FUNCTION_INFO_CARDS.reduce((acc, card) => {
+  acc[card.functionName] = {
+    filled: 0,
+    capacity: card.defaultCapacity || 30,
+    isFull: false,
+  };
+  return acc;
+}, {});
 
 export const PREFERRED_FOCUS_AREAS = [
   "Finance & Corporate Sponsorship",
@@ -101,7 +270,7 @@ export const FUNCTION_SKILLS_CONFIG = [
   },
   {
     id: "operationsAcademics",
-    functionName: "Operations & Academics Management",
+    functionName: "Operations and Academic Management",
     badge: "Actuarial & Analytics",
     icon: Cpu,
     color: "#f59e0b",
@@ -117,7 +286,7 @@ export const FUNCTION_SKILLS_CONFIG = [
   },
   {
     id: "researchAnalysis",
-    functionName: "Research & Analysis",
+    functionName: "Research and Analysis",
     badge: "Publications & Reporting",
     icon: FileSearch,
     color: "#06b6d4",
@@ -954,7 +1123,71 @@ export function SkillsAssessmentReview({ assessment, isDark = true }) {
   if (!assessment) {
     return (
       <div className={`p-4 rounded-[8px] border text-center text-[13px] ${isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-gray-50 border-gray-200 text-gray-600"}`}>
-        No skills assessment questionnaire was submitted with this application (existing member or direct entry).
+        No appeal or skills assessment details were submitted with this registration.
+      </div>
+    );
+  }
+
+  if (assessment.type === "function_appeal") {
+    return (
+      <div className="space-y-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className={`p-3 rounded-[6px] border ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"}`}>
+            <span className={`block text-[10px] font-berkeley-mono uppercase tracking-wider mb-1 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+              Registered / Assigned Function
+            </span>
+            <span className={`text-[13.5px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+              {assessment.assignedFunction || assessment.secondChoiceFunction || "Unassigned"}
+            </span>
+          </div>
+
+          <div className={`p-3 rounded-[6px] border ${isDark ? "bg-[#161718] border-[#e4f222]/40" : "bg-amber-50 border-amber-200"}`}>
+            <span className={`block text-[10px] font-berkeley-mono uppercase tracking-wider mb-1 ${isDark ? "text-[#e4f222]" : "text-amber-700"}`}>
+              Appealed Target Function
+            </span>
+            <span className={`text-[13.5px] font-[590] ${isDark ? "text-[#e4f222]" : "text-amber-900"}`}>
+              {assessment.appealFunction || assessment.firstChoiceFunction || "Not specified"}
+            </span>
+          </div>
+        </div>
+
+        <div className={`p-3.5 rounded-[6px] border ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-amber-50/50 border-amber-200/60"}`}>
+          <span className={`block text-[11px] font-berkeley-mono uppercase tracking-wider mb-1.5 ${isDark ? "text-[#8a8f98]" : "text-amber-800"}`}>
+            Skills & Appeal Explanation
+          </span>
+          <p className={`text-[13px] leading-relaxed whitespace-pre-wrap ${isDark ? "text-[#d0d6e0]" : "text-gray-800"}`}>
+            {assessment.appealReason || assessment.contributionNote || "No explanation provided."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (assessment.type === "executive_board") {
+    return (
+      <div className="space-y-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className={`p-3 rounded-[6px] border ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"}`}>
+            <span className={`block text-[10px] font-berkeley-mono uppercase tracking-wider mb-1 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+              Executive Board Function
+            </span>
+            <span className={`text-[13.5px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+              {assessment.executiveFunction || "Not specified"}
+            </span>
+          </div>
+
+          <div className={`p-3 rounded-[6px] border ${isDark ? "bg-[#161718] border-[#e4f222]/40" : "bg-indigo-50 border-indigo-200"}`}>
+            <span className={`block text-[10px] font-berkeley-mono uppercase tracking-wider mb-1 ${isDark ? "text-[#e4f222]" : "text-indigo-700"}`}>
+              {assessment.executiveTier === "vice_president" ||
+              assessment.executiveManager?.startsWith("Vice President")
+                ? "Executive Board Role (Vice President)"
+                : "Executive Board Manager Role"}
+            </span>
+            <span className={`text-[13.5px] font-[590] ${isDark ? "text-[#e4f222]" : "text-indigo-900"}`}>
+              {assessment.executiveManager || "Not specified"}
+            </span>
+          </div>
+        </div>
       </div>
     );
   }

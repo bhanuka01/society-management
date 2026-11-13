@@ -98,8 +98,12 @@ export default function Access({
 
   // System Security Gates
   const [regEnabled, setRegEnabled] = useState(true);
+  const [memberRegEnabled, setMemberRegEnabled] = useState(true);
+  const [execRegEnabled, setExecRegEnabled] = useState(true);
   const [updatingReg, setUpdatingReg] = useState(false);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [memberAutoApprove, setMemberAutoApprove] = useState(false);
+  const [execAutoApprove, setExecAutoApprove] = useState(false);
   const [updatingAutoApprove, setUpdatingAutoApprove] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [updatingAi, setUpdatingAi] = useState(false);
@@ -161,7 +165,16 @@ export default function Access({
         supabase
           .from("system_settings")
           .select("key, value")
-          .in("key", ["registration_enabled", "registration_auto_approve", "ai_feature_enabled", "document_access_members"]),
+          .in("key", [
+            "registration_enabled",
+            "registration_enabled_member",
+            "registration_enabled_executive",
+            "registration_auto_approve",
+            "registration_auto_approve_member",
+            "registration_auto_approve_executive",
+            "ai_feature_enabled",
+            "document_access_members",
+          ]),
         supabase
           .from("members")
           .select("st_id, name, level, email")
@@ -185,11 +198,28 @@ export default function Access({
 
       if (settingsRes.data) {
         const regEnabledSetting = settingsRes.data.find(s => s.key === "registration_enabled");
+        const memberRegSetting = settingsRes.data.find(s => s.key === "registration_enabled_member");
+        const execRegSetting = settingsRes.data.find(s => s.key === "registration_enabled_executive");
         const autoApproveSetting = settingsRes.data.find(s => s.key === "registration_auto_approve");
+        const memberAutoSetting = settingsRes.data.find(s => s.key === "registration_auto_approve_member");
+        const execAutoSetting = settingsRes.data.find(s => s.key === "registration_auto_approve_executive");
         const aiSetting = settingsRes.data.find(s => s.key === "ai_feature_enabled");
         const docSetting = settingsRes.data.find(s => s.key === "document_access_members");
-        setRegEnabled(regEnabledSetting ? regEnabledSetting.value === "true" : true);
-        setAutoApprove(autoApproveSetting ? autoApproveSetting.value === "true" : false);
+
+        const fallbackReg = regEnabledSetting ? regEnabledSetting.value === "true" : true;
+        const mReg = memberRegSetting ? memberRegSetting.value === "true" : fallbackReg;
+        const eReg = execRegSetting ? execRegSetting.value === "true" : fallbackReg;
+        setMemberRegEnabled(mReg);
+        setExecRegEnabled(eReg);
+        setRegEnabled(mReg || eReg);
+
+        const fallbackAuto = autoApproveSetting ? autoApproveSetting.value === "true" : false;
+        const mAuto = memberAutoSetting ? memberAutoSetting.value === "true" : fallbackAuto;
+        const eAuto = execAutoSetting ? execAutoSetting.value === "true" : fallbackAuto;
+        setMemberAutoApprove(mAuto);
+        setExecAutoApprove(eAuto);
+        setAutoApprove(mAuto || eAuto);
+
         setAiEnabled(aiSetting ? aiSetting.value === "true" : true);
         if (docSetting) {
           try {
@@ -338,43 +368,101 @@ export default function Access({
     }
   };
 
-  // Toggle System Gates
-  const toggleRegistration = async (checked) => {
+  // Toggle System Gates (Separate Member & Executive Controls)
+  const toggleMemberRegistration = async (checked) => {
     setUpdatingReg(true);
     setMsg(null);
     const val = checked ? "true" : "false";
+    const anyOpen = checked || execRegEnabled;
     const { error } = await supabase
       .from("system_settings")
-      .upsert({ key: "registration_enabled", value: val }, { onConflict: "key" });
+      .upsert(
+        [
+          { key: "registration_enabled_member", value: val },
+          { key: "registration_enabled", value: anyOpen ? "true" : "false" },
+        ],
+        { onConflict: "key" }
+      );
 
     setUpdatingReg(false);
     if (error) {
-      setMsg({ type: "error", text: "Failed to update public registration gate: " + error.message });
+      setMsg({ type: "error", text: "Failed to update Member registration gate: " + error.message });
     } else {
-      setRegEnabled(checked);
+      setMemberRegEnabled(checked);
+      setRegEnabled(anyOpen);
       setMsg({
         type: "success",
-        text: `Public Member Self-Registration is now ${checked ? "OPEN (Active)" : "RESTRICTED (Closed)"}.`
+        text: `Member Registration is now ${checked ? "OPEN (Active)" : "CLOSED"}.`,
       });
     }
   };
 
-  const toggleAutoApprove = async (checked) => {
+  const toggleExecutiveRegistration = async (checked) => {
+    setUpdatingReg(true);
+    setMsg(null);
+    const val = checked ? "true" : "false";
+    const anyOpen = memberRegEnabled || checked;
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert(
+        [
+          { key: "registration_enabled_executive", value: val },
+          { key: "registration_enabled", value: anyOpen ? "true" : "false" },
+        ],
+        { onConflict: "key" }
+      );
+
+    setUpdatingReg(false);
+    if (error) {
+      setMsg({ type: "error", text: "Failed to update Executive registration gate: " + error.message });
+    } else {
+      setExecRegEnabled(checked);
+      setRegEnabled(anyOpen);
+      setMsg({
+        type: "success",
+        text: `Executive Registration is now ${checked ? "OPEN (Active)" : "CLOSED"}.`,
+      });
+    }
+  };
+
+  const toggleMemberAutoApprove = async (checked) => {
     setUpdatingAutoApprove(true);
     setMsg(null);
     const val = checked ? "true" : "false";
     const { error } = await supabase
       .from("system_settings")
-      .upsert({ key: "registration_auto_approve", value: val }, { onConflict: "key" });
+      .upsert({ key: "registration_auto_approve_member", value: val }, { onConflict: "key" });
 
     setUpdatingAutoApprove(false);
     if (error) {
-      setMsg({ type: "error", text: "Failed to update auto-approval setting: " + error.message });
+      setMsg({ type: "error", text: "Failed to update Member auto-approval setting: " + error.message });
     } else {
-      setAutoApprove(checked);
+      setMemberAutoApprove(checked);
+      setAutoApprove(checked || execAutoApprove);
       setMsg({
         type: "success",
-        text: `Instant Auto-Approval engine is now ${checked ? "ENABLED (Instant)" : "DISABLED (Manual Review Required)"}.`
+        text: `Member Auto-Approval is now ${checked ? "ENABLED (Instant)" : "DISABLED (Manual Review)"}.`,
+      });
+    }
+  };
+
+  const toggleExecutiveAutoApprove = async (checked) => {
+    setUpdatingAutoApprove(true);
+    setMsg(null);
+    const val = checked ? "true" : "false";
+    const { error } = await supabase
+      .from("system_settings")
+      .upsert({ key: "registration_auto_approve_executive", value: val }, { onConflict: "key" });
+
+    setUpdatingAutoApprove(false);
+    if (error) {
+      setMsg({ type: "error", text: "Failed to update Executive auto-approval setting: " + error.message });
+    } else {
+      setExecAutoApprove(checked);
+      setAutoApprove(memberAutoApprove || checked);
+      setMsg({
+        type: "success",
+        text: `Executive Auto-Approval is now ${checked ? "ENABLED (Instant)" : "DISABLED (Manual Review)"}.`,
       });
     }
   };
@@ -694,11 +782,17 @@ export default function Access({
           <div className="flex items-center gap-2 mt-1">
             <span className={`w-2 h-2 rounded-full ${regEnabled ? isDark ? "bg-[#27a644] shadow-[0_0_8px_#27a644]" : "bg-emerald-600" : isDark ? "bg-[#eb5757]" : "bg-rose-600"}`} />
             <span className={`text-[15px] font-berkeley-mono font-[510] uppercase ${regEnabled ? isDark ? "text-[#27a644]" : "text-emerald-700" : isDark ? "text-[#eb5757]" : "text-rose-600"}`}>
-              {regEnabled ? "Public Open" : "Closed"}
+              {memberRegEnabled && execRegEnabled
+                ? "All Open"
+                : memberRegEnabled
+                ? "Members Only"
+                : execRegEnabled
+                ? "Exec Only"
+                : "All Closed"}
             </span>
           </div>
           <div className={`text-[10px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-500"} mt-1`}>
-            Auto-Approve: {autoApprove ? "ON" : "OFF"}
+            Auto: Mem {memberAutoApprove ? "ON" : "OFF"} · Exec {execAutoApprove ? "ON" : "OFF"}
           </div>
         </div>
       </div>
@@ -784,128 +878,264 @@ export default function Access({
 
       {/* ── Precision System Security Governance (Toggles) ── */}
       <div className={`p-5 rounded-[12px] ${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200 shadow-sm"} border space-y-5`}>
-        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b ${isDark ? "border-[#23252a]" : "border-gray-200"} pb-3`}>
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b ${isDark ? "border-[#23252a]" : "border-gray-200"} pb-3.5 text-left`}>
           <div>
-            <h2 className={`text-[14px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"} tracking-tight flex items-center gap-2`}>
-              <SlidersHorizontal className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
-              System Security & Access Controls
+            <h2 className={`text-[14.5px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"} tracking-tight flex items-center gap-2`}>
+              <SlidersHorizontal className={`w-4 h-4 flex-shrink-0 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
+              <span>System Security & Access Controls</span>
             </h2>
-            <p className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+            <p className={`text-[12px] mt-0.5 ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
               Immediate toggle gates for public registration, automated onboarding, and computational AI limits.
             </p>
           </div>
-          <span className={`text-[10px] font-berkeley-mono uppercase tracking-wider ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>
+          <span className={`text-[10px] font-berkeley-mono uppercase tracking-wider px-2 py-1 rounded-[4px] border w-fit whitespace-nowrap ${
+            isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-gray-50 border-gray-200 text-gray-500"
+          }`}>
             Supabase System Settings
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
-          {/* 1. General Member Registration */}
-          <div className={`p-4 rounded-[8px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border flex flex-col justify-between space-y-3`}>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Globe className={`w-4 h-4 ${isDark ? "text-[#818cf8]" : "text-indigo-600"}`} />
-                  <h3 className={`text-[13px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+        {/* Tier 1: Registration & Approval Controls (2 spacious columns on lg+) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 1. General Member & Executive Registration */}
+          <div className={`p-4 rounded-[10px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50/80 border-gray-200"} border flex flex-col justify-between space-y-4`}>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Globe className={`w-4 h-4 flex-shrink-0 ${isDark ? "text-[#818cf8]" : "text-indigo-600"}`} />
+                  <h3 className={`text-[13.5px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
                     Public Self-Registration
                   </h3>
                 </div>
                 <span
-                  className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold ${
-                    regEnabled
+                  className={`text-[10px] font-berkeley-mono px-2 py-0.5 rounded-[4px] font-bold whitespace-nowrap ${
+                    memberRegEnabled && execRegEnabled
                       ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30"
+                      : regEnabled
+                      ? "bg-[#f59e0b]/15 text-[#f59e0b] border border-[#f59e0b]/30"
                       : "bg-[#eb5757]/15 text-[#eb5757] border border-[#eb5757]/30"
                   }`}
                 >
-                  {regEnabled ? "OPEN" : "OFF"}
+                  {memberRegEnabled && execRegEnabled ? "ALL OPEN" : regEnabled ? "PARTIAL" : "CLOSED"}
                 </span>
               </div>
-              <p className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
-                Permit new students to sign up from the public landing page. If closed, only invited staff or pre-listed members can create accounts.
+              <p className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
+                Open or close portal signups separately for general Members and Executive Board applicants.
               </p>
             </div>
 
-            <div className={`flex items-center justify-between pt-2 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
-              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-500"}`}>
-                {regEnabled ? "Signups allowed" : "Signups restricted"}
-              </span>
-              <button
-                type="button"
-                disabled={updatingReg}
-                onClick={() => toggleRegistration(!regEnabled)}
-                className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
-                  regEnabled ? isDark ? "bg-[#e4f222]" : "bg-emerald-600" : isDark ? "bg-[#23252a]" : "bg-gray-300"
-                }`}
-                title={regEnabled ? "Click to disable public registration" : "Click to enable public registration"}
-              >
-                <div
-                  className={`w-5 h-5 rounded-full ${isDark ? "bg-[#08090a]" : "bg-white shadow-sm"} transition-transform shadow-md ${
-                    regEnabled ? "translate-x-5" : "translate-x-0"
+            <div className="space-y-2.5">
+              {/* General Members Registration Row */}
+              <div className={`p-3 rounded-[8px] border flex items-center justify-between gap-3 ${
+                isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"
+              }`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[12.5px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+                      General Members
+                    </span>
+                    <span
+                      className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold whitespace-nowrap ${
+                        memberRegEnabled
+                          ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30"
+                          : "bg-[#eb5757]/15 text-[#eb5757] border border-[#eb5757]/30"
+                      }`}
+                    >
+                      {memberRegEnabled ? "OPEN" : "CLOSED"}
+                    </span>
+                  </div>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Standard functional team signups
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={updatingReg}
+                  onClick={() => toggleMemberRegistration(!memberRegEnabled)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 flex-shrink-0 cursor-pointer ${
+                    memberRegEnabled ? isDark ? "bg-[#e4f222]" : "bg-emerald-600" : isDark ? "bg-[#23252a]" : "bg-gray-300"
                   }`}
-                />
-              </button>
+                  title={memberRegEnabled ? "Click to close Member registration" : "Click to open Member registration"}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full ${isDark ? "bg-[#08090a]" : "bg-white shadow-sm"} transition-transform shadow-md ${
+                      memberRegEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Executive Board Registration Row */}
+              <div className={`p-3 rounded-[8px] border flex items-center justify-between gap-3 ${
+                isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"
+              }`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[12.5px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+                      Executive Board
+                    </span>
+                    <span
+                      className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold whitespace-nowrap ${
+                        execRegEnabled
+                          ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30"
+                          : "bg-[#eb5757]/15 text-[#eb5757] border border-[#eb5757]/30"
+                      }`}
+                    >
+                      {execRegEnabled ? "OPEN" : "CLOSED"}
+                    </span>
+                  </div>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Managers & Function-wise Vice Presidents
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={updatingReg}
+                  onClick={() => toggleExecutiveRegistration(!execRegEnabled)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 flex-shrink-0 cursor-pointer ${
+                    execRegEnabled ? isDark ? "bg-[#e4f222]" : "bg-emerald-600" : isDark ? "bg-[#23252a]" : "bg-gray-300"
+                  }`}
+                  title={execRegEnabled ? "Click to close Executive registration" : "Click to open Executive registration"}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full ${isDark ? "bg-[#08090a]" : "bg-white shadow-sm"} transition-transform shadow-md ${
+                      execRegEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* 2. Auto-Approve Registrations */}
-          <div className={`p-4 rounded-[8px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border flex flex-col justify-between space-y-3`}>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Zap className={`w-4 h-4 ${isDark ? "text-[#f59e0b]" : "text-amber-500"}`} />
-                  <h3 className={`text-[13px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+          {/* 2. Auto-Approve Registrations (Separate Member & Executive) */}
+          <div className={`p-4 rounded-[10px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50/80 border-gray-200"} border flex flex-col justify-between space-y-4`}>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Zap className={`w-4 h-4 flex-shrink-0 ${isDark ? "text-[#f59e0b]" : "text-amber-500"}`} />
+                  <h3 className={`text-[13.5px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
                     Auto-Approve Engine
                   </h3>
                 </div>
                 <span
-                  className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold ${
-                    autoApprove
+                  className={`text-[10px] font-berkeley-mono px-2 py-0.5 rounded-[4px] font-bold whitespace-nowrap ${
+                    memberAutoApprove && execAutoApprove
                       ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30"
+                      : autoApprove
+                      ? "bg-[#f59e0b]/15 text-[#f59e0b] border border-[#f59e0b]/30"
                       : isDark ? "bg-[#23252a] text-[#8a8f98] border border-[#383b3f]" : "bg-gray-200 text-gray-700 border border-gray-300"
                   }`}
                 >
-                  {autoApprove ? "INSTANT" : "MANUAL"}
+                  {memberAutoApprove && execAutoApprove
+                    ? "ALL INSTANT"
+                    : autoApprove
+                    ? "PARTIAL"
+                    : "MANUAL"}
                 </span>
               </div>
-              <p className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
-                Automatically approve new member signups upon email verification. When disabled, users remain in `Pending Review` until verified by staff.
+              <p className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
+                Control instant approval vs. manual admin verification. Function appeals always go to review.
               </p>
             </div>
 
-            <div className={`flex items-center justify-between pt-2 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
-              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-500"}`}>
-                {autoApprove ? "Instant access" : "Manual verification"}
-              </span>
-              <button
-                type="button"
-                disabled={updatingAutoApprove}
-                onClick={() => toggleAutoApprove(!autoApprove)}
-                className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
-                  autoApprove ? isDark ? "bg-[#e4f222]" : "bg-emerald-600" : isDark ? "bg-[#23252a]" : "bg-gray-300"
-                }`}
-                title={autoApprove ? "Click to require manual review" : "Click to enable automatic approval"}
-              >
-                <div
-                  className={`w-5 h-5 rounded-full ${isDark ? "bg-[#08090a]" : "bg-white shadow-sm"} transition-transform shadow-md ${
-                    autoApprove ? "translate-x-5" : "translate-x-0"
+            <div className="space-y-2.5">
+              {/* General Members Auto-Approve Row */}
+              <div className={`p-3 rounded-[8px] border flex items-center justify-between gap-3 ${
+                isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"
+              }`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[12.5px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+                      General Members
+                    </span>
+                    <span
+                      className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold whitespace-nowrap ${
+                        memberAutoApprove
+                          ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30"
+                          : isDark ? "bg-[#23252a] text-[#8a8f98] border border-[#383b3f]" : "bg-gray-200 text-gray-700 border border-gray-300"
+                      }`}
+                    >
+                      {memberAutoApprove ? "INSTANT" : "MANUAL"}
+                    </span>
+                  </div>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Direct member signups without appeals
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={updatingAutoApprove}
+                  onClick={() => toggleMemberAutoApprove(!memberAutoApprove)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 flex-shrink-0 cursor-pointer ${
+                    memberAutoApprove ? isDark ? "bg-[#e4f222]" : "bg-emerald-600" : isDark ? "bg-[#23252a]" : "bg-gray-300"
                   }`}
-                />
-              </button>
+                  title={memberAutoApprove ? "Require manual review for Members" : "Enable instant auto-approval for Members"}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full ${isDark ? "bg-[#08090a]" : "bg-white shadow-sm"} transition-transform shadow-md ${
+                      memberAutoApprove ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Executive Board Auto-Approve Row */}
+              <div className={`p-3 rounded-[8px] border flex items-center justify-between gap-3 ${
+                isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"
+              }`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[12.5px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+                      Executive Board
+                    </span>
+                    <span
+                      className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold whitespace-nowrap ${
+                        execAutoApprove
+                          ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30"
+                          : isDark ? "bg-[#23252a] text-[#8a8f98] border border-[#383b3f]" : "bg-gray-200 text-gray-700 border border-gray-300"
+                      }`}
+                    >
+                      {execAutoApprove ? "INSTANT" : "MANUAL"}
+                    </span>
+                  </div>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                    Managers & Function-wise Vice Presidents
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={updatingAutoApprove}
+                  onClick={() => toggleExecutiveAutoApprove(!execAutoApprove)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 flex-shrink-0 cursor-pointer ${
+                    execAutoApprove ? isDark ? "bg-[#e4f222]" : "bg-emerald-600" : isDark ? "bg-[#23252a]" : "bg-gray-300"
+                  }`}
+                  title={execAutoApprove ? "Require manual review for Executives" : "Enable instant auto-approval for Executives"}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full ${isDark ? "bg-[#08090a]" : "bg-white shadow-sm"} transition-transform shadow-md ${
+                      execAutoApprove ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
+        </div>
 
+        {/* Tier 2: Platform Access & Academic Cycle (3 equal columns on md+) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 3. Member AI Feature Access */}
-          <div className={`p-4 rounded-[8px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border flex flex-col justify-between space-y-3`}>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Sparkles className={`w-4 h-4 ${isDark ? "text-[#02b8cc]" : "text-cyan-600"}`} />
-                  <h3 className={`text-[13px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+          <div className={`p-4 rounded-[10px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50/80 border-gray-200"} border flex flex-col justify-between space-y-4`}>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Sparkles className={`w-4 h-4 flex-shrink-0 ${isDark ? "text-[#02b8cc]" : "text-cyan-600"}`} />
+                  <h3 className={`text-[13.5px] font-[510] truncate ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
                     Member AI Assistant
                   </h3>
                 </div>
                 <span
-                  className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold ${
+                  className={`text-[10px] font-berkeley-mono px-2 py-0.5 rounded-[4px] font-bold whitespace-nowrap ${
                     aiEnabled
                       ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30"
                       : "bg-[#eb5757]/15 text-[#eb5757] border border-[#eb5757]/30"
@@ -914,20 +1144,20 @@ export default function Access({
                   {aiEnabled ? "ACTIVE" : "OFF"}
                 </span>
               </div>
-              <p className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
-                Permit general members and public guests to query the embedded AI Assistant. Staff users always maintain assistant access for operations.
+              <p className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
+                Permit general members and public guests to query the embedded AI Assistant. Staff users always maintain access.
               </p>
             </div>
 
-            <div className={`flex items-center justify-between pt-2 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
-              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-500"}`}>
+            <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
+              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
                 {aiEnabled ? "Tokens authorized" : "Service locked"}
               </span>
               <button
                 type="button"
                 disabled={updatingAi}
                 onClick={() => toggleAiFeature(!aiEnabled)}
-                className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${
+                className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 flex-shrink-0 cursor-pointer ${
                   aiEnabled ? isDark ? "bg-[#e4f222]" : "bg-emerald-600" : isDark ? "bg-[#23252a]" : "bg-gray-300"
                 }`}
                 title={aiEnabled ? "Click to disable AI for members" : "Click to enable AI for members"}
@@ -942,26 +1172,26 @@ export default function Access({
           </div>
 
           {/* 4. Document Section Member Access */}
-          <div className={`p-4 rounded-[8px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border flex flex-col justify-between space-y-3`}>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <FolderArchive className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
-                  <h3 className={`text-[13px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+          <div className={`p-4 rounded-[10px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50/80 border-gray-200"} border flex flex-col justify-between space-y-4`}>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FolderArchive className={`w-4 h-4 flex-shrink-0 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
+                  <h3 className={`text-[13.5px] font-[510] truncate ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
                     Documents Access
                   </h3>
                 </div>
-                <span className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold ${isDark ? "bg-[#e4f222]/15 text-[#e4f222] border-[#e4f222]/30" : "bg-amber-100 text-amber-800 border-amber-300"} border`}>
+                <span className={`text-[10px] font-berkeley-mono px-2 py-0.5 rounded-[4px] font-bold whitespace-nowrap ${isDark ? "bg-[#e4f222]/15 text-[#e4f222] border-[#e4f222]/30" : "bg-amber-100 text-amber-800 border-amber-300"} border`}>
                   {Object.keys(docAccessMap).length} MEMBERS
                 </span>
               </div>
-              <p className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
-                The document repository is restricted to administrator-selected members. Officers always have management access.
+              <p className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
+                Restrict document repository visibility to administrator-selected members. Officers always retain management access.
               </p>
             </div>
 
-            <div className={`flex items-center justify-between pt-2 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
-              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-500"}`}>
+            <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
+              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
                 {Object.keys(docAccessMap).length > 0 ? `${Object.keys(docAccessMap).length} configured` : "None authorized"}
               </span>
               <button
@@ -971,7 +1201,7 @@ export default function Access({
                   setDocMemberSearch("");
                   setDocModalOpen(true);
                 }}
-                className={`h-6 px-2.5 rounded-[4px] ${isDark ? "bg-[#23252a] hover:bg-[#383b3f] text-white" : "bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 shadow-xs"} text-[11px] font-medium transition-colors`}
+                className={`h-7 px-3 rounded-[5px] ${isDark ? "bg-[#23252a] hover:bg-[#383b3f] text-white" : "bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 shadow-xs"} text-[11.5px] font-medium transition-colors cursor-pointer`}
               >
                 Configure
               </button>
@@ -979,33 +1209,35 @@ export default function Access({
           </div>
 
           {/* 5. Active Academic Cycle Management */}
-          <div className={`p-4 rounded-[8px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"} border flex flex-col justify-between space-y-3`}>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Calendar className={`w-4 h-4 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
-                  <h3 className={`text-[13px] font-[510] ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
-                    Active Cycle
+          <div className={`p-4 rounded-[10px] ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50/80 border-gray-200"} border flex flex-col justify-between space-y-4`}>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Calendar className={`w-4 h-4 flex-shrink-0 ${isDark ? "text-[#e4f222]" : "text-amber-500"}`} />
+                  <h3 className={`text-[13.5px] font-[510] truncate ${isDark ? "text-[#ffffff]" : "text-gray-900"}`}>
+                    Active Academic Cycle
                   </h3>
                 </div>
-                <span className={`text-[10px] font-berkeley-mono px-1.5 py-0.5 rounded-[3px] font-bold ${
+                <span className={`text-[10px] font-berkeley-mono px-2 py-0.5 rounded-[4px] font-bold whitespace-nowrap ${
                   isDark ? "bg-[#27a644]/15 text-[#27a644] border border-[#27a644]/30" : "bg-emerald-100 text-emerald-800 border-emerald-300"
                 }`}>
                   {activeCycle?.name || "2024/2025"}
                 </span>
               </div>
-              <p className={`text-[11px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
-                Official society AGM cycle. Dictates active dates for events, committee, attendance, and notices across system dropdowns.
+              <p className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"} leading-relaxed`}>
+                Official society AGM cycle controlling active dates for events, committee, attendance, and notices.
               </p>
-              <div className={`mt-2 text-[10px] font-berkeley-mono px-2 py-1 rounded-[4px] border ${
-                isDark ? "bg-[#08090a] border-[#23252a] text-[#8a8f98]" : "bg-white border-gray-200 text-gray-600"
+              <div className={`text-[11px] font-berkeley-mono px-2.5 py-1.5 rounded-[6px] border ${
+                isDark ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98]" : "bg-white border-gray-200 text-gray-600"
               }`}>
-                Time: <span className={isDark ? "text-white" : "text-gray-900"}>{activeCycle?.startDate || "2024-01-01"}</span> → <span className={isDark ? "text-white" : "text-gray-900"}>{activeCycle?.endDate || "2025-12-31"}</span>
+                <span className={isDark ? "text-white" : "text-gray-900"}>{activeCycle?.startDate || "2024-01-01"}</span>
+                {" → "}
+                <span className={isDark ? "text-white" : "text-gray-900"}>{activeCycle?.endDate || "2025-12-31"}</span>
               </div>
             </div>
 
-            <div className={`flex items-center justify-between pt-2 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
-              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-500"}`}>
+            <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-[#23252a]/60" : "border-gray-200"}`}>
+              <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
                 {cycles.length} cycles ({cycles.filter(c => c.isVisible !== false).length} visible)
               </span>
               <button
@@ -1023,10 +1255,10 @@ export default function Access({
                   });
                   setCycleModalOpen(true);
                 }}
-                className={`h-6 px-2.5 rounded-[4px] ${isDark ? "bg-[#23252a] hover:bg-[#383b3f] text-white" : "bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 shadow-xs"} text-[11px] font-medium transition-colors flex items-center gap-1`}
+                className={`h-7 px-3 rounded-[5px] ${isDark ? "bg-[#23252a] hover:bg-[#383b3f] text-white" : "bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 shadow-xs"} text-[11.5px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer`}
               >
                 <SlidersHorizontal className="w-3 h-3" />
-                Manage
+                <span>Manage</span>
               </button>
             </div>
           </div>
@@ -1148,13 +1380,12 @@ export default function Access({
           {/* Filter Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
-              <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
               <input
                 type="text"
                 value={staffSearch}
                 onChange={(e) => setStaffSearch(e.target.value)}
                 placeholder="Search staff by name, email, or ST ID..."
-                className={`w-full h-8 pl-8 pr-7 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] focus:border-[#d0d6e0] text-[#ffffff] placeholder-[#62666d]" : "bg-white border-gray-200 focus:border-gray-900 text-gray-900 placeholder-gray-400 shadow-xs"} border rounded-[6px] outline-none transition-colors`}
+                className={`w-full h-8 pl-3 pr-7 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] focus:border-[#d0d6e0] text-[#ffffff] placeholder-[#62666d]" : "bg-white border-gray-200 focus:border-gray-900 text-gray-900 placeholder-gray-400 shadow-xs"} border rounded-[6px] outline-none transition-colors`}
               />
               {staffSearch && (
                 <button
@@ -1353,13 +1584,12 @@ export default function Access({
           {/* Filter Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
-              <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
               <input
                 type="text"
                 value={inviteSearch}
                 onChange={(e) => setInviteSearch(e.target.value)}
                 placeholder="Search invites by email or role..."
-                className={`w-full h-8 pl-8 pr-7 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] focus:border-[#d0d6e0] text-[#ffffff] placeholder-[#62666d]" : "bg-white border-gray-200 focus:border-gray-900 text-gray-900 placeholder-gray-400 shadow-xs"} border rounded-[6px] outline-none transition-colors`}
+                className={`w-full h-8 pl-3 pr-7 text-[12px] ${isDark ? "bg-[#161718] border-[#23252a] focus:border-[#d0d6e0] text-[#ffffff] placeholder-[#62666d]" : "bg-white border-gray-200 focus:border-gray-900 text-gray-900 placeholder-gray-400 shadow-xs"} border rounded-[6px] outline-none transition-colors`}
               />
               {inviteSearch && (
                 <button
@@ -1657,13 +1887,12 @@ export default function Access({
             {/* Modal Controls: Search & Batch Category Presets */}
             <div className={`p-4 border-b ${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200"} space-y-3`}>
               <div className="relative">
-                <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-[#8a8f98]" : "text-gray-400"}`} />
                 <input
                   type="text"
                   value={docMemberSearch}
                   onChange={(e) => setDocMemberSearch(e.target.value)}
                   placeholder="Search members by name, student ID (e.g. SC/2022/12345), or email..."
-                  className={`w-full h-8 pl-9 pr-3 text-xs ${isDark ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#e4f222]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-xs"} border rounded-[6px] focus:outline-none`}
+                  className={`w-full h-8 pl-3 pr-3 text-xs ${isDark ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#e4f222]" : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-xs"} border rounded-[6px] focus:outline-none`}
                 />
               </div>
 

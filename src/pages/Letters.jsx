@@ -443,7 +443,6 @@ export default function Letters({ session, theme }) {
 
             {/* Search Input */}
             <div className="relative w-full sm:w-64">
-              <Search className={`absolute left-2.5 top-2 w-3.5 h-3.5 ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
               <input
                 type="text"
                 value={search}
@@ -452,7 +451,7 @@ export default function Letters({ session, theme }) {
                   setSearch(e.target.value);
                 }}
                 placeholder="Search member, ST ID, event..."
-                className={`w-full rounded-[6px] pl-8 pr-7 py-1 text-[12px] font-sans border transition-colors focus:outline-none ${
+                className={`w-full rounded-[6px] pl-3 pr-7 py-1 text-[12px] font-sans border transition-colors focus:outline-none ${
                   isDark
                     ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#d0d6e0]"
                     : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 shadow-xs"

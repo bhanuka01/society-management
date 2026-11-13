@@ -2,9 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
 import { useCycle } from "../context/CycleContext";
-import PlacementQuestionnaire, {
+import {
   OFFICIAL_FUNCTIONAL_TEAMS,
-  INITIAL_QUESTIONNAIRE,
+  EXECUTIVE_FUNCTION_MANAGERS,
+  EXECUTIVE_FUNCTION_VICE_PRESIDENTS,
+  getValidExecutivePositions,
+  FUNCTION_INFO_CARDS,
+  DEFAULT_FUNCTION_AVAILABILITY,
+  normalizeFunctionName,
 } from "../components/PlacementQuestionnaire";
 import {
   ArrowLeft,
@@ -46,20 +51,31 @@ export default function Register({
   const [stId, setStId] = useState("");
   const [level, setLevel] = useState("1");
   const [phone, setPhone] = useState("");
-  const [memberFunction, setMemberFunction] = useState("Finance");
+  const [memberFunction, setMemberFunction] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreedTerms, setAgreedTerms] = useState(false);
 
-  // Membership & Questionnaire State
-  const [isExistingMember, setIsExistingMember] = useState(null); // null | "yes" | "no"
-  const [questionnaire, setQuestionnaire] = useState(INITIAL_QUESTIONNAIRE);
+  // Executive vs Member & Dependent Function/Manager + Appeal State
+  const [memberType, setMemberType] = useState(null); // null | "executive" | "member"
+  const [executiveTier, setExecutiveTier] = useState("manager"); // "manager" | "vice_president"
+  const [executiveFunction, setExecutiveFunction] = useState("");
+  const [executiveManager, setExecutiveManager] = useState("");
+  const [functionAvailability, setFunctionAvailability] = useState(DEFAULT_FUNCTION_AVAILABILITY);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [memberRegEnabled, setMemberRegEnabled] = useState(regEnabled);
+  const [executiveRegEnabled, setExecutiveRegEnabled] = useState(regEnabled);
+  const [memberAutoApprove, setMemberAutoApprove] = useState(false);
+  const [executiveAutoApprove, setExecutiveAutoApprove] = useState(false);
+  const [wantsAppeal, setWantsAppeal] = useState(null); // null | "yes" | "no"
+  const [appealFunction, setAppealFunction] = useState("");
+  const [appealReason, setAppealReason] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
 
   // Multi-step Wizard State
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = roleMode === "member" && isExistingMember === "no" ? 4 : 2;
+  const totalSteps = roleMode === "member" && memberType === "member" ? 3 : 2;
 
   // Clamp currentStep if totalSteps changes
   useEffect(() => {
@@ -68,12 +84,115 @@ export default function Register({
     }
   }, [totalSteps, currentStep]);
 
-  const stepLabels = totalSteps === 4
+  // Load Function Availability settings & live member counts
+  useEffect(() => {
+    let alive = true;
+    const loadAvailability = async () => {
+      try {
+        const [settingsRes, countsRes] = await Promise.all([
+          supabase
+            .from("system_settings")
+            .select("key, value")
+            .in("key", [
+              "function_availability",
+              "registration_enabled",
+              "registration_enabled_member",
+              "registration_enabled_executive",
+              "registration_auto_approve",
+              "registration_auto_approve_member",
+              "registration_auto_approve_executive",
+            ]),
+          (async () => { try { return await supabase.rpc("get_function_member_counts"); } catch { return { data: null }; } })(),
+        ]);
+
+        const settingsMap = {};
+        if (Array.isArray(settingsRes?.data)) {
+          settingsRes.data.forEach((row) => {
+            settingsMap[row.key] = row.value;
+          });
+        }
+
+        const fallbackReg =
+          settingsMap.registration_enabled !== undefined
+            ? settingsMap.registration_enabled === "true"
+            : regEnabled;
+        const mRegOpen =
+          settingsMap.registration_enabled_member !== undefined
+            ? settingsMap.registration_enabled_member === "true"
+            : fallbackReg;
+        const eRegOpen =
+          settingsMap.registration_enabled_executive !== undefined
+            ? settingsMap.registration_enabled_executive === "true"
+            : fallbackReg;
+
+        const fallbackAuto = settingsMap.registration_auto_approve === "true";
+        const mAuto =
+          settingsMap.registration_auto_approve_member !== undefined
+            ? settingsMap.registration_auto_approve_member === "true"
+            : fallbackAuto;
+        const eAuto =
+          settingsMap.registration_auto_approve_executive !== undefined
+            ? settingsMap.registration_auto_approve_executive === "true"
+            : fallbackAuto;
+
+        let parsedSettings = {};
+        if (settingsMap.function_availability) {
+          try {
+            parsedSettings = JSON.parse(settingsMap.function_availability) || {};
+          } catch (_) {
+            parsedSettings = {};
+          }
+        }
+
+        const liveCounts = {};
+        if (Array.isArray(countsRes?.data)) {
+          countsRes.data.forEach((row) => {
+            const norm = normalizeFunctionName(row.function_name);
+            if (norm) {
+              liveCounts[norm] = (liveCounts[norm] || 0) + Number(row.member_count || 0);
+            }
+          });
+        }
+
+        const nextAvailability = {};
+        FUNCTION_INFO_CARDS.forEach((card) => {
+          const fn = card.functionName;
+          const saved = parsedSettings[fn] || {};
+          const capacity = Number.isFinite(Number(saved.capacity)) && Number(saved.capacity) >= 0
+            ? Number(saved.capacity)
+            : card.defaultCapacity || 30;
+          const filled = liveCounts[fn] !== undefined
+            ? liveCounts[fn]
+            : (Number.isFinite(Number(saved.filled)) ? Number(saved.filled) : 0);
+          const isFull = Boolean(saved.isFull) || (capacity >= 0 && filled >= capacity);
+          nextAvailability[fn] = { filled, capacity, isFull };
+        });
+
+        if (alive) {
+          setFunctionAvailability(nextAvailability);
+          setMemberRegEnabled(mRegOpen);
+          setExecutiveRegEnabled(eRegOpen);
+          setMemberAutoApprove(mAuto);
+          setExecutiveAutoApprove(eAuto);
+        }
+      } catch (err) {
+        console.warn("Could not load function availability:", err);
+      } finally {
+        if (alive) setAvailabilityLoading(false);
+      }
+    };
+
+    loadAvailability();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const stepLabels = totalSteps === 3
     ? [
-        { num: 1, title: "Identity", desc: "Academic details" },
-        { num: 2, title: "Preferences", desc: "Focus & choices" },
-        { num: 3, title: "Domain Skills", desc: "Skills & scenario" },
-        { num: 4, title: "Credentials", desc: "Photo & account" },
+        { num: 1, title: "Identity & Function", desc: "Academic & function" },
+        { num: 2, title: "Make an Appeal", desc: "Optional appeal" },
+        { num: 3, title: "Credentials", desc: "Photo & account" },
       ]
     : [
         { num: 1, title: "Identity", desc: "Academic & role" },
@@ -93,22 +212,71 @@ export default function Register({
   const [errorMessage, setErrorMessage] = useState("");
   const [successInfo, setSuccessInfo] = useState(null);
 
-  // Clean toggle between Yes and No: re-initialize dependent state without stale data
-  const handleMembershipStatusChange = (status) => {
-    setIsExistingMember(status);
+  // Clean toggle between Executive and Member: re-initialize dependent state without stale data
+  const handleMemberTypeChange = (type) => {
+    setMemberType(type);
     setErrorMessage("");
     setValidationErrors({});
-    if (status === "yes") {
-      // Clear questionnaire to prevent stale data
-      setQuestionnaire(INITIAL_QUESTIONNAIRE);
-      if (!memberFunction || memberFunction === "Pending Review") {
-        setMemberFunction("Finance");
-      }
-    } else if (status === "no") {
-      // Lock functional team and reset questionnaire to fresh state
-      setMemberFunction("Pending Review");
-      setQuestionnaire(INITIAL_QUESTIONNAIRE);
+    if (type === "executive") {
+      setMemberFunction("");
+      setExecutiveTier("manager");
+      setWantsAppeal(null);
+      setAppealFunction("");
+      setAppealReason("");
+    } else if (type === "member") {
+      setExecutiveTier("manager");
+      setExecutiveFunction("");
+      setExecutiveManager("");
+      setWantsAppeal(null);
+      setAppealFunction("");
+      setAppealReason("");
     }
+  };
+
+  // Toggle between Function Manager and Function-wise Vice President
+  const handleExecutiveTierChange = (tier) => {
+    setExecutiveTier(tier);
+    setErrorMessage("");
+    setValidationErrors((prev) => ({
+      ...prev,
+      executiveManager: null,
+    }));
+    if (tier === "vice_president") {
+      setExecutiveManager(
+        executiveFunction ? EXECUTIVE_FUNCTION_VICE_PRESIDENTS[executiveFunction] || "" : ""
+      );
+    } else if (executiveManager.startsWith("Vice President")) {
+      setExecutiveManager("");
+    }
+  };
+
+  // Dependent Dropdown Handler: changing Function updates/resets Manager or Vice President role
+  const handleExecutiveFunctionChange = (fn) => {
+    setExecutiveFunction(fn);
+    if (fn && executiveTier === "vice_president") {
+      setExecutiveManager(EXECUTIVE_FUNCTION_VICE_PRESIDENTS[fn] || "");
+    } else {
+      setExecutiveManager("");
+    }
+    setErrorMessage("");
+    setValidationErrors((prev) => ({
+      ...prev,
+      executiveFunction: null,
+      executiveManager: null,
+    }));
+  };
+
+  const handleSelectMemberFunction = (fn) => {
+    const info = functionAvailability[fn] || { filled: 0, capacity: 30, isFull: false };
+    if (info.isFull || info.filled >= info.capacity) {
+      return;
+    }
+    setMemberFunction(fn);
+    if (appealFunction === fn) {
+      setAppealFunction("");
+    }
+    setErrorMessage("");
+    setValidationErrors((prev) => ({ ...prev, memberFunction: null }));
   };
 
   useEffect(() => {
@@ -183,20 +351,6 @@ export default function Register({
     }, 60);
   };
 
-  const handleQuestionnaireChange = (nextVal) => {
-    setQuestionnaire(nextVal);
-    setValidationErrors((prev) => {
-      if (!prev || Object.keys(prev).length === 0) return prev;
-      const updated = { ...prev };
-      if (nextVal.academicStanding && updated.academicStanding) delete updated.academicStanding;
-      if (nextVal.focusAreas?.length > 0 && updated.focusAreas) delete updated.focusAreas;
-      if (nextVal.firstChoiceFunction && nextVal.secondChoiceFunction && nextVal.firstChoiceFunction !== nextVal.secondChoiceFunction && updated.choices) delete updated.choices;
-      if (nextVal.weeklyCommitment && updated.weeklyCommitment) delete updated.weeklyCommitment;
-      if (nextVal.contributionNote?.trim()?.length >= 5 && updated.contributionNote) delete updated.contributionNote;
-      return updated;
-    });
-  };
-
   const validateCurrentStep = () => {
     setErrorMessage("");
     const errs = {};
@@ -211,11 +365,34 @@ export default function Register({
         } else if (!isValidStIdFormat) {
           errs.stId = "Invalid Student ID format. Expected format: SC/2022/12984";
         }
-        if (isExistingMember === null) {
-          errs.isExistingMember = "Please select whether you are an existing ADSS member or a new applicant.";
-        }
-        if (isExistingMember === "yes" && !memberFunction) {
-          errs.memberFunction = "Please select your Society Functional Team.";
+        if (memberType === null) {
+          errs.memberType = "Please select whether you are an executive or a member.";
+        } else if (memberType === "executive" && !executiveRegEnabled) {
+          errs.memberType = "Executive registration is currently closed by administrator.";
+        } else if (memberType === "member" && !memberRegEnabled) {
+          errs.memberType = "Member registration is currently closed by administrator.";
+        } else if (memberType === "executive") {
+          const validPositions = getValidExecutivePositions(executiveFunction);
+          if (!executiveFunction) {
+            errs.executiveFunction = "Please select your Executive Board Function.";
+          }
+          if (!executiveManager) {
+            errs.executiveManager =
+              executiveTier === "vice_president"
+                ? "Please select your Vice President role."
+                : "Please select your Manager or Vice President role.";
+          } else if (!validPositions.includes(executiveManager)) {
+            errs.executiveManager = "Selected role does not belong to the chosen function.";
+          }
+        } else if (memberType === "member") {
+          if (!memberFunction) {
+            errs.memberFunction = "Please register for an available function below.";
+          } else {
+            const avail = functionAvailability[memberFunction];
+            if (avail && (avail.isFull || avail.filled >= avail.capacity)) {
+              errs.memberFunction = "Selected function is currently full. Please choose an available function.";
+            }
+          }
         }
       }
 
@@ -229,44 +406,28 @@ export default function Register({
       return true;
     }
 
-    if (totalSteps === 4) {
-      if (currentStep === 2) {
-        if (!questionnaire.academicStanding) {
-          errs.academicStanding = "BSc FMIS Academic Standing is required.";
+    if (totalSteps === 3 && currentStep === 2) {
+      if (wantsAppeal === null) {
+        errs.wantsAppeal = "Please select Yes or No to indicate whether you want to make an appeal.";
+      } else if (wantsAppeal === "yes") {
+        if (!appealFunction) {
+          errs.appealFunction = "Please select the function you want to appeal for.";
+        } else if (appealFunction === memberFunction) {
+          errs.appealFunction = "Appeal function must be different from your currently selected function.";
         }
-        if (!questionnaire.focusAreas || questionnaire.focusAreas.length === 0) {
-          errs.focusAreas = "Please select at least 1 preferred focus area (max 2).";
+        if (!appealReason || appealReason.trim().length < 5) {
+          errs.appealReason = "Please explain your skills and reason for appeal (minimum 5 characters).";
         }
-        if (!questionnaire.firstChoiceFunction || !questionnaire.secondChoiceFunction) {
-          errs.choices = "Both 1st and 2nd choice functional teams are required.";
-        } else if (questionnaire.firstChoiceFunction === questionnaire.secondChoiceFunction) {
-          errs.choices = "1st and 2nd choices must be different functional teams.";
-        }
-        if (!questionnaire.weeklyCommitment) {
-          errs.weeklyCommitment = "Weekly commitment is required.";
-        }
-
-        if (Object.keys(errs).length > 0) {
-          setValidationErrors(errs);
-          setErrorMessage(Object.values(errs)[0] || "Please complete all required fields in Placement Preferences.");
-          scrollToFirstError(errs);
-          return false;
-        }
-        setValidationErrors({});
-        return true;
       }
 
-      if (currentStep === 3) {
-        if (!questionnaire.contributionNote || questionnaire.contributionNote.trim().length < 5) {
-          errs.contributionNote = "Practical contribution note is required (minimum 5 characters). Please describe your experience, projects, or skills.";
-          setValidationErrors(errs);
-          setErrorMessage("Please provide your practical contribution note before continuing.");
-          scrollToFirstError(errs);
-          return false;
-        }
-        setValidationErrors({});
-        return true;
+      if (Object.keys(errs).length > 0) {
+        setValidationErrors(errs);
+        setErrorMessage(Object.values(errs)[0]);
+        scrollToFirstError(errs);
+        return false;
       }
+      setValidationErrors({});
+      return true;
     }
 
     return true;
@@ -353,6 +514,7 @@ export default function Register({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setErrorMessage("");
 
     if (!validateFinalStep()) {
@@ -385,40 +547,40 @@ export default function Register({
     }
 
     if (roleMode === "member") {
-      if (isExistingMember === null) {
-        setErrorMessage("Please answer the required question: Are you an existing ADSS member?");
+      if (memberType === null) {
+        setErrorMessage("Please answer the required question: Are you an executive or a member?");
         return;
       }
 
-      if (isExistingMember === "yes") {
-        if (!memberFunction) {
-          setErrorMessage("Please select your Society Functional Team.");
+      if (memberType === "executive") {
+        const validPositions = getValidExecutivePositions(executiveFunction);
+        if (!executiveFunction || !executiveManager || !validPositions.includes(executiveManager)) {
+          setErrorMessage("Please select a valid Executive Board Function and corresponding Manager or Vice President role.");
           return;
         }
       } else {
-        const errors = {};
-        if (!questionnaire.academicStanding) {
-          errors.academicStanding = "BSc FMIS Academic Standing is required.";
-        }
-        if (!questionnaire.focusAreas || questionnaire.focusAreas.length === 0) {
-          errors.focusAreas = "Please select at least 1 preferred focus area (max 2).";
-        }
-        if (!questionnaire.firstChoiceFunction || !questionnaire.secondChoiceFunction) {
-          errors.choices = "Both 1st and 2nd choice functional teams are required.";
-        } else if (questionnaire.firstChoiceFunction === questionnaire.secondChoiceFunction) {
-          errors.choices = "1st and 2nd choices must be different functional teams.";
-        }
-        if (!questionnaire.weeklyCommitment) {
-          errors.weeklyCommitment = "Weekly commitment is required.";
-        }
-        if (!questionnaire.contributionNote || questionnaire.contributionNote.trim().length < 5) {
-          errors.contributionNote = "Please provide a brief note on your practical skills or past experience.";
-        }
-
-        if (Object.keys(errors).length > 0) {
-          setValidationErrors(errors);
-          setErrorMessage("Please complete all required fields in the Placement & Skills Assessment Questionnaire.");
+        if (!memberFunction) {
+          setErrorMessage("Please select an available function under Function-wise information.");
           return;
+        }
+        const avail = functionAvailability[memberFunction];
+        if (avail && (avail.isFull || avail.filled >= avail.capacity)) {
+          setErrorMessage("The selected function is full. Please choose an available function.");
+          return;
+        }
+        if (wantsAppeal === null) {
+          setErrorMessage("Please indicate whether you want to make an appeal.");
+          return;
+        }
+        if (wantsAppeal === "yes") {
+          if (!appealFunction || appealFunction === memberFunction) {
+            setErrorMessage("Please select a valid target function for your appeal.");
+            return;
+          }
+          if (!appealReason || appealReason.trim().length < 5) {
+            setErrorMessage("Please explain your skills and reason for appeal (minimum 5 characters).");
+            return;
+          }
         }
       }
     }
@@ -456,9 +618,21 @@ export default function Register({
       const { data: canRegisterStaff } = await supabase
         .rpc("can_register_staff", { p_email: cleanEmail, p_role: targetRole });
 
-      // 3. If registration is disabled and user is neither pre-registered nor invited staff
-      if (!regEnabled && !isPreRegistered && !canRegisterStaff) {
-        setErrorMessage("General membership registration is currently closed. If you are authorized staff, ensure your invite is active.");
+      // 3. Check if registration is closed for the selected track (or globally)
+      const selectedTrackOpen =
+        roleMode !== "member"
+          ? regEnabled
+          : memberType === "executive"
+          ? executiveRegEnabled
+          : memberRegEnabled;
+      if ((!regEnabled || !selectedTrackOpen) && !isPreRegistered && !canRegisterStaff) {
+        setErrorMessage(
+          memberType === "executive"
+            ? "Executive registration is currently closed by administrator."
+            : memberType === "member"
+            ? "Member registration is currently closed by administrator."
+            : "General membership registration is currently closed. If you are authorized staff, ensure your invite is active."
+        );
         setLoading(false);
         return;
       }
@@ -489,6 +663,19 @@ export default function Register({
             setErrorMessage("Invalid Student ID format. Expected format: SC/2022/12984");
             setLoading(false);
             return;
+          }
+
+          // Ensure this Student ID is not already claimed by another registered member
+          try {
+            const { data: stIdAvailable, error: stIdCheckErr } = await supabase
+              .rpc("check_st_id_available", { p_st_id: finalStId });
+            if (!stIdCheckErr && stIdAvailable === false) {
+              setErrorMessage(`Student ID ${finalStId} is already registered to another member. Please check your Student ID or sign in to your existing account.`);
+              setLoading(false);
+              return;
+            }
+          } catch (_) {
+            // Ignore if RPC is not yet deployed; handle_new_user trigger still enforces uniqueness
           }
         }
       }
@@ -543,13 +730,51 @@ export default function Register({
         }
       }
 
-      const finalLevel = (roleMode === "member" && isExistingMember === "no")
-        ? (questionnaire.academicStanding === "Level IV" ? "4" : questionnaire.academicStanding === "Level III" ? "3" : questionnaire.academicStanding === "Level II" ? "2" : "1")
-        : (level || "1");
+      const finalLevel = level || "1";
+      const isExecutive = roleMode === "member" && memberType === "executive";
+      const isMemberAppeal = roleMode === "member" && memberType === "member" && wantsAppeal === "yes";
 
-      const applicantStatus = (roleMode === "member" && isExistingMember === "no")
+      const applicantStatus = isExecutive
+        ? (executiveAutoApprove ? "approved" : "pending")
+        : isMemberAppeal
         ? "pending_editor_review"
-        : "pending";
+        : (memberAutoApprove ? "approved" : "pending");
+      const finalMemberFunction = isPreRegistered
+        ? null
+        : targetRole === "member"
+        ? isExecutive
+          ? executiveFunction
+          : memberFunction
+        : null;
+      const finalStPosition = isPreRegistered
+        ? null
+        : targetRole === "member"
+        ? isExecutive
+          ? executiveManager
+          : "Member"
+        : null;
+      const membershipStatusValue = isExecutive ? "executive" : "member";
+      const assessmentPayload = isExecutive
+        ? {
+            type: "executive_board",
+            executiveTier: executiveManager.startsWith("Vice President") ? "vice_president" : "manager",
+            executiveFunction,
+            executiveManager,
+            academicStanding: `Level ${finalLevel === "4" ? "IV" : finalLevel === "3" ? "III" : finalLevel === "2" ? "II" : "I"}`,
+          }
+        : isMemberAppeal
+        ? {
+            type: "function_appeal",
+            isAppeal: true,
+            assignedFunction: memberFunction,
+            appealFunction,
+            appealReason: appealReason.trim(),
+            firstChoiceFunction: appealFunction,
+            secondChoiceFunction: memberFunction,
+            contributionNote: appealReason.trim(),
+            academicStanding: `Level ${finalLevel === "4" ? "IV" : finalLevel === "3" ? "III" : finalLevel === "2" ? "II" : "I"}`,
+          }
+        : null;
 
       // 6. Sign up user via Supabase
       const { data, error } = await supabase.auth.signUp({
@@ -563,14 +788,17 @@ export default function Register({
             st_id: finalStId,
             level: finalLevel,
             mobile_number: isPreRegistered ? null : phone.trim(),
-            member_function: isPreRegistered ? null : (targetRole === "member" ? (isExistingMember === "yes" ? memberFunction : "Pending Review") : null),
+            member_function: finalMemberFunction,
+            st_position: finalStPosition,
+            executive_function: isExecutive ? executiveFunction : null,
+            executive_manager: isExecutive ? executiveManager : null,
             profile_image_url: profileImageUrl,
-            is_existing_member: isExistingMember === "yes",
-            membership_status: isExistingMember === "yes" ? "existing" : "new",
+            is_existing_member: true,
+            membership_status: membershipStatusValue,
             applicant_status: applicantStatus,
-            skills_assessment: isExistingMember === "no" ? questionnaire : null,
-            portfolio_url: isExistingMember === "no" ? (questionnaire.portfolioLink?.trim() || null) : null,
-            contribution_note: isExistingMember === "no" ? (questionnaire.contributionNote?.trim() || null) : null,
+            skills_assessment: assessmentPayload,
+            portfolio_url: null,
+            contribution_note: isMemberAppeal ? appealReason.trim() : null,
           },
         },
       });
@@ -609,9 +837,11 @@ export default function Register({
                     .update({ profile_image_url: profileImageUrl })
                     .eq("st_id", targetStId);
                 }
-                await supabase.auth.updateUser({
-                  data: { profile_image_url: profileImageUrl }
-                }).catch(() => {});
+                try {
+                  await supabase.auth.updateUser({
+                    data: { profile_image_url: profileImageUrl }
+                  });
+                } catch (_) {}
               }
             } else {
               console.warn("Authenticated photo upload failed:", authUploadErr.message);
@@ -621,31 +851,35 @@ export default function Register({
           }
         }
 
-        // Persist skills assessment to profiles and members if new applicant
-        if (roleMode === "member" && isExistingMember === "no") {
-          await supabase
-            .from("profiles")
-            .update({
-              status: "pending_editor_review",
-              membership_status: "new",
-              skills_assessment: questionnaire,
-              portfolio_url: questionnaire.portfolioLink?.trim() || null,
-              contribution_note: questionnaire.contributionNote?.trim() || null,
-            })
-            .eq("id", data.user.id)
-            .catch(() => {});
-
-          if (finalStId) {
+        // Persist Executive or Appeal metadata cleanly if session is active
+        if (roleMode === "member") {
+          const profilePatch = {
+            membership_status: membershipStatusValue,
+            skills_assessment: assessmentPayload,
+            contribution_note: isMemberAppeal ? appealReason.trim() : null,
+          };
+          if (isMemberAppeal) {
+            profilePatch.status = "pending_editor_review";
+          }
+          try {
             await supabase
-              .from("members")
-              .update({
-                member_function: "Pending Review",
-                st_position: "Pending Review",
-                membership_status: "new",
-                skills_assessment: questionnaire,
-              })
-              .eq("st_id", finalStId)
-              .catch(() => {});
+              .from("profiles")
+              .update(profilePatch)
+              .eq("id", data.user.id);
+          } catch (_) {}
+
+          if (finalStId && !isPreRegistered) {
+            try {
+              await supabase
+                .from("members")
+                .update({
+                  member_function: finalMemberFunction,
+                  st_position: finalStPosition,
+                  membership_status: membershipStatusValue,
+                  skills_assessment: assessmentPayload,
+                })
+                .eq("st_id", finalStId);
+            } catch (_) {}
           }
         }
 
@@ -655,7 +889,7 @@ export default function Register({
           .eq("id", data.user.id)
           .maybeSingle();
 
-        const userStatus = (roleMode === "member" && isExistingMember === "no")
+        const userStatus = isMemberAppeal
           ? "pending_editor_review"
           : (profile?.status || "approved");
 
@@ -663,7 +897,7 @@ export default function Register({
 
         const profileData = {
           role: userRole,
-          stId: isPreRegistered ? v_st_id : finalStId,
+          stId: profile?.st_id || (isPreRegistered ? v_st_id : finalStId),
           name: v_preferred_name || v_name,
           fullName: v_name,
           preferredName: v_preferred_name || "",
@@ -690,7 +924,12 @@ export default function Register({
           email: cleanEmail,
           name: v_name,
           photoDeferred: photoUploadDeferred,
-          pendingEditorReview: roleMode === "member" && isExistingMember === "no",
+          pendingEditorReview: isMemberAppeal,
+          autoApproved: !isMemberAppeal && (isPreRegistered || (isExecutive ? executiveAutoApprove : memberAutoApprove)),
+          memberType: roleMode === "member" ? memberType : "staff",
+          appealFunction: isMemberAppeal ? appealFunction : null,
+          assignedFunction: memberType === "member" ? memberFunction : executiveFunction,
+          executiveManager: isExecutive ? executiveManager : null,
         });
       }
     } catch (err) {
@@ -735,7 +974,7 @@ export default function Register({
           onClick={handleNavigateHome}
           className="flex items-center gap-2.5 cursor-pointer"
         >
-          <div className={`w-6 h-6 rounded-[4px] border flex items-center justify-center p-1 ${
+          <div className={`w-9 h-9 rounded-[7px] border flex items-center justify-center p-1 ${
             isDark ? "bg-[#161718] border-[#23252a]" : "bg-white border-gray-200 shadow-sm"
           }`}>
             <img
@@ -744,7 +983,7 @@ export default function Register({
               src={`${import.meta.env.BASE_URL}${isDark ? "logo_trans_light.png" : "logo_trans_dark.png"}`}
             />
           </div>
-          <span className={`text-[14px] font-[510] tracking-[-0.015em] hidden sm:inline ${
+          <span className={`text-[15px] font-[590] tracking-[-0.015em] hidden sm:inline ${
             isDark ? "text-white" : "text-gray-900 font-semibold"
           }`}>
             ADSS Ruhuna
@@ -796,17 +1035,45 @@ export default function Register({
                   . Please check your inbox or spam folder to activate your account, then sign in.
                 </p>
 
-                {successInfo.pendingEditorReview && (
+                {successInfo.pendingEditorReview ? (
                   <div className={`max-w-[480px] mx-auto mb-6 p-4 rounded-[8px] border text-[13px] text-left flex items-start gap-3 ${
                     isDark ? "bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]" : "bg-amber-50 border-amber-200 text-amber-900"
                   }`}>
                     <ShieldAlert className="w-5 h-5 flex-shrink-0 mt-0.5 text-[#f59e0b]" />
                     <div>
                       <strong className="block text-[13.5px] font-[510] mb-0.5">
-                        Registration Submitted for Editorial Review
+                        Function Appeal Submitted for Executive Review
                       </strong>
                       <span className="leading-relaxed block">
-                        Registration submitted for editorial review. Your functional team will be assigned by the executive committee based on your skills assessment.
+                        You registered under <strong>{successInfo.assignedFunction}</strong> and submitted an appeal to move to <strong>{successInfo.appealFunction}</strong>. The executive committee will review your skills explanation.
+                      </span>
+                    </div>
+                  </div>
+                ) : successInfo.autoApproved ? (
+                  <div className={`max-w-[480px] mx-auto mb-6 p-4 rounded-[8px] border text-[13px] text-left flex items-start gap-3 ${
+                    isDark ? "bg-[#27a644]/10 border-[#27a644]/30 text-[#27a644]" : "bg-emerald-50 border-emerald-200 text-emerald-900"
+                  }`}>
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-[#27a644]" />
+                    <div>
+                      <strong className="block text-[13.5px] font-[510] mb-0.5">
+                        Auto-Approval Enabled
+                      </strong>
+                      <span className="leading-relaxed block">
+                        Your registration is pre-approved. Once you verify your email link, you can sign in immediately.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`max-w-[480px] mx-auto mb-6 p-4 rounded-[8px] border text-[13px] text-left flex items-start gap-3 ${
+                    isDark ? "bg-[#161718] border-[#23252a] text-[#d0d6e0]" : "bg-gray-50 border-gray-200 text-gray-800"
+                  }`}>
+                    <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-sky-400" />
+                    <div>
+                      <strong className="block text-[13.5px] font-[510] mb-0.5">
+                        Pending Administrator Approval
+                      </strong>
+                      <span className="leading-relaxed block">
+                        After confirming your email, an administrator will review and approve your registration.
                       </span>
                     </div>
                   </div>
@@ -984,7 +1251,7 @@ export default function Register({
                     </div>
 
                     {/* Segmented Step Buttons */}
-                    <div className={`grid ${totalSteps === 4 ? "grid-cols-4" : "grid-cols-2"} gap-1.5 pt-1`}>
+                    <div className={`grid ${totalSteps === 3 ? "grid-cols-3" : "grid-cols-2"} gap-1.5 pt-1`}>
                       {stepLabels.map((s) => {
                         const isPast = s.num < currentStep;
                         const isCurrent = s.num === currentStep;
@@ -1104,7 +1371,7 @@ export default function Register({
                       {/* Member Specific Fields: ST ID & Level */}
                       {roleMode === "member" && (
                         <>
-                          <div className={`grid grid-cols-1 ${isExistingMember === "yes" ? "sm:grid-cols-2" : "sm:grid-cols-1"} gap-4`}>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {/* Student ID */}
                             <div id="field-stId">
                               <div className="flex items-center justify-between mb-1.5">
@@ -1158,35 +1425,33 @@ export default function Register({
                               )}
                             </div>
 
-                            {/* Academic Year / Level (Only visible when existing member = yes; for new applicants, standing is collected in step 2) */}
-                            {isExistingMember === "yes" && (
-                              <div>
-                                <label className={`block text-[13px] font-[510] mb-1.5 ${
-                                  isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                                }`}>
-                                  Academic Year / Level
-                                </label>
-                                <select
-                                  value={level}
-                                  onChange={(e) => setLevel(e.target.value)}
-                                  className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                                    isDark
-                                      ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
-                                      : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 shadow-sm"
-                                  }`}
-                                >
-                                  <option value="1">Year 1 (Level I)</option>
-                                  <option value="2">Year 2 (Level II)</option>
-                                  <option value="3">Year 3 (Level III)</option>
-                                  <option value="4">Year 4 (Level IV)</option>
-                                </select>
-                              </div>
-                            )}
+                            {/* Academic Year / Level */}
+                            <div>
+                              <label className={`block text-[13px] font-[510] mb-1.5 ${
+                                isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                              }`}>
+                                Academic Year / Level
+                              </label>
+                              <select
+                                value={level}
+                                onChange={(e) => setLevel(e.target.value)}
+                                className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                  isDark
+                                    ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
+                                    : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 shadow-sm"
+                                }`}
+                              >
+                                <option value="1">Year 1 (Level I)</option>
+                                <option value="2">Year 2 (Level II)</option>
+                                <option value="3">Year 3 (Level III)</option>
+                                <option value="4">Year 4 (Level IV)</option>
+                              </select>
+                            </div>
                           </div>
 
-                          {/* ── Required Question: Membership Status ── */}
-                          <div id="field-isExistingMember" className={`space-y-2 pt-1 p-2.5 -mx-2.5 rounded-[8px] transition-all ${
-                            validationErrors.isExistingMember
+                          {/* ── Required Question: Are you an executive or a member? ── */}
+                          <div id="field-memberType" className={`space-y-2 pt-1 p-2.5 -mx-2.5 rounded-[8px] transition-all ${
+                            validationErrors.memberType
                               ? "border border-[#eb5757] ring-1 ring-[#eb5757] bg-[#eb5757]/5"
                               : ""
                           }`}>
@@ -1194,10 +1459,10 @@ export default function Register({
                               <label className={`block text-[13px] font-[510] ${
                                 isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
                               }`}>
-                                Are you an existing ADSS member? <span className="text-[#eb5757]">*</span>
+                                Are you an executive or a member? <span className="text-[#eb5757]">*</span>
                               </label>
                               <span className={`text-[11px] font-berkeley-mono ${
-                                validationErrors.isExistingMember
+                                validationErrors.memberType
                                   ? "text-[#eb5757] font-semibold"
                                   : isDark ? "text-[#8a8f98]" : "text-gray-500"
                               }`}>
@@ -1206,25 +1471,30 @@ export default function Register({
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              {/* Option: Yes */}
-                              <label className={`p-3 rounded-[6px] border flex items-center gap-3 cursor-pointer transition-all ${
-                                isExistingMember === "yes"
+                              {/* Option: Executive */}
+                              <label className={`p-3 rounded-[6px] border flex items-center gap-3 transition-all ${
+                                !executiveRegEnabled
                                   ? isDark
-                                    ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
-                                    : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm"
+                                    ? "bg-[#111214] border-[#23252a] text-[#62666d] opacity-60 cursor-not-allowed"
+                                    : "bg-gray-100 border-gray-200 text-gray-400 opacity-70 cursor-not-allowed"
+                                  : memberType === "executive"
+                                  ? isDark
+                                    ? "bg-[#161718] border-[#e4f222] text-white shadow-sm cursor-pointer"
+                                    : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm cursor-pointer"
                                   : isDark
-                                  ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
-                                  : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                                  ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f] cursor-pointer"
+                                  : "bg-white border-gray-200 text-gray-700 hover:border-gray-300 cursor-pointer"
                               }`}>
                                 <input
                                   type="radio"
-                                  name="is_existing_member"
-                                  checked={isExistingMember === "yes"}
-                                  onChange={() => handleMembershipStatusChange("yes")}
+                                  name="member_type"
+                                  disabled={!executiveRegEnabled}
+                                  checked={memberType === "executive"}
+                                  onChange={() => executiveRegEnabled && handleMemberTypeChange("executive")}
                                   className="sr-only"
                                 />
                                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
-                                  isExistingMember === "yes"
+                                  memberType === "executive"
                                     ? isDark
                                       ? "border-[#e4f222] bg-[#e4f222]"
                                       : "border-indigo-600 bg-indigo-600"
@@ -1232,35 +1502,49 @@ export default function Register({
                                     ? "border-[#383b3f] bg-[#0f1011]"
                                     : "border-gray-300 bg-white"
                                 }`}>
-                                  {isExistingMember === "yes" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
+                                  {memberType === "executive" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
                                 </div>
-                                <div className="min-w-0">
-                                  <span className="text-[13px] font-[510] block leading-tight">Yes</span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[13px] font-[510] block leading-tight">Executive</span>
+                                    <span className={`font-berkeley-mono text-[9px] px-1.5 py-0.5 rounded-[3px] border ${
+                                      executiveRegEnabled
+                                        ? "bg-[#27a644]/10 text-[#27a644] border-[#27a644]/30"
+                                        : "bg-[#eb5757]/10 text-[#eb5757] border-[#eb5757]/30"
+                                    }`}>
+                                      {executiveRegEnabled ? "OPEN" : "CLOSED"}
+                                    </span>
+                                  </div>
                                   <span className={`text-[11px] block truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
-                                    Current ADSS society member
+                                    ADSS Ruhuna Elected Executive Board
                                   </span>
                                 </div>
                               </label>
 
-                              {/* Option: No */}
-                              <label className={`p-3 rounded-[6px] border flex items-center gap-3 cursor-pointer transition-all ${
-                                isExistingMember === "no"
+                              {/* Option: Member */}
+                              <label className={`p-3 rounded-[6px] border flex items-center gap-3 transition-all ${
+                                !memberRegEnabled
                                   ? isDark
-                                    ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
-                                    : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm"
+                                    ? "bg-[#111214] border-[#23252a] text-[#62666d] opacity-60 cursor-not-allowed"
+                                    : "bg-gray-100 border-gray-200 text-gray-400 opacity-70 cursor-not-allowed"
+                                  : memberType === "member"
+                                  ? isDark
+                                    ? "bg-[#161718] border-[#e4f222] text-white shadow-sm cursor-pointer"
+                                    : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm cursor-pointer"
                                   : isDark
-                                  ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
-                                  : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                                  ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f] cursor-pointer"
+                                  : "bg-white border-gray-200 text-gray-700 hover:border-gray-300 cursor-pointer"
                               }`}>
                                 <input
                                   type="radio"
-                                  name="is_existing_member"
-                                  checked={isExistingMember === "no"}
-                                  onChange={() => handleMembershipStatusChange("no")}
+                                  name="member_type"
+                                  disabled={!memberRegEnabled}
+                                  checked={memberType === "member"}
+                                  onChange={() => memberRegEnabled && handleMemberTypeChange("member")}
                                   className="sr-only"
                                 />
                                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
-                                  isExistingMember === "no"
+                                  memberType === "member"
                                     ? isDark
                                       ? "border-[#e4f222] bg-[#e4f222]"
                                       : "border-indigo-600 bg-indigo-600"
@@ -1268,88 +1552,357 @@ export default function Register({
                                     ? "border-[#383b3f] bg-[#0f1011]"
                                     : "border-gray-300 bg-white"
                                 }`}>
-                                  {isExistingMember === "no" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
+                                  {memberType === "member" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
                                 </div>
-                                <div className="min-w-0">
-                                  <span className="text-[13px] font-[510] block leading-tight">No</span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[13px] font-[510] block leading-tight">Member</span>
+                                    <span className={`font-berkeley-mono text-[9px] px-1.5 py-0.5 rounded-[3px] border ${
+                                      memberRegEnabled
+                                        ? "bg-[#27a644]/10 text-[#27a644] border-[#27a644]/30"
+                                        : "bg-[#eb5757]/10 text-[#eb5757] border-[#eb5757]/30"
+                                    }`}>
+                                      {memberRegEnabled ? "OPEN" : "CLOSED"}
+                                    </span>
+                                  </div>
                                   <span className={`text-[11px] block truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
-                                    New applicant (Skills assessment)
+                                    Select a functional team & register
                                   </span>
                                 </div>
                               </label>
                             </div>
-                            {validationErrors.isExistingMember && (
+                            {validationErrors.memberType && (
                               <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
                                 <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                                <span>{validationErrors.isExistingMember}</span>
+                                <span>{validationErrors.memberType}</span>
                               </p>
                             )}
                           </div>
 
-                          {/* ── Society Functional Team Section ── */}
-                          <div id="field-memberFunction">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <label className={`block text-[13px] font-[510] ${
-                                isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                              }`}>
-                                Society Functional Team {isExistingMember === "yes" && <span className="text-[#eb5757]">*</span>}
-                              </label>
-                              {isExistingMember === "no" && (
-                                <span className="text-[11px] font-berkeley-mono text-[#f59e0b] flex items-center gap-1">
-                                  <Lock className="w-3 h-3" /> Locked for review
-                                </span>
-                              )}
-                            </div>
-
-                            {isExistingMember === "no" ? (
-                              <div className="space-y-1.5">
-                                <div className={`w-full px-3 py-2 rounded-[6px] border text-[13px] flex items-center justify-between ${
-                                  isDark
-                                    ? "bg-[#111214] border-[#23252a] text-[#71767e] cursor-not-allowed opacity-80"
-                                    : "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
-                                }`}>
-                                  <span className="font-berkeley-mono">Pending Executive Committee Assignment</span>
-                                  <Lock className="w-3.5 h-3.5 opacity-60" />
+                          {/* ── EXECUTIVE FLOW: Function-wise Dependent Dropdown System ── */}
+                          {memberType === "executive" && (
+                            <div className={`p-4 rounded-[10px] border space-y-4 animate-in fade-in-50 duration-200 ${
+                              isDark ? "bg-[#131416] border-[#27292e]" : "bg-gray-50/80 border-gray-200"
+                            }`}>
+                              <div className="flex items-start gap-2.5">
+                                <Briefcase className={`w-4 h-4 flex-shrink-0 mt-0.5 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`} />
+                                <div>
+                                  <span className={`text-[13px] font-[510] block ${isDark ? "text-white" : "text-gray-900"}`}>
+                                    ADSS Ruhuna Elected Executive Board
+                                  </span>
+                                  <span className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+                                    Choose whether you are applying as a Function Manager or Function-wise Vice President, then select your Function.
+                                  </span>
                                 </div>
-                                <p className={`text-[11.5px] italic ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
-                                  Your functional team will be assigned by the executive committee.
-                                </p>
                               </div>
-                            ) : (
-                              <>
-                                <select
-                                  value={memberFunction}
-                                  disabled={isExistingMember !== "yes"}
-                                  required={isExistingMember === "yes"}
-                                  onChange={(e) => {
-                                    setMemberFunction(e.target.value);
-                                    if (validationErrors.memberFunction) {
-                                      setValidationErrors((prev) => ({ ...prev, memberFunction: null }));
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                                    validationErrors.memberFunction
-                                      ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+
+                              {/* Executive Role Type: Function Manager vs Vice President */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecutiveTierChange("manager")}
+                                  className={`p-2.5 rounded-[6px] border text-left transition-all cursor-pointer ${
+                                    executiveTier === "manager"
+                                      ? isDark
+                                        ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
+                                        : "bg-indigo-50 border-indigo-500 text-indigo-900 shadow-sm"
                                       : isDark
-                                      ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
-                                      : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 shadow-sm"
+                                      ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
+                                      : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
                                   }`}
                                 >
-                                  {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => (
-                                    <option key={fn} value={fn}>
-                                      {fn}
+                                  <span className="text-[12.5px] font-[510] block">Function Manager</span>
+                                  <span className={`text-[11px] block ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                    Select Function & Manager role
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecutiveTierChange("vice_president")}
+                                  className={`p-2.5 rounded-[6px] border text-left transition-all cursor-pointer ${
+                                    executiveTier === "vice_president"
+                                      ? isDark
+                                        ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
+                                        : "bg-indigo-50 border-indigo-500 text-indigo-900 shadow-sm"
+                                      : isDark
+                                      ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
+                                      : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                                  }`}
+                                >
+                                  <span className="text-[12.5px] font-[510] block">Vice President</span>
+                                  <span className={`text-[11px] block ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                    Function-wise Vice President
+                                  </span>
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Function Dropdown */}
+                                <div id="field-executiveFunction">
+                                  <label
+                                    htmlFor="field-executiveFunction-select"
+                                    className={`block text-[13px] font-[510] mb-1.5 ${
+                                      isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                                    }`}
+                                  >
+                                    Function <span className="text-[#eb5757]">*</span>
+                                  </label>
+                                  <select
+                                    id="field-executiveFunction-select"
+                                    value={executiveFunction}
+                                    required
+                                    onChange={(e) => handleExecutiveFunctionChange(e.target.value)}
+                                    className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                      validationErrors.executiveFunction
+                                        ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                        : isDark
+                                        ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
+                                        : "bg-white border-gray-200 hover:border-gray-300 focus:border-gray-900 text-gray-900 shadow-sm"
+                                    }`}
+                                  >
+                                    <option value="">Select a function</option>
+                                    {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => (
+                                      <option key={fn} value={fn}>
+                                        {fn}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {validationErrors.executiveFunction && (
+                                    <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                      <span>{validationErrors.executiveFunction}</span>
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Manager / Vice President Dependent Dropdown */}
+                                <div id="field-executiveManager">
+                                  <label
+                                    htmlFor="field-executiveManager-select"
+                                    className={`block text-[13px] font-[510] mb-1.5 ${
+                                      isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                                    }`}
+                                  >
+                                    {executiveTier === "vice_president" ? "Vice President Role" : "Manager"}{" "}
+                                    <span className="text-[#eb5757]">*</span>
+                                  </label>
+                                  <select
+                                    id="field-executiveManager-select"
+                                    value={executiveManager}
+                                    disabled={!executiveFunction}
+                                    required
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setExecutiveManager(val);
+                                      if (val) {
+                                        setExecutiveTier(val.startsWith("Vice President") ? "vice_president" : "manager");
+                                      }
+                                      if (validationErrors.executiveManager) {
+                                        setValidationErrors((prev) => ({ ...prev, executiveManager: null }));
+                                      }
+                                    }}
+                                    className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                      !executiveFunction
+                                        ? isDark
+                                          ? "bg-[#111214] border-[#23252a] text-[#62666d] cursor-not-allowed opacity-70"
+                                          : "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                        : validationErrors.executiveManager
+                                        ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                        : isDark
+                                        ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
+                                        : "bg-white border-gray-200 hover:border-gray-300 focus:border-gray-900 text-gray-900 shadow-sm"
+                                    }`}
+                                  >
+                                    <option value="">
+                                      {!executiveFunction
+                                        ? "Select a function first"
+                                        : executiveTier === "vice_president"
+                                        ? "Select Vice President role"
+                                        : "Select a manager"}
                                     </option>
-                                  ))}
-                                </select>
-                                {validationErrors.memberFunction && (
-                                  <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
-                                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                                    <span>{validationErrors.memberFunction}</span>
+                                    {executiveFunction && EXECUTIVE_FUNCTION_VICE_PRESIDENTS[executiveFunction] && (
+                                      <optgroup label="Function Vice President">
+                                        <option value={EXECUTIVE_FUNCTION_VICE_PRESIDENTS[executiveFunction]}>
+                                          {EXECUTIVE_FUNCTION_VICE_PRESIDENTS[executiveFunction]}
+                                        </option>
+                                      </optgroup>
+                                    )}
+                                    {executiveFunction && (EXECUTIVE_FUNCTION_MANAGERS[executiveFunction] || []).length > 0 && (
+                                      <optgroup label="Function Managers">
+                                        {(EXECUTIVE_FUNCTION_MANAGERS[executiveFunction] || []).map((mgr) => (
+                                          <option key={mgr} value={mgr}>
+                                            {mgr}
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                  </select>
+                                  {validationErrors.executiveManager && (
+                                    <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                      <span>{validationErrors.executiveManager}</span>
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── MEMBER FLOW: Function-wise information cards ── */}
+                          {memberType === "member" && (
+                            <div id="field-memberFunction" className="space-y-3 pt-1 animate-in fade-in-50 duration-200">
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <h3 className={`text-[14px] font-[590] ${isDark ? "text-white" : "text-gray-900"}`}>
+                                    Function-wise information. <span className="text-[#eb5757]">*</span>
+                                  </h3>
+                                  <p className={`text-[12px] ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+                                    Read each function&apos;s scope and click Register on an available function. Full functions cannot be selected.
                                   </p>
+                                </div>
+                                {availabilityLoading && (
+                                  <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                    Syncing...
+                                  </span>
                                 )}
-                              </>
-                            )}
-                          </div>
+                              </div>
+
+                              <div className={`space-y-3 p-1 rounded-[10px] ${
+                                validationErrors.memberFunction
+                                  ? isDark
+                                    ? "border border-[#eb5757]/60 bg-[#eb5757]/5"
+                                    : "border border-rose-400 bg-rose-50/40"
+                                  : ""
+                              }`}>
+                                {FUNCTION_INFO_CARDS.map((card) => {
+                                  const Icon = card.icon;
+                                  const avail = functionAvailability[card.functionName] || {
+                                    filled: 0,
+                                    capacity: card.defaultCapacity || 30,
+                                    isFull: false,
+                                  };
+                                  const isFull = Boolean(avail.isFull) || avail.filled >= avail.capacity;
+                                  const isSelected = memberFunction === card.functionName;
+
+                                  return (
+                                    <div
+                                      key={card.id}
+                                      className={`rounded-[10px] border p-4 transition-all ${
+                                        isFull
+                                          ? isDark
+                                            ? "bg-[#0c0d0e] border-[#1f2126] opacity-55 grayscale cursor-not-allowed"
+                                            : "bg-gray-100/90 border-gray-200 opacity-60 grayscale cursor-not-allowed"
+                                          : isSelected
+                                          ? isDark
+                                            ? "bg-[#15171b] border-[#e4f222] shadow-sm shadow-[#e4f222]/10"
+                                            : "bg-indigo-50/70 border-indigo-500 shadow-sm"
+                                          : isDark
+                                          ? "bg-[#121316] border-[#25272d] hover:border-[#3a3d45]"
+                                          : "bg-white border-gray-200 hover:border-gray-300 shadow-sm"
+                                      }`}
+                                    >
+                                      {/* Card Header: Function Name + Availability Badge */}
+                                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <div
+                                            className="w-7 h-7 rounded-[6px] flex items-center justify-center flex-shrink-0"
+                                            style={{
+                                              backgroundColor: `${card.color}18`,
+                                              color: card.color,
+                                              border: `1px solid ${card.color}35`,
+                                            }}
+                                          >
+                                            <Icon className="w-4 h-4" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <span className={`text-[14px] font-[590] block leading-tight ${
+                                              isDark ? "text-white" : "text-gray-900"
+                                            }`}>
+                                              {card.functionName}
+                                            </span>
+                                            <span className={`text-[11px] font-berkeley-mono ${
+                                              isDark ? "text-[#8a8f98]" : "text-gray-500"
+                                            }`}>
+                                              {card.badge}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <span
+                                          className={`text-[11.5px] font-berkeley-mono px-2.5 py-1 rounded-[6px] border flex-shrink-0 ${
+                                            isFull
+                                              ? isDark
+                                                ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]"
+                                                : "bg-red-50 border-red-200 text-red-700"
+                                              : isDark
+                                              ? "bg-[#181a1f] border-[#2e3138] text-[#d0d6e0]"
+                                              : "bg-gray-50 border-gray-300 text-gray-800"
+                                          }`}
+                                        >
+                                          {isFull
+                                            ? `Full ${avail.filled}/${avail.capacity}`
+                                            : `Now available ${avail.filled}/${avail.capacity}`}
+                                        </span>
+                                      </div>
+
+                                      {/* 4-Line Function Description */}
+                                      <div className={`space-y-1 text-[12.5px] leading-relaxed mb-3.5 ${
+                                        isDark ? "text-[#9ca3af]" : "text-gray-600"
+                                      }`}>
+                                        {card.descriptionLines.map((line, idx) => (
+                                          <p key={idx}>{line}</p>
+                                        ))}
+                                      </div>
+
+                                      {/* Register / Selected Action */}
+                                      <div className="flex justify-center sm:justify-end">
+                                        <button
+                                          type="button"
+                                          disabled={isFull}
+                                          onClick={() => handleSelectMemberFunction(card.functionName)}
+                                          className={`px-5 py-1.5 rounded-[6px] border text-[12.5px] font-[510] transition-all flex items-center gap-1.5 ${
+                                            isFull
+                                              ? isDark
+                                                ? "bg-[#161718] border-[#23252a] text-[#62666d] cursor-not-allowed"
+                                                : "bg-gray-200 border-gray-300 text-gray-500 cursor-not-allowed"
+                                              : isSelected
+                                              ? isDark
+                                                ? "bg-[#e4f222] border-[#e4f222] text-[#08090a] font-semibold cursor-pointer"
+                                                : "bg-indigo-600 border-indigo-600 text-white font-semibold cursor-pointer"
+                                              : isDark
+                                              ? "bg-[#161718] border-[#32353e] text-[#d0d6e0] hover:text-white hover:border-[#e4f222]/60 cursor-pointer"
+                                              : "bg-white border-gray-300 text-gray-800 hover:border-indigo-500 hover:text-indigo-700 cursor-pointer shadow-sm"
+                                          }`}
+                                        >
+                                          {isFull ? (
+                                            <>
+                                              <Lock className="w-3.5 h-3.5" />
+                                              <span>Full — Cannot Select</span>
+                                            </>
+                                          ) : isSelected ? (
+                                            <>
+                                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                              <span>Registered ({card.functionName})</span>
+                                            </>
+                                          ) : (
+                                            <span>Register</span>
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {validationErrors.memberFunction && (
+                                <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                  <span>{validationErrors.memberFunction}</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </>
                       )}
 
@@ -1371,8 +1924,8 @@ export default function Register({
                           className="linear-btn-primary px-5 py-2.5 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
                         >
                           <span>
-                            {roleMode === "member" && isExistingMember === "no"
-                              ? "Next: Placement Preferences"
+                            {roleMode === "member" && memberType === "member"
+                              ? "Next: Make an Appeal"
                               : "Next: Pass Photo & Credentials"}
                           </span>
                           <ArrowRight className="w-4 h-4" />
@@ -1381,26 +1934,263 @@ export default function Register({
                     </div>
                   )}
 
-                  {/* ── STEP 2 (when 4 steps): Placement & Focus Preferences ── */}
-                  {totalSteps === 4 && currentStep === 2 && (
-                    <div className="space-y-4 animate-in fade-in-50 duration-200">
-                      <div className={`flex items-center gap-2 pb-1 border-b ${
+                  {/* ── STEP 2 (when Member flow = 3 steps): Make an Appeal ── */}
+                  {totalSteps === 3 && currentStep === 2 && (
+                    <div className="space-y-5 animate-in fade-in-50 duration-200">
+                      <div className={`flex items-center justify-between pb-1 border-b ${
                         isDark ? "border-[#23252a]/60" : "border-gray-200"
                       }`}>
                         <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
                           isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
                         }`}>
-                          02 // Placement & Focus Preferences
+                          02 // Function Appeal
+                        </span>
+                        <span className={`text-[11.5px] font-berkeley-mono px-2 py-0.5 rounded-[4px] border ${
+                          isDark
+                            ? "bg-[#161718] border-[#27292e] text-[#e4f222]"
+                            : "bg-indigo-50 border-indigo-200 text-indigo-700"
+                        }`}>
+                          Registered: {memberFunction}
                         </span>
                       </div>
 
-                      <PlacementQuestionnaire
-                        step="preferences"
-                        value={questionnaire}
-                        onChange={handleQuestionnaireChange}
-                        isDark={isDark}
-                        validationErrors={validationErrors}
-                      />
+                      {/* Ask whether member wants to make an appeal */}
+                      <div id="field-wantsAppeal" className={`space-y-2.5 p-2.5 -mx-2.5 rounded-[8px] transition-all ${
+                        validationErrors.wantsAppeal
+                          ? "border border-[#eb5757] ring-1 ring-[#eb5757] bg-[#eb5757]/5"
+                          : ""
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <label className={`block text-[13.5px] font-[510] ${
+                            isDark ? "text-white" : "text-gray-900"
+                          }`}>
+                            Do you want to make an appeal for another function? <span className="text-[#eb5757]">*</span>
+                          </label>
+                          <span className={`text-[11px] font-berkeley-mono ${
+                            validationErrors.wantsAppeal
+                              ? "text-[#eb5757] font-semibold"
+                              : isDark ? "text-[#8a8f98]" : "text-gray-500"
+                          }`}>
+                            Required
+                          </span>
+                        </div>
+                        <p className={`text-[12px] leading-relaxed ${isDark ? "text-[#8a8f98]" : "text-gray-600"}`}>
+                          If your first-choice function was full or you want to move to another function based on your skills, select <strong>Yes</strong> to submit an appeal.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          <label className={`p-3 rounded-[6px] border flex items-center gap-3 cursor-pointer transition-all ${
+                            wantsAppeal === "no"
+                              ? isDark
+                                ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
+                                : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm"
+                              : isDark
+                              ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
+                              : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                          }`}>
+                            <input
+                              type="radio"
+                              name="wants_appeal"
+                              checked={wantsAppeal === "no"}
+                              onChange={() => {
+                                setWantsAppeal("no");
+                                setAppealFunction("");
+                                setAppealReason("");
+                                setErrorMessage("");
+                                setValidationErrors((prev) => ({
+                                  ...prev,
+                                  wantsAppeal: null,
+                                  appealFunction: null,
+                                  appealReason: null,
+                                }));
+                              }}
+                              className="sr-only"
+                            />
+                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                              wantsAppeal === "no"
+                                ? isDark
+                                  ? "border-[#e4f222] bg-[#e4f222]"
+                                  : "border-indigo-600 bg-indigo-600"
+                                : isDark
+                                ? "border-[#383b3f] bg-[#0f1011]"
+                                : "border-gray-300 bg-white"
+                            }`}>
+                              {wantsAppeal === "no" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[13px] font-[510] block leading-tight">No, keep {memberFunction}</span>
+                              <span className={`text-[11px] block truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                Continue without an appeal
+                              </span>
+                            </div>
+                          </label>
+
+                          <label className={`p-3 rounded-[6px] border flex items-center gap-3 cursor-pointer transition-all ${
+                            wantsAppeal === "yes"
+                              ? isDark
+                                ? "bg-[#161718] border-[#e4f222] text-white shadow-sm"
+                                : "bg-indigo-50 border-indigo-500 text-indigo-900 font-medium shadow-sm"
+                              : isDark
+                              ? "bg-[#0f1011] border-[#23252a] text-[#8a8f98] hover:text-[#d0d6e0] hover:border-[#383b3f]"
+                              : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                          }`}>
+                            <input
+                              type="radio"
+                              name="wants_appeal"
+                              checked={wantsAppeal === "yes"}
+                              onChange={() => {
+                                setWantsAppeal("yes");
+                                setErrorMessage("");
+                                setValidationErrors((prev) => ({ ...prev, wantsAppeal: null }));
+                              }}
+                              className="sr-only"
+                            />
+                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                              wantsAppeal === "yes"
+                                ? isDark
+                                  ? "border-[#e4f222] bg-[#e4f222]"
+                                  : "border-indigo-600 bg-indigo-600"
+                                : isDark
+                                ? "border-[#383b3f] bg-[#0f1011]"
+                                : "border-gray-300 bg-white"
+                            }`}>
+                              {wantsAppeal === "yes" && <div className="w-1.5 h-1.5 rounded-full bg-[#08090a]" />}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-[13px] font-[510] block leading-tight">Yes, make an appeal</span>
+                              <span className={`text-[11px] block truncate ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                                Request a move & explain skills
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+                        {validationErrors.wantsAppeal && (
+                          <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{validationErrors.wantsAppeal}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Make an appeal Panel (shown when Yes is selected) */}
+                      {wantsAppeal === "yes" && (
+                        <div className={`p-5 rounded-[10px] border space-y-4 animate-in fade-in-50 duration-200 ${
+                          isDark ? "bg-[#131416] border-[#2a2d34]" : "bg-gray-50/80 border-gray-200"
+                        }`}>
+                          <div>
+                            <h3 className={`text-[18px] font-[590] tracking-[-0.015em] ${
+                              isDark ? "text-white" : "text-gray-900"
+                            }`}>
+                              Make an appeal
+                            </h3>
+                            <p className={`text-[12.5px] mt-1 leading-relaxed ${
+                              isDark ? "text-[#8a8f98]" : "text-gray-600"
+                            }`}>
+                              Tell the executive committee which function you want to move to and explain your relevant skills.
+                            </p>
+                            <p className={`text-[13px] font-[510] mt-2 ${
+                              isDark ? "text-[#d0d6e0]" : "text-gray-800"
+                            }`}>
+                              What are your skills — explain
+                            </p>
+                          </div>
+
+                          {/* Target Function Dropdown */}
+                          <div id="field-appealFunction" className="max-w-sm">
+                            <label
+                              htmlFor="field-appealFunction-select"
+                              className={`block text-[12.5px] font-[510] mb-1.5 ${
+                                isDark ? "text-[#d0d6e0]" : "text-gray-700"
+                              }`}
+                            >
+                              Function <span className="text-[#eb5757]">*</span>
+                            </label>
+                            <select
+                              id="field-appealFunction-select"
+                              value={appealFunction}
+                              onChange={(e) => {
+                                setAppealFunction(e.target.value);
+                                if (validationErrors.appealFunction) {
+                                  setValidationErrors((prev) => ({ ...prev, appealFunction: null }));
+                                }
+                              }}
+                              className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                validationErrors.appealFunction
+                                  ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                  : isDark
+                                  ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0]"
+                                  : "bg-white border-gray-200 hover:border-gray-300 focus:border-gray-900 text-gray-900 shadow-sm"
+                              }`}
+                            >
+                              <option value="">Select target function...</option>
+                              {FUNCTION_INFO_CARDS.filter((c) => c.functionName !== memberFunction).map((c) => {
+                                const avail = functionAvailability[c.functionName];
+                                const isFull = avail && (avail.isFull || avail.filled >= avail.capacity);
+                                return (
+                                  <option key={c.functionName} value={c.functionName}>
+                                    {c.functionName}{isFull ? " (Full — Appeal)" : ""}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            {validationErrors.appealFunction && (
+                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{validationErrors.appealFunction}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Type / Skills Explanation Textarea */}
+                          <div id="field-appealReason">
+                            <label
+                              htmlFor="field-appealReason-input"
+                              className={`block text-[12.5px] font-[510] mb-1.5 ${
+                                isDark ? "text-[#d0d6e0]" : "text-gray-700"
+                              }`}
+                            >
+                              Your skills & reason for appeal <span className="text-[#eb5757]">*</span>
+                            </label>
+                            <textarea
+                              id="field-appealReason-input"
+                              rows={4}
+                              placeholder="Type your skills, relevant experience, and why you want to join this function..."
+                              value={appealReason}
+                              onChange={(e) => {
+                                setAppealReason(e.target.value);
+                                if (validationErrors.appealReason) {
+                                  setValidationErrors((prev) => ({ ...prev, appealReason: null }));
+                                }
+                              }}
+                              className={`w-full px-3 py-2.5 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none resize-y ${
+                                validationErrors.appealReason
+                                  ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                  : isDark
+                                  ? "bg-[#0f1011] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                  : "bg-white border-gray-200 hover:border-gray-300 focus:border-gray-900 text-gray-900 placeholder:text-gray-400 shadow-sm"
+                              }`}
+                            />
+                            {validationErrors.appealReason && (
+                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{validationErrors.appealReason}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Done Button */}
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={handleNextStep}
+                              className="linear-btn-primary px-5 py-2 text-[13px] font-[510] flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Check className="w-4 h-4" />
+                              <span>Done</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Step 2 Inline Error Banner */}
                       {errorMessage && (
@@ -1412,7 +2202,7 @@ export default function Register({
                         </div>
                       )}
 
-                      {/* Step 2 Actions */}
+                      {/* Step 2 Navigation Footer */}
                       <div className={`pt-4 flex items-center justify-between border-t ${
                         isDark ? "border-[#23252a]/60" : "border-gray-200"
                       }`}>
@@ -1429,74 +2219,16 @@ export default function Register({
                           <span>Back to Identity</span>
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={handleNextStep}
-                          className="linear-btn-primary px-5 py-2 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
-                        >
-                          <span>Next: Skills & Evaluation</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── STEP 3 (when 4 steps): Domain Skills & Evaluation ── */}
-                  {totalSteps === 4 && currentStep === 3 && (
-                    <div className="space-y-4 animate-in fade-in-50 duration-200">
-                      <div className={`flex items-center gap-2 pb-1 border-b ${
-                        isDark ? "border-[#23252a]/60" : "border-gray-200"
-                      }`}>
-                        <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
-                          isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
-                        }`}>
-                          03 // Domain Skills & Evaluation
-                        </span>
-                      </div>
-
-                      <PlacementQuestionnaire
-                        step="skills"
-                        value={questionnaire}
-                        onChange={handleQuestionnaireChange}
-                        isDark={isDark}
-                        validationErrors={validationErrors}
-                      />
-
-                      {/* Step 3 Inline Error Banner */}
-                      {errorMessage && (
-                        <div className={`p-3 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
-                          isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
-                        }`}>
-                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                          <div className="leading-snug">{errorMessage}</div>
-                        </div>
-                      )}
-
-                      {/* Step 3 Actions */}
-                      <div className={`pt-4 flex items-center justify-between border-t ${
-                        isDark ? "border-[#23252a]/60" : "border-gray-200"
-                      }`}>
-                        <button
-                          type="button"
-                          onClick={handlePrevStep}
-                          className={`px-4 py-2 rounded-[6px] border text-[13px] font-[510] flex items-center gap-2 cursor-pointer transition-colors ${
-                            isDark
-                              ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#383b3f]"
-                              : "bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:bg-gray-50 shadow-sm"
-                          }`}
-                        >
-                          <ArrowLeft className="w-4 h-4" />
-                          <span>Back to Preferences</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleNextStep}
-                          className="linear-btn-primary px-5 py-2 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
-                        >
-                          <span>Next: Pass Photo & Credentials</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
+                        {wantsAppeal !== "yes" && (
+                          <button
+                            type="button"
+                            onClick={handleNextStep}
+                            className="linear-btn-primary px-5 py-2 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
+                          >
+                            <span>Next: Pass Photo & Credentials</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1512,7 +2244,7 @@ export default function Register({
                           <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
                             isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
                           }`}>
-                            {totalSteps === 4 ? "04" : "02"} // Member Photo (For Digital Pass)
+                            {totalSteps === 3 ? "03" : "02"} // Member Photo (For Digital Pass)
                           </span>
                         </div>
 
@@ -1910,8 +2642,8 @@ export default function Register({
                         )}
                       </div>
 
-                      {/* Editorial Review Notice Banner (when No is selected) */}
-                      {roleMode === "member" && isExistingMember === "no" && (
+                      {/* Appeal Notice Banner (when Member selected Yes to Make an appeal) */}
+                      {roleMode === "member" && memberType === "member" && wantsAppeal === "yes" && (
                         <div className={`p-3.5 rounded-[8px] border text-[13px] flex items-start gap-2.5 ${
                           isDark
                             ? "bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]"
@@ -1920,16 +2652,16 @@ export default function Register({
                           <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#f59e0b]" />
                           <div className="leading-relaxed">
                             <strong className="font-[510] block mb-0.5">
-                              Registration Submitted for Editorial Review
+                              Function Appeal Included ({memberFunction} → {appealFunction})
                             </strong>
                             <span>
-                              Your functional team will be assigned by the executive committee based on your skills assessment.
+                              Your initial selection ({memberFunction}) and your appeal for {appealFunction} will be reviewed by the executive committee.
                             </span>
                           </div>
                         </div>
                       )}
 
-                      {/* Step 4 Inline Error Banner */}
+                      {/* Final Step Inline Error Banner */}
                       {errorMessage && (
                         <div className={`p-3 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
                           isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
@@ -1958,7 +2690,13 @@ export default function Register({
 
                         <button
                           type="submit"
-                          disabled={loading || (!regEnabled && roleMode === "member")}
+                          disabled={
+                            loading ||
+                            (roleMode === "member" &&
+                              (!regEnabled ||
+                                (memberType === "executive" && !executiveRegEnabled) ||
+                                (memberType === "member" && !memberRegEnabled)))
+                          }
                           className="linear-btn-primary flex-1 py-2.5 text-[14px] font-[510] tracking-[-0.011em] disabled:opacity-50 disabled:cursor-not-allowed justify-center"
                         >
                           {loading ? (
@@ -1969,8 +2707,8 @@ export default function Register({
                           ) : (
                             <>
                               <span>
-                                {roleMode === "member" && isExistingMember === "no"
-                                  ? "Submit Application for Editorial Review"
+                                {roleMode === "member" && memberType === "member" && wantsAppeal === "yes"
+                                  ? "Submit Registration & Appeal"
                                   : "Complete Registration"}
                               </span>
                               <ArrowRight className="w-4 h-4" />

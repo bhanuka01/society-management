@@ -237,14 +237,14 @@ LinkedIn: ${profileTarget.linkedin_url || "None"}`;
           ) : (
             <>
               {/* ── Profile Hero Header ── */}
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center bg-[#f4f5f6]/40 dark:bg-[#161718]/40 border border-[#e4e4e7] dark:border-[#23252a] rounded-[10px] p-4">
+              <div className="dossier-hero flex flex-col sm:!flex-row gap-4 sm:gap-5 items-center sm:!items-center text-center sm:!text-left bg-[#f4f5f6]/40 dark:bg-[#161718]/40 border border-[#e4e4e7] dark:border-[#23252a] rounded-[10px] p-4 sm:p-5">
                 {/* Avatar */}
                 <div className="relative flex-shrink-0">
                   {profileTarget.profile_image_url ? (
                     <img
                       src={profileTarget.profile_image_url}
                       alt={profileTarget.preferred_name || profileTarget.name}
-                      className="w-20 h-20 rounded-[10px] object-cover border border-[#e4e4e7] dark:border-[#23252a] shadow-sm bg-[#f4f5f6] dark:bg-[#161718]"
+                      className="dossier-avatar w-20 h-20 sm:!w-28 sm:!h-28 rounded-[10px] sm:rounded-[12px] object-cover border border-[#e4e4e7] dark:border-[#23252a] shadow-sm bg-[#f4f5f6] dark:bg-[#161718]"
                       onError={(e) => {
                         e.target.onerror = null;
                         e.target.src =
@@ -253,13 +253,13 @@ LinkedIn: ${profileTarget.linkedin_url || "None"}`;
                       }}
                     />
                   ) : (
-                    <div className="w-20 h-20 rounded-[10px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center font-berkeley-mono text-[24px] font-[510] text-[#3f3f46] dark:text-[#d0d6e0]">
+                    <div className="dossier-avatar w-20 h-20 sm:!w-28 sm:!h-28 rounded-[10px] sm:rounded-[12px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center font-berkeley-mono text-[24px] sm:text-[32px] font-[510] text-[#3f3f46] dark:text-[#d0d6e0]">
                       {getInitials(profileTarget.preferred_name || profileTarget.name)}
                     </div>
                   )}
 
                   <span
-                    className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-[#0f1011] ${
+                    className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border-2 border-white dark:border-[#0f1011] ${
                       profileTarget.status === "active" || profileTarget.status === "approved" || !profileTarget.status
                         ? "bg-[#27a644]"
                         : "bg-[#f59e0b]"
@@ -269,11 +269,11 @@ LinkedIn: ${profileTarget.linkedin_url || "None"}`;
                 </div>
 
                 {/* Main Identification */}
-                <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="dossier-hero-info flex-1 min-w-0 w-full space-y-1.5 sm:space-y-2">
                   <div>
                     {/* Calling / Preferred Name */}
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <h1 className="text-[20px] sm:text-[22px] font-[510] text-[#0a0a0b] dark:text-[#ffffff] tracking-[-0.022em] leading-tight">
+                    <div className="dossier-hero-row flex items-baseline justify-center sm:!justify-start gap-2 flex-wrap">
+                      <h1 className="text-[20px] sm:text-[23px] font-[510] text-[#0a0a0b] dark:text-[#ffffff] tracking-[-0.022em] leading-tight">
                         {profileTarget.preferred_name || profileTarget.name}
                       </h1>
                       {profileTarget.preferred_name && (
@@ -285,14 +285,14 @@ LinkedIn: ${profileTarget.linkedin_url || "None"}`;
 
                     {/* Legal Full Name */}
                     {profileTarget.preferred_name && profileTarget.name && (
-                      <div className="text-[12.5px] text-[#62666d] dark:text-[#8a8f98] mt-0.5 font-[400] truncate">
+                      <div className="text-[12.5px] sm:text-[13px] text-[#62666d] dark:text-[#8a8f98] mt-1 font-[400] truncate">
                         Full Name: <span className="text-[#3f3f46] dark:text-[#d0d6e0] font-[510]">{profileTarget.name}</span>
                       </div>
                     )}
                   </div>
 
                   {/* Identification Pill & Badges */}
-                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <div className="dossier-hero-row flex items-center justify-center sm:!justify-start gap-1.5 flex-wrap pt-0.5">
                     {/* ST ID with copy */}
                     <button
                       type="button"

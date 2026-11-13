@@ -294,13 +294,12 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
           <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 no-print">
             {/* Search Input */}
             <div className="relative flex-1 max-w-md">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#62666d] dark:text-[#8a8f98]" />
               <input
                 type="text"
                 placeholder="Search terms, QR pass rules, or conduct guidelines..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] focus:border-[#62666d] dark:focus:border-[#d0d6e0] rounded-[6px] pl-9 pr-8 py-2 text-[12.5px] text-[#0a0a0b] dark:text-[#ffffff] placeholder-[#8a8f98] dark:placeholder-[#62666d] outline-none transition-colors font-sans"
+                className="w-full bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] focus:border-[#62666d] dark:focus:border-[#d0d6e0] rounded-[6px] pl-3 pr-8 py-2 text-[12.5px] text-[#0a0a0b] dark:text-[#ffffff] placeholder-[#8a8f98] dark:placeholder-[#62666d] outline-none transition-colors font-sans"
               />
               {searchTerm && (
                 <button

@@ -6,6 +6,7 @@ import PhoneContact from "../components/PhoneContact";
 import MinimalFooter from "../components/MinimalFooter";
 import { useStudentProfile } from "../components/StudentProfileContext";
 import { useCycle } from "../context/CycleContext";
+import { OFFICIAL_FUNCTIONAL_TEAMS } from "../components/PlacementQuestionnaire";
 import { 
   User, 
   Edit3, 
@@ -307,7 +308,14 @@ export default function MyInfo({ session, theme }) {
   };
 
   useEffect(() => {
-    if (!session.stId) return;
+    if (!session.stId) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    setProfile(null);
 
     const loadInfo = async () => {
       setLoading(true);
@@ -317,6 +325,8 @@ export default function MyInfo({ session, theme }) {
           .select("*")
           .eq("st_id", session.stId)
           .maybeSingle();
+
+        if (!active) return;
 
         if (member) {
           const [ocRecords, attRecords] = await Promise.all([
@@ -329,6 +339,8 @@ export default function MyInfo({ session, theme }) {
               .select("attend, events(name, date)")
               .eq("st_id", session.stId)
           ]);
+
+          if (!active) return;
 
           const interviewerEmails = Array.from(
             new Set((ocRecords.data || []).map(o => o.interviewer_email).filter(Boolean))
@@ -346,6 +358,8 @@ export default function MyInfo({ session, theme }) {
                 .select("email, name, preferred_name")
                 .in("email", interviewerEmails)
             ]);
+
+            if (!active) return;
 
             if (profileRes.data) {
               profileRes.data.forEach(p => {
@@ -369,12 +383,15 @@ export default function MyInfo({ session, theme }) {
       } catch (err) {
         console.error("Error loading info:", err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     Promise.all([loadInfo(), loadRequests(), loadSettingsAndEvents()]);
-  }, [session.stId]);
+    return () => {
+      active = false;
+    };
+  }, [session.stId, session.userId]);
 
   const openRequestModal = () => {
     setRequestForm({
@@ -1305,9 +1322,7 @@ export default function MyInfo({ session, theme }) {
               {settings.member_edit_function && (
                 <div>
                   <label className={`block text-[12px] mb-1 font-[510] ${isDark ? "text-[#8a8f98]" : "text-gray-700"}`}>Member Function</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Finance, Logistics, PR, Editorial..."
+                  <select
                     value={editForm.member_function}
                     onChange={e => setEditForm({ ...editForm, member_function: e.target.value })}
                     className={`w-full rounded-[6px] px-3 py-2 text-[13px] border focus:outline-none transition-colors ${
@@ -1315,7 +1330,20 @@ export default function MyInfo({ session, theme }) {
                         ? "bg-[#08090a] border-[#23252a] text-white focus:border-[#d0d6e0]" 
                         : "bg-white border-gray-300 text-gray-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     }`}
-                  />
+                  >
+                    <option value="">Select Function...</option>
+                    {OFFICIAL_FUNCTIONAL_TEAMS.map((fn) => (
+                      <option key={fn} value={fn}>
+                        {fn}
+                      </option>
+                    ))}
+                    {editForm.member_function &&
+                      !OFFICIAL_FUNCTIONAL_TEAMS.includes(editForm.member_function) && (
+                        <option value={editForm.member_function}>
+                          {editForm.member_function}
+                        </option>
+                      )}
+                  </select>
                 </div>
               )}
 

@@ -60,6 +60,7 @@ import {
   LayoutGrid,
   List as ListIcon,
   RefreshCw,
+  Loader2,
   Sparkles,
   Info,
   ChevronRight,
@@ -315,7 +316,21 @@ export default function Documents({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [downloadingIds, setDownloadingIds] = useState(() => new Set());
+  const [downloadedIds, setDownloadedIds] = useState(() => new Set());
+  const [downloadToast, setDownloadToast] = useState(null);
+  const activeDownloadIdsRef = useRef(new Set());
+  const downloadToastTimerRef = useRef(null);
+  const downloadedResetTimersRef = useRef(new Map());
   const [r2ConfigStatus, setR2ConfigStatus] = useState(null);
+
+  useEffect(() => {
+    return () => {
+      if (downloadToastTimerRef.current) clearTimeout(downloadToastTimerRef.current);
+      downloadedResetTimersRef.current.forEach((timer) => clearTimeout(timer));
+      downloadedResetTimersRef.current.clear();
+    };
+  }, []);
 
   // Check R2 status on mount
   useEffect(() => {
@@ -748,16 +763,158 @@ export default function Documents({
     }
   };
 
-  // Download document handler
+  const showDownloadToast = (nextToast, autoHideMs = 0) => {
+    if (downloadToastTimerRef.current) {
+      clearTimeout(downloadToastTimerRef.current);
+      downloadToastTimerRef.current = null;
+    }
+    setDownloadToast(nextToast);
+    if (autoHideMs > 0) {
+      downloadToastTimerRef.current = setTimeout(() => {
+        setDownloadToast(null);
+        downloadToastTimerRef.current = null;
+      }, autoHideMs);
+    }
+  };
+
+  // Download document handler with duplicate-click guard and immediate feedback
   const handleDownloadDocument = async (doc) => {
+    if (!doc?.id) return;
+    if (activeDownloadIdsRef.current.has(doc.id)) {
+      return;
+    }
+
+    activeDownloadIdsRef.current.add(doc.id);
+    setDownloadingIds((prev) => {
+      const next = new Set(prev);
+      next.add(doc.id);
+      return next;
+    });
+
+    showDownloadToast({
+      type: "loading",
+      text: `Preparing download for "${doc.name}"...`
+    });
+
+    let started = false;
     try {
-      setFeedbackMsg({ type: "info", text: `Downloading "${doc.name}"...` });
       await downloadDocumentFile(doc);
-      setFeedbackMsg({ type: "success", text: `Download started for "${doc.name}".` });
+      started = true;
+
+      setDownloadedIds((prev) => {
+        const next = new Set(prev);
+        next.add(doc.id);
+        return next;
+      });
+
+      showDownloadToast(
+        {
+          type: "success",
+          text: `Download started for "${doc.name}". Check your browser downloads.`
+        },
+        3500
+      );
+
+      if (downloadedResetTimersRef.current.has(doc.id)) {
+        clearTimeout(downloadedResetTimersRef.current.get(doc.id));
+      }
+      const timer = setTimeout(() => {
+        activeDownloadIdsRef.current.delete(doc.id);
+        setDownloadedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(doc.id);
+          return next;
+        });
+        downloadedResetTimersRef.current.delete(doc.id);
+      }, 2500);
+      downloadedResetTimersRef.current.set(doc.id, timer);
     } catch (err) {
       console.error("Download error:", err);
-      setFeedbackMsg({ type: "error", text: err.message || "Failed to download document." });
+      const errText = err.message || "Failed to download document.";
+      setFeedbackMsg({ type: "error", text: errText });
+      showDownloadToast({ type: "error", text: errText }, 5000);
+    } finally {
+      setDownloadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(doc.id);
+        return next;
+      });
+      if (!started) {
+        activeDownloadIdsRef.current.delete(doc.id);
+      }
     }
+  };
+
+  const renderDownloadButton = (doc, { variant = "icon", label = "Download", title = "Download file" } = {}) => {
+    if (!doc) return null;
+    const isDownloading = downloadingIds.has(doc.id);
+    const isStarted = downloadedIds.has(doc.id);
+    const isBusy = isDownloading || isStarted;
+
+    if (variant === "icon") {
+      return (
+        <button
+          onClick={() => handleDownloadDocument(doc)}
+          disabled={isBusy}
+          className={`h-7 px-2 rounded-[4px] border text-[11px] flex items-center gap-1 transition-colors disabled:cursor-not-allowed ${
+            isDownloading
+              ? isDark
+                ? "bg-[#e4f222]/10 text-[#e4f222] border-[#e4f222]/40"
+                : "bg-indigo-50 text-indigo-600 border-indigo-300"
+              : isStarted
+              ? isDark
+                ? "bg-[#27a644]/10 text-[#27a644] border-[#27a644]/40"
+                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              : isDark
+              ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
+              : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-xs"
+          }`}
+          title={isDownloading ? "Preparing download..." : isStarted ? "Download started" : title}
+          aria-label={isDownloading ? `Preparing download for ${doc.name}` : isStarted ? `Download started for ${doc.name}` : `Download ${doc.name}`}
+        >
+          {isDownloading ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : isStarted ? (
+            <Check className="w-3 h-3" />
+          ) : (
+            <Download className="w-3 h-3" />
+          )}
+        </button>
+      );
+    }
+
+    return (
+      <button
+        onClick={() => handleDownloadDocument(doc)}
+        disabled={isBusy}
+        className={`h-8 ${variant === "cta" ? "px-4 inline-flex" : "px-3 flex"} rounded-[6px] text-xs font-[510] items-center gap-1.5 transition-colors disabled:cursor-not-allowed ${
+          isStarted
+            ? isDark
+              ? "bg-[#27a644] text-white"
+              : "bg-emerald-600 text-white shadow-xs"
+            : isDark
+            ? "bg-[#e4f222] hover:bg-[#d5e31d] disabled:opacity-75 text-black"
+            : "bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 text-white shadow-xs"
+        }`}
+      >
+        {isDownloading ? (
+          <>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Preparing...
+          </>
+        ) : isStarted ? (
+          <>
+            <Check className="w-3.5 h-3.5" />
+            Download Started
+          </>
+        ) : (
+          <>
+            <Download className="w-3.5 h-3.5" />
+            {label}
+          </>
+        )}
+      </button>
+    );
   };
 
   // Copy signed link handler
@@ -1423,13 +1580,12 @@ export default function Documents({
       <div className={`${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200 shadow-xs"} border rounded-[8px] p-2 mb-3.5 flex flex-wrap items-center justify-between gap-2`}>
         {/* Search input */}
         <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-60 md:w-72 flex-shrink-0">
-          <Search className={`w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 ${isDark ? "text-[#8a8f98]" : "text-gray-400"}`} />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by title, filename, desc..."
-            className={`w-full h-7 pl-7 pr-7 text-[11px] rounded-[5px] border transition-colors focus:outline-none ${
+            className={`w-full h-7 pl-3 pr-7 text-[11px] rounded-[5px] border transition-colors focus:outline-none ${
               isDark
                 ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#e4f222]"
                 : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 shadow-xs"
@@ -1705,17 +1861,7 @@ export default function Documents({
                         View
                       </button>
 
-                      <button
-                        onClick={() => handleDownloadDocument(doc)}
-                        className={`h-7 px-2 rounded-[4px] border text-[11px] flex items-center gap-1 transition-colors ${
-                          isDark
-                            ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
-                            : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-xs"
-                        }`}
-                        title="Download file"
-                      >
-                        <Download className="w-3 h-3" />
-                      </button>
+                      {renderDownloadButton(doc, { variant: "icon", title: "Download file" })}
 
                       <button
                         onClick={() => handleCopyLink(doc)}
@@ -1868,17 +2014,7 @@ export default function Documents({
                         >
                           <Eye className="w-3 h-3" />
                         </button>
-                        <button
-                          onClick={() => handleDownloadDocument(doc)}
-                          className={`h-7 px-2 rounded-[4px] border text-[11px] flex items-center gap-1 transition-colors ${
-                            isDark
-                              ? "bg-[#161718] hover:bg-[#23252a] text-[#8a8f98] hover:text-white border-[#23252a]"
-                              : "bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border-gray-200 shadow-xs"
-                          }`}
-                          title="Download"
-                        >
-                          <Download className="w-3 h-3" />
-                        </button>
+                        {renderDownloadButton(doc, { variant: "icon", title: "Download" })}
                         <button
                           onClick={() => handleCopyLink(doc)}
                           className={`h-7 px-2 rounded-[4px] border text-[11px] flex items-center gap-1 transition-colors ${
@@ -2528,15 +2664,7 @@ export default function Documents({
                       <ExternalLink className="w-3.5 h-3.5" />
                       Open Ext
                     </a>
-                    <button
-                      onClick={() => handleDownloadDocument(activeDoc)}
-                      className={`h-8 px-3 rounded-[6px] text-xs font-[510] flex items-center gap-1.5 transition-colors ${
-                        isDark ? "bg-[#e4f222] hover:bg-[#d5e31d] text-black" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                      }`}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Download
-                    </button>
+                    {renderDownloadButton(activeDoc, { variant: "header", label: "Download" })}
                   </>
                 )}
                 <button
@@ -2583,15 +2711,10 @@ export default function Documents({
                   <p className={`text-xs ${isDark ? "text-[#8a8f98]" : "text-gray-600"} mb-4`}>
                     Compressed archives (.zip, .7z) must be downloaded and extracted on your computer. Click Download to save the file.
                   </p>
-                  <button
-                    onClick={() => handleDownloadDocument(activeDoc)}
-                    className={`h-8 px-4 rounded-[6px] text-xs font-[510] inline-flex items-center gap-2 ${
-                      isDark ? "bg-[#e4f222] hover:bg-[#d5e31d] text-black" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                    }`}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Download Archive ({formatBytes(activeDoc.file_size)})
-                  </button>
+                  {renderDownloadButton(activeDoc, {
+                    variant: "cta",
+                    label: `Download Archive (${formatBytes(activeDoc.file_size)})`
+                  })}
                 </div>
               ) : (
                 <div className={`text-center max-w-md p-6 ${isDark ? "bg-[#0f1011] border-[#23252a]" : "bg-white border-gray-200 shadow-md"} border rounded-[10px]`}>
@@ -2602,15 +2725,10 @@ export default function Documents({
                   <p className={`text-xs ${isDark ? "text-[#8a8f98]" : "text-gray-600"} mb-4`}>
                     Word documents (.docx, .doc) must be opened in Microsoft Word or Google Docs. Click Download to save the file securely.
                   </p>
-                  <button
-                    onClick={() => handleDownloadDocument(activeDoc)}
-                    className={`h-8 px-4 rounded-[6px] text-xs font-[510] inline-flex items-center gap-2 ${
-                      isDark ? "bg-[#e4f222] hover:bg-[#d5e31d] text-black" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                    }`}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Download File ({formatBytes(activeDoc.file_size)})
-                  </button>
+                  {renderDownloadButton(activeDoc, {
+                    variant: "cta",
+                    label: `Download File (${formatBytes(activeDoc.file_size)})`
+                  })}
                 </div>
               )}
             </div>
@@ -2650,13 +2768,12 @@ export default function Documents({
             {/* Modal Controls: Search & Batch Category Presets */}
             <div className={`p-4 border-b space-y-3 ${isDark ? "border-[#23252a] bg-[#0f1011]" : "border-gray-200 bg-white"}`}>
               <div className="relative">
-                <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-[#8a8f98]" : "text-gray-400"}`} />
                 <input
                   type="text"
                   value={accessSearch}
                   onChange={(e) => setAccessSearch(e.target.value)}
                   placeholder="Search members by name, student ID (e.g. SC/2022/12345), or email..."
-                  className={`w-full h-8 pl-9 pr-3 text-xs rounded-[6px] border focus:outline-none ${
+                  className={`w-full h-8 pl-3 pr-3 text-xs rounded-[6px] border focus:outline-none ${
                     isDark
                       ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#e4f222]"
                       : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 shadow-xs"
@@ -2904,6 +3021,43 @@ export default function Documents({
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {/* Floating Download Toast Notification (visible across scroll & modals) */}
+      {downloadToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-6 right-6 z-[60] max-w-sm flex items-center gap-2.5 px-4 py-2.5 rounded-[8px] border shadow-xl text-xs transition-all ${
+            downloadToast.type === "error"
+              ? isDark
+                ? "bg-[#1a1112] border-[#eb5757]/40 text-[#eb5757]"
+                : "bg-red-50 border-red-200 text-red-700"
+              : downloadToast.type === "success"
+              ? isDark
+                ? "bg-[#0f1712] border-[#27a644]/40 text-[#4ade80]"
+                : "bg-emerald-50 border-emerald-200 text-emerald-700"
+              : isDark
+              ? "bg-[#161718] border-[#e4f222]/40 text-white"
+              : "bg-white border-indigo-200 text-gray-900"
+          }`}
+        >
+          {downloadToast.type === "loading" ? (
+            <Loader2 className={`w-4 h-4 animate-spin flex-shrink-0 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`} />
+          ) : downloadToast.type === "success" ? (
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[#27a644]" />
+          ) : (
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#eb5757]" />
+          )}
+          <span className="font-[510] leading-snug">{downloadToast.text}</span>
+          <button
+            type="button"
+            onClick={() => showDownloadToast(null)}
+            className="ml-1 text-current opacity-70 hover:opacity-100 transition-opacity flex-shrink-0"
+            aria-label="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

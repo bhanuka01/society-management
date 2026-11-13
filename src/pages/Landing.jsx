@@ -96,14 +96,14 @@ export default function Landing({
             : "bg-white/85 border-b border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
         }`}
       >
-        <div className="max-w-[1200px] mx-auto px-3 sm:px-6 h-14 flex flex-nowrap items-center justify-between">
+        <div className="max-w-[1200px] mx-auto px-3 sm:px-6 h-16 flex flex-nowrap items-center justify-between">
           {/* Brand Logo */}
           <div
-            className="flex flex-nowrap items-center gap-2 sm:gap-3 cursor-pointer shrink-0"
+            className="flex flex-nowrap items-center gap-2.5 sm:gap-3 cursor-pointer shrink-0"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           >
             <div
-              className={`w-7 h-7 rounded-[6px] flex items-center justify-center p-1 transition-colors shrink-0 ${
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-[8px] flex items-center justify-center p-1 transition-colors shrink-0 ${
                 isDark
                   ? "bg-[#161718] border border-[#23252a]"
                   : "bg-gray-100 border border-gray-200"
@@ -116,7 +116,7 @@ export default function Landing({
               />
             </div>
             <span
-              className={`text-[14px] sm:text-[15px] font-[510] tracking-[-0.015em] flex items-center gap-2 transition-colors whitespace-nowrap ${
+              className={`text-[15px] sm:text-[16px] font-[590] tracking-[-0.015em] flex items-center gap-2 transition-colors whitespace-nowrap ${
                 isDark ? "text-white" : "text-[#09090b]"
               }`}
             >
@@ -863,7 +863,7 @@ export default function Landing({
             {/* Brand column */}
             <div className="flex items-center gap-3">
               <div
-                className={`w-6 h-6 rounded-[4px] flex items-center justify-center p-1 transition-colors ${
+                className={`w-9 h-9 rounded-[7px] flex items-center justify-center p-1 transition-colors ${
                   isDark
                     ? "bg-[#161718] border border-[#23252a]"
                     : "bg-gray-100 border border-gray-200"

@@ -279,6 +279,7 @@ const formatDateDivider = (timestamp) => {
    Message Detail & Status Modal
 ───────────────────────────────────────────────────────────────────────────── */
 function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus }) {
+  const isStaff = Boolean(isAdmin || session?.role === "admin" || session?.role === "editor");
   const [replyText, setReplyText] = useState("");
   const isReceiver = msg.receiver_st_id === session.stId;
   const isMine = msg.sender_st_id === session.stId;
@@ -303,9 +304,9 @@ function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus 
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[15px] text-slate-900 dark:text-white">
-                {isMine ? "You" : msg.sender?.name || msg.sender_st_id}
+                {isMine ? "You" : msg.sender?.name || (isStaff ? msg.sender_st_id : "Society Member")}
               </span>
-              {msg.sender_st_id && (
+              {isStaff && msg.sender_st_id && (
                 <span className="font-mono text-[11px] text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-[#161718] border border-slate-200 dark:border-[#23252a] px-2 py-0.5 rounded-md">
                   {msg.sender_st_id}
                 </span>
@@ -382,7 +383,14 @@ function MessagePopup({ msg, session, isAdmin, onClose, onReply, onChangeStatus 
 /* ─────────────────────────────────────────────────────────────────────────────
    Main Messages Component
 ───────────────────────────────────────────────────────────────────────────── */
-export default function Messages({ isAdmin, session, theme }) {
+export default function Messages({ isAdmin, session, theme, role }) {
+  const isStaff = Boolean(
+    isAdmin ||
+      session?.role === "admin" ||
+      session?.role === "editor" ||
+      role === "admin" ||
+      role === "editor"
+  );
   const [channels, setChannels] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -849,10 +857,11 @@ export default function Messages({ isAdmin, session, theme }) {
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-[#161718] border border-slate-200 dark:border-[#23252a] font-mono text-[11.5px] text-slate-600 dark:text-zinc-300 shadow-2xs">
-              <span className="text-slate-400 dark:text-zinc-500">ST_ID:</span>
-              <span className="font-semibold">{session.stId}</span>
-            </div>
+            {isStaff && session.stId && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-[#161718] border border-slate-200 dark:border-[#23252a] font-mono text-[11.5px] text-slate-600 dark:text-zinc-300 shadow-2xs">
+                <span className="font-semibold">{session.stId}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -892,7 +901,7 @@ export default function Messages({ isAdmin, session, theme }) {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name or ST_ID..."
+                  placeholder={isStaff ? "Search by name or SC number..." : "Search conversations..."}
                   className="w-full bg-slate-50 dark:bg-[#161718] border border-slate-200/80 dark:border-[#23252a] rounded-xl pl-9 pr-8 py-2 text-[12.5px] text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-slate-400/20 dark:focus:ring-white/10 focus:border-slate-300 dark:focus:border-zinc-700 transition-all"
                 />
                 {searchQuery && (
@@ -1014,8 +1023,8 @@ export default function Messages({ isAdmin, session, theme }) {
                           {ch.lastSnippet ||
                             (ch.isBroadcast
                               ? "Public broadcast channel"
-                              : ch.st_id
-                              ? `ST_ID: ${ch.st_id}`
+                              : isStaff && ch.st_id
+                              ? ch.st_id
                               : "Direct conversation")}
                         </p>
 
@@ -1102,16 +1111,15 @@ export default function Messages({ isAdmin, session, theme }) {
                   <div className="flex items-center gap-1.5 text-[11px] sm:text-[12px] text-slate-500 dark:text-zinc-400 truncate">
                     {activeChannelObj?.isBroadcast ? (
                       <span className="truncate">Public Broadcast to all members</span>
-                    ) : (
+                    ) : isStaff ? (
                       <>
-                        <span className="shrink-0">ST_ID:</span>
                         <span className="font-mono text-slate-800 dark:text-zinc-200 font-medium shrink-0">
                           {activeChannelObj?.st_id || activeChannelObj?.id || "—"}
                         </span>
                         {activeChannelObj?.st_id && (
                           <button
                             onClick={() => handleCopyStId(activeChannelObj.st_id)}
-                            title="Copy Student ID"
+                            title="Copy SC Number"
                             className="inline-flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                           >
                             {copiedStId ? (
@@ -1123,6 +1131,8 @@ export default function Messages({ isAdmin, session, theme }) {
                           </button>
                         )}
                       </>
+                    ) : (
+                      <span className="truncate">Direct conversation</span>
                     )}
                   </div>
                 </div>
@@ -1290,7 +1300,7 @@ export default function Messages({ isAdmin, session, theme }) {
                           {/* Sender name for received broadcast messages */}
                           {!isMine && selectedChannel === "broadcast" && (
                             <span className="text-[11px] sm:text-[11.5px] font-semibold text-slate-600 dark:text-zinc-400 px-1">
-                              {msg.sender?.name || msg.sender_st_id}
+                              {msg.sender?.name || (isStaff ? msg.sender_st_id : "Society Staff")}
                             </span>
                           )}
 

@@ -527,44 +527,28 @@ export async function getDocumentSignedUrl(documentId, key, disposition = "inlin
 }
 
 /**
- * Triggers a direct automatic file download in the browser.
- * For PDFs and Images, fetching as a blob and downloading from a local blob URL
- * prevents the browser from simply opening the file in a new tab.
+ * Triggers an immediate native browser file download using a signed attachment URL.
+ * Passing `disposition = "attachment"` causes R2 to send Content-Disposition: attachment,
+ * so the browser starts streaming the download right away instead of buffering the full
+ * file into memory via fetch/blob first.
  */
 export async function downloadDocumentFile(doc) {
   if (!doc) throw new Error("No document specified for download.");
 
   // Request signed URL with Content-Disposition: attachment
   const { downloadUrl } = await getDocumentSignedUrl(doc.id, doc.r2_key, "attachment");
-  const fileName = doc.file_name || doc.name || "download";
-
-  try {
-    // 1. Fetch file data as blob to guarantee immediate browser download
-    const response = await fetch(downloadUrl);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const blob = await response.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    setTimeout(() => {
-      window.URL.revokeObjectURL(blobUrl);
-    }, 1000);
-  } catch (err) {
-    console.warn("Direct blob download failed, falling back to direct anchor:", err);
-    // 2. Fallback: Trigger direct anchor with signed URL (which has Content-Disposition: attachment)
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  if (!downloadUrl) {
+    throw new Error("Did not receive a valid download URL from storage service.");
   }
+
+  const fileName = doc.file_name || doc.name || "download";
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = fileName;
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 /**

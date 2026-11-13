@@ -460,11 +460,12 @@ serve(async (req: Request) => {
 
       const disposition = body.disposition === 'attachment' ? 'attachment' : 'inline';
       const cleanFileName = (doc.file_name || 'document').replace(/["\r\n]/g, '_');
+      const asciiFileName = cleanFileName.replace(/[^\x20-\x7E]/g, '_');
 
       const getCommand = new GetObjectCommand({
         Bucket: R2_BUCKET_NAME,
         Key: doc.r2_key,
-        ResponseContentDisposition: `${disposition}; filename="${encodeURIComponent(cleanFileName)}"`,
+        ResponseContentDisposition: `${disposition}; filename="${asciiFileName}"; filename*=UTF-8''${encodeURIComponent(cleanFileName)}`,
       });
 
       // Pre-signed URL valid for 1 hour (3600 seconds)

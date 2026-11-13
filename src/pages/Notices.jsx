@@ -516,7 +516,6 @@ export default function Notices({ isAdmin = false, session, theme }) {
 
             {/* Precision Search Input */}
             <div className="relative w-full sm:w-56 md:w-64">
-              <Search className={`w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${isDark ? "text-[#62666d]" : "text-gray-400"}`} />
               <input
                 type="text"
                 placeholder="Search dispatches..."
@@ -525,7 +524,7 @@ export default function Notices({ isAdmin = false, session, theme }) {
                   setSearch(e.target.value);
                   setPage(0);
                 }}
-                className={`w-full h-7 pl-7 pr-6 rounded-[5px] text-[11px] transition-colors focus:outline-none ${
+                className={`w-full h-7 pl-3 pr-6 rounded-[5px] text-[11px] transition-colors focus:outline-none ${
                   isDark 
                     ? "bg-[#0f1011] border border-[#23252a] focus:border-[#383b42] text-white placeholder-[#62666d]" 
                     : "bg-white border border-gray-200 focus:border-gray-400 text-gray-900 placeholder-gray-400 shadow-sm"
