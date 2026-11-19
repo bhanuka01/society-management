@@ -38,6 +38,31 @@ const sanitizeFilename = (name: string): string => {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 100);
 };
 
+const buildDownloadFileName = (title?: string | null, originalFileName?: string | null): string => {
+  const rawTitle = (title || '').trim();
+  const rawOriginal = (originalFileName || '').trim();
+
+  if (!rawTitle) {
+    return rawOriginal || 'document';
+  }
+
+  const sanitizedTitle = rawTitle.replace(/[\\/:*?"<>|\r\n]+/g, '_').trim();
+  if (!sanitizedTitle) {
+    return rawOriginal || 'document';
+  }
+
+  const lastDot = rawOriginal.lastIndexOf('.');
+  const ext = lastDot > 0 && lastDot < rawOriginal.length - 1
+    ? rawOriginal.slice(lastDot)
+    : '';
+
+  if (ext && !sanitizedTitle.toLowerCase().endsWith(ext.toLowerCase())) {
+    return `${sanitizedTitle}${ext}`;
+  }
+
+  return sanitizedTitle;
+};
+
 const mapMimeToCategoryType = (mimeType: string, extension: string): 'PDF' | 'Word' | 'Image' | 'Archive' | 'Other' => {
   const mime = (mimeType || '').toLowerCase();
   const ext = (extension || '').toLowerCase();
@@ -459,7 +484,8 @@ serve(async (req: Request) => {
       }
 
       const disposition = body.disposition === 'attachment' ? 'attachment' : 'inline';
-      const cleanFileName = (doc.file_name || 'document').replace(/["\r\n]/g, '_');
+      const resolvedFileName = buildDownloadFileName(doc.name, doc.file_name);
+      const cleanFileName = resolvedFileName.replace(/["\r\n]/g, '_');
       const asciiFileName = cleanFileName.replace(/[^\x20-\x7E]/g, '_');
 
       const getCommand = new GetObjectCommand({
@@ -475,7 +501,7 @@ serve(async (req: Request) => {
         JSON.stringify({
           downloadUrl,
           expiresIn: 3600,
-          fileName: doc.file_name,
+          fileName: resolvedFileName,
           mimeType: doc.mime_type,
           fileType: doc.file_type,
         }),

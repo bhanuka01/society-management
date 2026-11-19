@@ -72,6 +72,10 @@ export default function PrivacyPolicy({ onBackToLanding, onNavigate }) {
           detail: "Full Name, Preferred Calling Name, Student ID (Index No.), University Email, Mobile/WhatsApp number, Academic Year (Level 1–4), and Society Functional Division.",
         },
         {
+          label: "Google OAuth Authentication Data",
+          detail: "When you choose to sign in or sign up with Google, ADSS Ruhuna collects only your basic Google profile information — specifically your Name, Email Address, and Profile Picture (Avatar). This data is used solely for account authentication, member profile setup, and identity verification. We do not request or access your Google Drive, Gmail, Contacts, Calendar, or any other Google account data, and we do not share or sell Google user data to third parties.",
+        },
+        {
           label: "Event Telemetry",
           detail: "Event attendance timestamps, dynamic QR verification records, and Organizing Committee (OC) applications.",
         },
@@ -185,8 +189,17 @@ export default function PrivacyPolicy({ onBackToLanding, onNavigate }) {
             onClick={handleNavigateBack}
             title="Return to home"
           >
-            <div className="w-7 h-7 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#5f6b00] dark:text-[#e4f222] font-berkeley-mono text-[11px] font-[510]">
-              §
+            <div className="w-8 h-8 rounded-[7px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center p-1 shrink-0">
+              <img
+                alt="ADSS Logo"
+                className="w-full h-full object-contain dark:hidden"
+                src={`${import.meta.env.BASE_URL}logo_trans_dark.png`}
+              />
+              <img
+                alt="ADSS Logo"
+                className="w-full h-full object-contain hidden dark:block"
+                src={`${import.meta.env.BASE_URL}logo_trans_light.png`}
+              />
             </div>
             <div className="flex flex-col">
               <span className="font-[510] text-[#0a0a0b] dark:text-[#ffffff] text-[13px] group-hover:text-[#5f6b00] dark:group-hover:text-[#e4f222] transition-colors leading-tight">

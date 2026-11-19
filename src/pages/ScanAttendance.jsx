@@ -20,6 +20,7 @@ export default function ScanAttendance({ onBackToLanding }) {
   const [tokenError, setTokenError] = useState("");
   const [event, setEvent] = useState(null);
   const [eventId, setEventId] = useState("");
+  const [qrToken, setQrToken] = useState("");
 
   // Search state
   const [stIdInput, setStIdInput] = useState("");
@@ -71,57 +72,30 @@ export default function ScanAttendance({ onBackToLanding }) {
     }
 
     setEventId(qEventId);
+    setQrToken(qToken);
 
-    // 1. Decode token
+    // Verify dynamic HMAC-SHA256 QR token authoritatively on the server
     try {
-      const decodedData = JSON.parse(atob(qToken));
-      const { eventId: tokenEventId, exp, hash } = decodedData;
-
-      // Verify signature/hash
-      const expectedHash = (exp * 17 + 23).toString(16);
-      if (hash !== expectedHash || tokenEventId !== qEventId) {
-        setTokenError("Security verification failed. This QR code token is invalid.");
-        setVerifyingToken(false);
-        setLoading(false);
-        return;
-      }
-
-      // Check expiry (allow 2 minutes of desync margin)
-      const currentBlock = Math.floor(Date.now() / 60000);
-      const diff = Math.abs(currentBlock - exp);
-      if (diff > 2) {
-        setTokenError("This dynamic QR code has expired. Please scan the current rotating code shown on the screen.");
-        setVerifyingToken(false);
-        setLoading(false);
-        return;
-      }
-    } catch {
-      setTokenError("Invalid token format. Please scan a valid event QR code.");
-      setVerifyingToken(false);
-      setLoading(false);
-      return;
-    }
-
-    setVerifyingToken(false);
-
-    // 2. Load Event details
-    try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("event_id, name, date, time")
-        .eq("event_id", qEventId)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("verify_attendance_qr_token", {
+        p_event_id: qEventId,
+        p_token: qToken,
+      });
 
       if (error) throw error;
-      if (!data) {
-        setTokenError("The requested event was not found in the database.");
+
+      if (!data?.valid || !data?.event) {
+        setTokenError(
+          data?.error ||
+            "This dynamic QR code is invalid or expired. Please scan the current rotating code shown on the screen."
+        );
       } else {
-        setEvent(data);
+        setEvent(data.event);
       }
     } catch (err) {
-      console.error("Error loading event:", err);
-      setTokenError("Failed to connect to server to fetch event details.");
+      console.error("Error verifying QR token:", err);
+      setTokenError("Security verification failed. Please scan the current rotating QR code shown on the screen.");
     } finally {
+      setVerifyingToken(false);
       setLoading(false);
     }
   };
@@ -146,7 +120,8 @@ export default function ScanAttendance({ onBackToLanding }) {
     try {
       const { data, error } = await supabase.rpc("search_registration_by_id", {
         p_event_id: eventId,
-        p_st_id: stIdInput.trim()
+        p_st_id: stIdInput.trim(),
+        p_token: qrToken,
       });
 
       if (error) throw error;
@@ -158,7 +133,9 @@ export default function ScanAttendance({ onBackToLanding }) {
       } else {
         // Not found in CSV registrations list! Check if they exist in the members database
         const { data: memberData, error: memberError } = await supabase.rpc("check_member_by_id", {
-          p_st_id: stIdInput.trim()
+          p_st_id: stIdInput.trim(),
+          p_event_id: eventId,
+          p_token: qrToken,
         });
 
         setIsNewRegistration(true);
@@ -223,7 +200,8 @@ export default function ScanAttendance({ onBackToLanding }) {
         p_name: isNewRegistration ? formName.trim() : null,
         p_phone: isNewRegistration ? formPhone.trim() : null,
         p_degree_program: isNewRegistration ? formDegree.trim() : null,
-        p_level: isNewRegistration ? formLevel.trim() : null
+        p_level: isNewRegistration ? formLevel.trim() : null,
+        p_token: qrToken,
       });
 
       if (error) throw error;

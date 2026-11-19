@@ -622,20 +622,36 @@ export default function Attendance({
     }
   }, [selectedEvent, csvPage, csvSearch, csvStatusFilter, csvMemberFilter, activeTab]);
 
-  // Dynamic QR Token Generator
-  const generateToken = () => {
-    const expiry = Math.floor(Date.now() / 60000);
-    const hash = (expiry * 17 + 23).toString(16);
-    const payload = { eventId: selectedEvent, exp: expiry, hash };
-    return btoa(JSON.stringify(payload));
+  // Dynamic QR Token Generator (server-signed HMAC-SHA256 via Postgres RPC)
+  const fetchSignedQrToken = async (eventIdToSign) => {
+    const { data, error } = await supabase.rpc("generate_attendance_qr_token", {
+      p_event_id: eventIdToSign,
+    });
+    if (error || !data?.token) {
+      throw new Error(error?.message || "Failed to generate signed QR token.");
+    }
+    return data.token;
   };
 
   // QR Countdown Effect
   useEffect(() => {
     if (!showQR || !selectedEvent) return;
+    let alive = true;
 
-    const updateToken = () => {
-      setQrToken(generateToken());
+    const updateToken = async () => {
+      try {
+        const token = await fetchSignedQrToken(selectedEvent);
+        if (alive) setQrToken(token);
+      } catch (err) {
+        console.error("Failed to generate attendance QR token:", err);
+        if (alive) {
+          setQrToken("");
+          setCsvMsg({
+            type: "error",
+            text: err.message || "Failed to generate signed QR token. Ensure security SQL migration is applied.",
+          });
+        }
+      }
     };
 
     updateToken();
@@ -652,7 +668,10 @@ export default function Attendance({
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
   }, [showQR, selectedEvent]);
 
   // Live Scans Sync

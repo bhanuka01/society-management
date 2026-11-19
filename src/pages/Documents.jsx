@@ -308,11 +308,13 @@ export default function Documents({
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const [form, setForm] = useState(INITIAL_FORM);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [fileError, setFileError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadBytes, setUploadBytes] = useState({ loaded: 0, total: 0 });
   const [uploadStage, setUploadStage] = useState("");
+  const [uploadBatchInfo, setUploadBatchInfo] = useState({ currentIndex: 0, totalFiles: 0, currentFileName: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
@@ -662,39 +664,118 @@ export default function Documents({
     loadDocuments(0);
   };
 
-  // Handle file selection in Upload Modal
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const formatTitleFromFilename = (fileName = "") =>
+    fileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").trim();
 
-    // Validate type, single file size limit (50 MB), and total repository quota (9 GB ceiling)
-    const validation = validateDocumentFile(file, totalStorageBytes);
-    if (!validation.valid) {
-      setFileError(validation.error);
-      setSelectedFile(null);
-      return;
+  const totalSelectedBytes = selectedFiles.reduce((sum, item) => sum + (item.file?.size || 0), 0);
+
+  const addFilesToSelection = (incomingFileList) => {
+    const incoming = Array.from(incomingFileList || []);
+    if (incoming.length === 0) return;
+
+    const errors = [];
+    const nextItems = [...selectedFiles];
+
+    for (const file of incoming) {
+      const alreadyExists = nextItems.some(
+        (item) =>
+          item.file.name === file.name &&
+          item.file.size === file.size &&
+          item.file.lastModified === file.lastModified
+      );
+      if (alreadyExists) continue;
+
+      // Validate type and single-file size limit (50 MB)
+      const validation = validateDocumentFile(file);
+      if (!validation.valid) {
+        errors.push(`${file.name}: ${validation.error}`);
+        continue;
+      }
+
+      nextItems.push({
+        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        title: formatTitleFromFilename(file.name) || file.name
+      });
     }
 
-    setFileError(null);
-    setSelectedFile(file);
+    // Validate combined size against 9 GB total repository quota
+    const nextTotalSize = nextItems.reduce((sum, item) => sum + item.file.size, 0);
+    const quota = validateStorageQuota(totalStorageBytes, nextTotalSize);
+    if (!quota.valid) {
+      errors.push(quota.error);
+    }
 
-    // Auto-fill title from filename if title is empty
-    if (!form.name) {
-      const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
-      setForm(prev => ({ ...prev, name: cleanTitle }));
+    setFileError(errors.length > 0 ? errors.join(" ") : null);
+    setSelectedFiles(nextItems);
+
+    // Auto-fill single Document Title input when 1 file is selected
+    if (nextItems.length === 1 && !form.name) {
+      setForm((prev) => ({ ...prev, name: nextItems[0].title }));
     }
   };
 
-  // Upload handler
+  // Handle file selection in Upload Modal
+  const handleFileChange = (e) => {
+    addFilesToSelection(e.target.files);
+    e.target.value = "";
+  };
+
+  const handleDropFiles = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFiles(false);
+    if (isStorageFull || isSubmitting) return;
+    addFilesToSelection(e.dataTransfer?.files);
+  };
+
+  const handleDragOverFiles = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isStorageFull && !isSubmitting) {
+      setIsDraggingFiles(true);
+    }
+  };
+
+  const handleDragLeaveFiles = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDraggingFiles(false);
+    }
+  };
+
+  const handleRemoveSelectedFile = (itemId) => {
+    const remaining = selectedFiles.filter((item) => item.id !== itemId);
+    setSelectedFiles(remaining);
+
+    const remainingBytes = remaining.reduce((sum, item) => sum + item.file.size, 0);
+    const quota = validateStorageQuota(totalStorageBytes, remainingBytes);
+    setFileError(quota.valid ? null : quota.error);
+
+    if (remaining.length === 1) {
+      setForm((prev) => ({ ...prev, name: remaining[0].title }));
+    } else if (remaining.length === 0) {
+      setForm((prev) => ({ ...prev, name: "" }));
+    }
+  };
+
+  const handleSelectedFileTitleChange = (itemId, newTitle) => {
+    setSelectedFiles((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, title: newTitle } : item))
+    );
+  };
+
+  // Upload handler (supports single and multiple files)
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile) {
-      setFileError("Please select a file to upload.");
+    if (selectedFiles.length === 0) {
+      setFileError("Please select at least one file to upload.");
       return;
     }
 
-    // Double check 9 GB repository quota
-    const quota = validateStorageQuota(totalStorageBytes, selectedFile.size);
+    // Double check 9 GB repository quota for all selected files combined
+    const quota = validateStorageQuota(totalStorageBytes, totalSelectedBytes);
     if (!quota.valid) {
       setFileError(quota.error);
       return;
@@ -702,46 +783,97 @@ export default function Documents({
 
     setIsSubmitting(true);
     setUploadProgress(0);
-    setUploadBytes({ loaded: 0, total: selectedFile.size });
+    setUploadBytes({ loaded: 0, total: selectedFiles[0].file.size });
     setUploadStage("Preparing upload...");
+    setUploadBatchInfo({
+      currentIndex: 1,
+      totalFiles: selectedFiles.length,
+      currentFileName: selectedFiles[0].file.name
+    });
     setFeedbackMsg(null);
 
+    let uploadedCount = 0;
+    let uploadedBytesSoFar = 0;
+    const remainingFiles = [...selectedFiles];
+
     try {
-      await uploadDocument({
-        file: selectedFile,
-        name: form.name || selectedFile.name,
-        category: form.category,
-        description: form.description,
-        visibility: form.visibility,
-        eventId: form.eventId || null,
-        stId: form.stId || null,
-        session,
-        currentTotalBytes: totalStorageBytes,
-        onProgress: ({ stage, percent, loaded, total }) => {
-          if (stage) setUploadStage(stage);
-          if (percent !== undefined) setUploadProgress(percent);
-          if (loaded !== undefined && total !== undefined) {
-            setUploadBytes({ loaded, total });
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const item = selectedFiles[i];
+        const docTitle =
+          selectedFiles.length === 1
+            ? (form.name || item.file.name).trim()
+            : (item.title || item.file.name).trim();
+
+        setUploadBatchInfo({
+          currentIndex: i + 1,
+          totalFiles: selectedFiles.length,
+          currentFileName: item.file.name
+        });
+        setUploadProgress(0);
+        setUploadBytes({ loaded: 0, total: item.file.size });
+        setUploadStage(
+          selectedFiles.length > 1
+            ? `Uploading file ${i + 1} of ${selectedFiles.length}...`
+            : "Preparing upload..."
+        );
+
+        await uploadDocument({
+          file: item.file,
+          name: docTitle,
+          category: form.category,
+          description: form.description,
+          visibility: form.visibility,
+          eventId: form.eventId || null,
+          stId: form.stId || null,
+          session,
+          currentTotalBytes: totalStorageBytes + uploadedBytesSoFar,
+          onProgress: ({ stage, percent, loaded, total }) => {
+            if (stage) setUploadStage(stage);
+            if (percent !== undefined) setUploadProgress(percent);
+            if (loaded !== undefined && total !== undefined) {
+              setUploadBytes({ loaded, total });
+            }
           }
-        }
-      });
+        });
+
+        uploadedCount += 1;
+        uploadedBytesSoFar += item.file.size;
+        remainingFiles.shift();
+      }
 
       setUploadProgress(100);
       setUploadStage("Upload complete!");
-      setFeedbackMsg({ type: "success", text: `Document "${form.name || selectedFile.name}" uploaded successfully!` });
+      setFeedbackMsg({
+        type: "success",
+        text:
+          selectedFiles.length === 1
+            ? `Document "${form.name || selectedFiles[0].file.name}" uploaded successfully!`
+            : `${uploadedCount} documents uploaded successfully!`
+      });
       setUploadModalOpen(false);
       setForm(INITIAL_FORM);
-      setSelectedFile(null);
+      setSelectedFiles([]);
       setPage(0);
       loadDocuments(0);
     } catch (err) {
       console.error("Upload error:", err);
-      setFeedbackMsg({ type: "error", text: err.message || "Failed to upload document." });
+      if (uploadedCount > 0) {
+        setSelectedFiles(remainingFiles);
+        loadDocuments(0);
+      }
+      setFeedbackMsg({
+        type: "error",
+        text:
+          uploadedCount > 0
+            ? `Uploaded ${uploadedCount} of ${selectedFiles.length} files, then failed: ${err.message || "Failed to upload document."}`
+            : err.message || "Failed to upload document."
+      });
     } finally {
       setIsSubmitting(false);
       setUploadProgress(0);
       setUploadBytes({ loaded: 0, total: 0 });
       setUploadStage("");
+      setUploadBatchInfo({ currentIndex: 0, totalFiles: 0, currentFileName: "" });
     }
   };
 
@@ -1251,7 +1383,8 @@ export default function Documents({
                 onClick={() => {
                   if (isStorageFull) return;
                   setForm(INITIAL_FORM);
-                  setSelectedFile(null);
+                  setSelectedFiles([]);
+                  setIsDraggingFiles(false);
                   setFileError(null);
                   setUploadModalOpen(true);
                 }}
@@ -1738,6 +1871,9 @@ export default function Documents({
               <button
                 onClick={() => {
                   setForm(prev => ({ ...prev, category: selectedFolder === "All" ? "Events" : selectedFolder }));
+                  setSelectedFiles([]);
+                  setIsDraggingFiles(false);
+                  setFileError(null);
                   setUploadModalOpen(true);
                 }}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] ${isDark ? "bg-[#e4f222] text-black" : "bg-indigo-600 text-white shadow-xs"} text-xs font-[510]`}
@@ -2125,13 +2261,13 @@ export default function Documents({
                     }`}
                     style={{ width: `${Math.min(100, (totalStorageBytes / MAX_TOTAL_STORAGE_BYTES) * 100)}%` }}
                   />
-                  {selectedFile && !fileError && totalStorageBytes + selectedFile.size <= MAX_TOTAL_STORAGE_BYTES && (
+                  {selectedFiles.length > 0 && !fileError && totalStorageBytes + totalSelectedBytes <= MAX_TOTAL_STORAGE_BYTES && (
                     <div
                       className="h-full bg-emerald-400 transition-all duration-300"
                       style={{
                         width: `${Math.min(
                           100 - (totalStorageBytes / MAX_TOTAL_STORAGE_BYTES) * 100,
-                          (selectedFile.size / MAX_TOTAL_STORAGE_BYTES) * 100
+                          (totalSelectedBytes / MAX_TOTAL_STORAGE_BYTES) * 100
                         )}%`
                       }}
                     />
@@ -2142,15 +2278,15 @@ export default function Documents({
                   <span>
                     {formatBytes(remainingStorageBytes, 2)} available
                   </span>
-                  {selectedFile ? (
-                    totalStorageBytes + selectedFile.size > MAX_TOTAL_STORAGE_BYTES ? (
+                  {selectedFiles.length > 0 ? (
+                    totalStorageBytes + totalSelectedBytes > MAX_TOTAL_STORAGE_BYTES ? (
                       <span className="text-red-500 font-semibold flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
                         Exceeds 9 GB Limit
                       </span>
                     ) : (
                       <span className="text-emerald-600 font-medium">
-                        +{formatBytes(selectedFile.size)} (New total: {formatBytes(totalStorageBytes + selectedFile.size, 2)})
+                        +{formatBytes(totalSelectedBytes)} ({selectedFiles.length} {selectedFiles.length === 1 ? "file" : "files"})
                       </span>
                     )
                   ) : (
@@ -2174,44 +2310,120 @@ export default function Documents({
                 </div>
               )}
 
-              {/* Drag & drop file selector */}
+              {/* Drag & drop file selector (supports single & multiple files) */}
               <div>
-                <label className={`block text-xs font-medium ${isDark ? "text-[#8a8f98]" : "text-gray-700"} mb-1.5`}>
-                  Select File <span className="text-[#eb5757]">*</span>
-                </label>
-                <div className={`relative border-2 border-dashed ${
-                  isStorageFull
-                    ? isDark ? "border-[#eb5757]/30 bg-[#eb5757]/5 cursor-not-allowed" : "border-red-200 bg-red-50/50 cursor-not-allowed"
-                    : isDark ? "border-[#23252a] hover:border-[#383b3f] bg-[#161718]/50" : "border-gray-300 hover:border-gray-400 bg-gray-50/70"
-                } rounded-[8px] p-4 text-center transition-colors`}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`block text-xs font-medium ${isDark ? "text-[#8a8f98]" : "text-gray-700"}`}>
+                    Select Files <span className="text-[#eb5757]">*</span>
+                  </label>
+                  {selectedFiles.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        setSelectedFiles([]);
+                        setFileError(null);
+                        setForm((prev) => ({ ...prev, name: "" }));
+                      }}
+                      className={`text-[11px] transition-colors disabled:opacity-50 ${
+                        isDark ? "text-[#8a8f98] hover:text-white" : "text-gray-500 hover:text-gray-800"
+                      }`}
+                    >
+                      Clear all ({selectedFiles.length})
+                    </button>
+                  )}
+                </div>
+                <div
+                  onDragEnter={handleDragOverFiles}
+                  onDragOver={handleDragOverFiles}
+                  onDragLeave={handleDragLeaveFiles}
+                  onDrop={handleDropFiles}
+                  className={`relative border-2 border-dashed ${
+                    isStorageFull
+                      ? isDark ? "border-[#eb5757]/30 bg-[#eb5757]/5 cursor-not-allowed" : "border-red-200 bg-red-50/50 cursor-not-allowed"
+                      : isDraggingFiles
+                      ? isDark ? "border-[#e4f222] bg-[#e4f222]/10" : "border-indigo-500 bg-indigo-50/80"
+                      : isDark ? "border-[#23252a] hover:border-[#383b3f] bg-[#161718]/50" : "border-gray-300 hover:border-gray-400 bg-gray-50/70"
+                  } rounded-[8px] p-4 text-center transition-colors`}
+                >
                   <input
                     type="file"
-                    disabled={isStorageFull}
+                    multiple
+                    disabled={isStorageFull || isSubmitting}
                     onChange={handleFileChange}
                     accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.zip,.7z,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,image/*,application/zip,application/x-zip-compressed,application/x-7z-compressed"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                   />
-                  <UploadCloud className={`w-8 h-8 ${isDark ? "text-[#8a8f98]" : "text-gray-400"} mx-auto mb-2`} />
-                  {selectedFile ? (
-                    <div>
-                      <p className={`text-xs font-[510] ${isDark ? "text-white" : "text-gray-900"} truncate max-w-xs mx-auto`}>
-                        {selectedFile.name}
-                      </p>
-                      <p className={`text-[10px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"} mt-0.5`}>
-                        {formatBytes(selectedFile.size)} • {getFileTypeCategory(selectedFile.type, selectedFile.name)}
-                      </p>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className={`text-xs ${isDark ? "text-white" : "text-gray-900"} font-medium`}>
-                        Click or drag file here to upload
-                      </p>
-                      <p className={`text-[10px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"} mt-1`}>
-                        PDF, Word (.docx, .doc), Images (.png, .jpg, .webp), and Archives (.zip, .7z) up to 50 MB
-                      </p>
-                    </div>
-                  )}
+                  <UploadCloud className={`w-8 h-8 mx-auto mb-2 ${
+                    isDraggingFiles
+                      ? isDark ? "text-[#e4f222]" : "text-indigo-600"
+                      : isDark ? "text-[#8a8f98]" : "text-gray-400"
+                  }`} />
+                  <div>
+                    <p className={`text-xs ${isDark ? "text-white" : "text-gray-900"} font-medium`}>
+                      {isDraggingFiles
+                        ? "Drop files here to add them"
+                        : selectedFiles.length > 0
+                        ? "Click or drag more files here to add"
+                        : "Click or drag & drop files here to upload"}
+                    </p>
+                    <p className={`text-[10px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"} mt-1`}>
+                      Select one or multiple files • PDF, Word, Images, Archives up to 50 MB each
+                    </p>
+                  </div>
                 </div>
+
+                {/* Selected files queue */}
+                {selectedFiles.length > 0 && (
+                  <div className={`mt-2.5 space-y-2 max-h-44 overflow-y-auto pr-0.5`}>
+                    {selectedFiles.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`p-2 rounded-[6px] border flex items-center gap-2 ${
+                          isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          {selectedFiles.length > 1 ? (
+                            <input
+                              type="text"
+                              required
+                              disabled={isSubmitting}
+                              value={item.title}
+                              onChange={(e) => handleSelectedFileTitleChange(item.id, e.target.value)}
+                              placeholder="Document Title"
+                              className={`w-full h-7 px-2 text-xs rounded-[4px] border focus:outline-none mb-1 ${
+                                isDark
+                                  ? "bg-[#0f1011] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#e4f222]"
+                                  : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500"
+                              }`}
+                            />
+                          ) : null}
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <span className={`font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`} title={item.file.name}>
+                              {item.file.name}
+                            </span>
+                            <span className={`font-berkeley-mono text-[10px] flex-shrink-0 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                              {formatBytes(item.file.size)} • {getFileTypeCategory(item.file.type, item.file.name)}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => handleRemoveSelectedFile(item.id)}
+                          title="Remove file"
+                          className={`p-1 rounded-[4px] transition-colors disabled:opacity-50 ${
+                            isDark ? "text-[#8a8f98] hover:text-white hover:bg-[#23252a]" : "text-gray-400 hover:text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {fileError && (
                   <p className="text-[11px] text-[#eb5757] mt-1.5 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3 flex-shrink-0" />
@@ -2220,24 +2432,26 @@ export default function Documents({
                 )}
               </div>
 
-              {/* Title / Display Name */}
-              <div>
-                <label className={`block text-xs font-medium ${isDark ? "text-[#8a8f98]" : "text-gray-700"} mb-1.5`}>
-                  Document Title <span className="text-[#eb5757]">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g., Annual Hackathon 2026 Budget Report"
-                  className={`w-full h-8 px-3 text-xs rounded-[6px] border transition-colors focus:outline-none ${
-                    isDark
-                      ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#e4f222]"
-                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 shadow-xs"
-                  }`}
-                />
-              </div>
+              {/* Title / Display Name (shown for single-file upload; multi-file uses per-file title inputs above) */}
+              {selectedFiles.length <= 1 && (
+                <div>
+                  <label className={`block text-xs font-medium ${isDark ? "text-[#8a8f98]" : "text-gray-700"} mb-1.5`}>
+                    Document Title <span className="text-[#eb5757]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="e.g., Annual Hackathon 2026 Budget Report"
+                    className={`w-full h-8 px-3 text-xs rounded-[6px] border transition-colors focus:outline-none ${
+                      isDark
+                        ? "bg-[#161718] border-[#23252a] text-white placeholder-[#62666d] focus:border-[#e4f222]"
+                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-indigo-500 shadow-xs"
+                    }`}
+                  />
+                </div>
+              )}
 
               {/* Category & Visibility Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2345,14 +2559,22 @@ export default function Documents({
               </div>
 
               {/* Progress bar during upload */}
-              {isSubmitting && selectedFile && (
+              {isSubmitting && selectedFiles.length > 0 && (
                 <div className={`p-3 rounded-[8px] border ${isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"}`}>
                   {/* File Name & Percentage Header */}
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <UploadCloud className={`w-3.5 h-3.5 flex-shrink-0 animate-pulse ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`} />
-                      <span className={`text-[11px] font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`} title={selectedFile.name}>
-                        Uploading: <span className="font-berkeley-mono font-semibold">{selectedFile.name}</span>
+                      <span
+                        className={`text-[11px] font-medium truncate ${isDark ? "text-white" : "text-gray-900"}`}
+                        title={uploadBatchInfo.currentFileName || selectedFiles[0].file.name}
+                      >
+                        {uploadBatchInfo.totalFiles > 1
+                          ? `Uploading (${uploadBatchInfo.currentIndex}/${uploadBatchInfo.totalFiles}): `
+                          : "Uploading: "}
+                        <span className="font-berkeley-mono font-semibold">
+                          {uploadBatchInfo.currentFileName || selectedFiles[0].file.name}
+                        </span>
                       </span>
                     </div>
                     <span className={`text-[11px] font-berkeley-mono font-semibold flex-shrink-0 ${isDark ? "text-[#e4f222]" : "text-indigo-600"}`}>
@@ -2366,7 +2588,7 @@ export default function Documents({
                     <span className="flex-shrink-0">
                       {uploadBytes.total > 0
                         ? `${formatBytes(uploadBytes.loaded)} / ${formatBytes(uploadBytes.total)}`
-                        : formatBytes(selectedFile.size)}
+                        : formatBytes(selectedFiles[0].file.size)}
                     </span>
                   </div>
 
@@ -2395,9 +2617,9 @@ export default function Documents({
                   type="submit"
                   disabled={
                     isSubmitting ||
-                    !selectedFile ||
+                    selectedFiles.length === 0 ||
                     Boolean(fileError) ||
-                    (selectedFile && totalStorageBytes + selectedFile.size > MAX_TOTAL_STORAGE_BYTES) ||
+                    (selectedFiles.length > 0 && totalStorageBytes + totalSelectedBytes > MAX_TOTAL_STORAGE_BYTES) ||
                     isStorageFull
                   }
                   className={`h-8 px-4 text-xs font-[510] rounded-[6px] transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -2407,9 +2629,13 @@ export default function Documents({
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Uploading {uploadProgress > 0 ? `${uploadProgress}%` : "..."}</span>
+                      <span>
+                        {uploadBatchInfo.totalFiles > 1
+                          ? `Uploading ${uploadBatchInfo.currentIndex}/${uploadBatchInfo.totalFiles} (${uploadProgress}%)`
+                          : `Uploading ${uploadProgress > 0 ? `${uploadProgress}%` : "..."}`}
+                      </span>
                     </>
-                  ) : selectedFile && totalStorageBytes + selectedFile.size > MAX_TOTAL_STORAGE_BYTES ? (
+                  ) : selectedFiles.length > 0 && totalStorageBytes + totalSelectedBytes > MAX_TOTAL_STORAGE_BYTES ? (
                     <>
                       <AlertCircle className="w-3.5 h-3.5 text-[#eb5757]" />
                       Exceeds 9 GB Limit
@@ -2417,7 +2643,9 @@ export default function Documents({
                   ) : (
                     <>
                       <UploadCloud className="w-3.5 h-3.5" />
-                      Confirm &amp; Upload
+                      {selectedFiles.length > 1
+                        ? `Confirm & Upload (${selectedFiles.length})`
+                        : "Confirm & Upload"}
                     </>
                   )}
                 </button>

@@ -76,9 +76,14 @@ DECLARE
   v_reg_enabled text;
   v_auto_approve text;
 BEGIN
-  requested_role := coalesce(new.raw_user_meta_data ->> 'role', 'member');
+  requested_role := lower(trim(coalesce(new.raw_user_meta_data ->> 'role', 'member')));
 
   IF requested_role NOT IN ('member', 'editor', 'admin') THEN
+    requested_role := 'member';
+  END IF;
+
+  -- Never trust client-supplied admin/editor role without an active staff invite
+  IF requested_role IN ('editor', 'admin') AND NOT public.can_register_staff(new.email, requested_role) THEN
     requested_role := 'member';
   END IF;
 

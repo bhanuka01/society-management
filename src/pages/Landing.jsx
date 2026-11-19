@@ -906,28 +906,32 @@ export default function Landing({
               >
                 Member Portal
               </button>
-              <button
-                onClick={() => {
+              <a
+                href="/privacy"
+                onClick={(e) => {
+                  e.preventDefault();
                   window.history.pushState({}, "", "/privacy");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className={`transition-colors cursor-pointer ${
+                className={`transition-colors cursor-pointer underline-offset-2 hover:underline ${
                   isDark ? "hover:text-white" : "hover:text-gray-900"
                 }`}
               >
                 Privacy Policy
-              </button>
-              <button
-                onClick={() => {
+              </a>
+              <a
+                href="/terms"
+                onClick={(e) => {
+                  e.preventDefault();
                   window.history.pushState({}, "", "/terms");
                   window.dispatchEvent(new Event("popstate"));
                 }}
-                className={`transition-colors cursor-pointer ${
+                className={`transition-colors cursor-pointer underline-offset-2 hover:underline ${
                   isDark ? "hover:text-white" : "hover:text-gray-900"
                 }`}
               >
-                Terms
-              </button>
+                Terms of Service
+              </a>
             </div>
 
             {/* Social Icons */}

@@ -204,11 +204,20 @@ export default function TermsOfService({ onBackToLanding, onNavigate }) {
             onClick={handleNavigateBack}
             title="Return to home"
           >
-            <div className="w-7 h-7 rounded-[6px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center text-[#5f6b00] dark:text-[#e4f222] font-berkeley-mono text-[11px] font-[510]">
-              §
+            <div className="w-8 h-8 rounded-[7px] bg-[#f4f5f6] dark:bg-[#161718] border border-[#e4e4e7] dark:border-[#23252a] flex items-center justify-center p-1 shrink-0">
+              <img
+                alt="ADSS Logo"
+                className="w-full h-full object-contain dark:hidden"
+                src={`${import.meta.env.BASE_URL}logo_trans_dark.png`}
+              />
+              <img
+                alt="ADSS Logo"
+                className="w-full h-full object-contain hidden dark:block"
+                src={`${import.meta.env.BASE_URL}logo_trans_light.png`}
+              />
             </div>
             <div className="flex flex-col">
-              <span className="font-[510] text-[#0a0a0b] dark:text-[#ffffff] text-[13px] group-hover:text-[#5f6b00] dark:group-hover:text-[#e4f222] transition-colors leading-tight">
+              <span className="font-[510] text-[#0a0a0b] dark:text-[#ffffff] text-[13px] group-hover:text-[#5f6b00] dark:group-hover:text-[#e4f222] transition-colors leading-tight whitespace-nowrap overflow-visible">
                 ADSS Ruhuna
               </span>
               <span className="font-berkeley-mono text-[10px] text-[#62666d] dark:text-[#8a8f98]">

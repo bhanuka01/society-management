@@ -527,6 +527,38 @@ export async function getDocumentSignedUrl(documentId, key, disposition = "inlin
 }
 
 /**
+ * Builds a safe download filename from the document's display title (`doc.name`),
+ * preserving the original file extension from `doc.file_name` when missing.
+ * @param {string} title
+ * @param {string} originalFileName
+ * @returns {string}
+ */
+export function buildDownloadFileName(title, originalFileName) {
+  const rawTitle = (title || "").trim();
+  const rawOriginal = (originalFileName || "").trim();
+
+  if (!rawTitle) {
+    return rawOriginal || "download";
+  }
+
+  const sanitizedTitle = rawTitle.replace(/[\\/:*?"<>|\r\n]+/g, "_").trim();
+  if (!sanitizedTitle) {
+    return rawOriginal || "download";
+  }
+
+  const lastDot = rawOriginal.lastIndexOf(".");
+  const ext = lastDot > 0 && lastDot < rawOriginal.length - 1
+    ? rawOriginal.slice(lastDot)
+    : "";
+
+  if (ext && !sanitizedTitle.toLowerCase().endsWith(ext.toLowerCase())) {
+    return `${sanitizedTitle}${ext}`;
+  }
+
+  return sanitizedTitle;
+}
+
+/**
  * Triggers an immediate native browser file download using a signed attachment URL.
  * Passing `disposition = "attachment"` causes R2 to send Content-Disposition: attachment,
  * so the browser starts streaming the download right away instead of buffering the full
@@ -536,12 +568,12 @@ export async function downloadDocumentFile(doc) {
   if (!doc) throw new Error("No document specified for download.");
 
   // Request signed URL with Content-Disposition: attachment
-  const { downloadUrl } = await getDocumentSignedUrl(doc.id, doc.r2_key, "attachment");
+  const { downloadUrl, fileName: signedFileName } = await getDocumentSignedUrl(doc.id, doc.r2_key, "attachment");
   if (!downloadUrl) {
     throw new Error("Did not receive a valid download URL from storage service.");
   }
 
-  const fileName = doc.file_name || doc.name || "download";
+  const fileName = buildDownloadFileName(doc.name, doc.file_name) || signedFileName || "download";
   const a = document.createElement("a");
   a.href = downloadUrl;
   a.download = fileName;
@@ -589,7 +621,7 @@ export async function updateDocumentMetadata(documentId, updates) {
   const { data, error } = await supabase
     .from("documents")
     .update({
-      name: updates.name,
+      name: (updates.name || "").trim(),
       category: updates.category,
       visibility: updates.visibility,
       event_id: updates.event_id || null,

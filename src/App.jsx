@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+﻿import { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./supabaseClient";
 
 // Code-split pages for high performance and fast initial load
@@ -145,7 +145,7 @@ export default function App() {
   // Read cached profile synchronously on startup — instant dashboard, no loading screen
   const _cached = getCachedProfile();
   const _hasAuth = hasStoredAuth();
-  const _isReturningUser = !!(_cached && _hasAuth && _cached.userId && _cached.userId === _hasAuth.id);
+  const _isReturningUser = !!(_cached && _hasAuth && _cached.userId && _cached.userId === _hasAuth.id && (_cached.role !== "member" || !!_cached.stId));
 
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const [page, setPage] = useState(() => {
@@ -280,6 +280,32 @@ export default function App() {
   useEffect(() => {
     let alive = true;
 
+    const checkOAuthUrlError = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashStr = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+        const hashParams = new URLSearchParams(hashStr);
+        const errDesc = searchParams.get("error_description") || hashParams.get("error_description");
+        const errCode = searchParams.get("error") || hashParams.get("error");
+        if (errDesc || errCode) {
+          const decoded = errDesc ? decodeURIComponent(errDesc.replace(/\+/g, " ")) : errCode;
+          const isDbOrUnreg = /database error|not registered|student id|registration/i.test(decoded);
+          const payload = {
+            message: isDbOrUnreg
+              ? "You are not registered, or your email does not match a registered Student ID. Please use the correct registered email or register first."
+              : decoded,
+            showRegister: isDbOrUnreg,
+          };
+          sessionStorage.setItem("adss-login-error", JSON.stringify(payload));
+          sessionStorage.removeItem("adss-google-signin-attempt");
+          window.history.replaceState({}, "", "/login");
+          window.dispatchEvent(new Event("popstate"));
+          window.dispatchEvent(new CustomEvent("adss-login-error", { detail: payload }));
+        }
+      } catch (_) {}
+    };
+    checkOAuthUrlError();
+
     const loadProfile = async (authSession) => {
       const user = authSession?.user;
       if (!user) {
@@ -292,6 +318,55 @@ export default function App() {
         return;
       }
 
+      let isGoogleAttempt = false;
+      try {
+        isGoogleAttempt = !!sessionStorage.getItem("adss-google-signin-attempt");
+        if (isGoogleAttempt) sessionStorage.removeItem("adss-google-signin-attempt");
+      } catch (_) {}
+      const isGoogleUser =
+        isGoogleAttempt ||
+        user.app_metadata?.provider === "google" ||
+        (Array.isArray(user.app_metadata?.providers) &&
+          user.app_metadata.providers.includes("google") &&
+          user.app_metadata?.provider !== "email");
+
+      // ── Google OAuth sign-up: finish registration with the saved step-1 data ──
+      let pendingReg = null;
+      try {
+        const raw = sessionStorage.getItem("adss-google-pending-reg");
+        if (raw) {
+          pendingReg = JSON.parse(raw);
+          sessionStorage.removeItem("adss-google-pending-reg");
+        }
+      } catch (_) {}
+
+      // Auth events can fire more than once; share one in-flight RPC so every call waits for it.
+      if (pendingReg && pendingReg.full_name) {
+        const isExec = pendingReg.member_type === "executive";
+        window.__adssGoogleReg = supabase.rpc("complete_google_registration", {
+          p_full_name: pendingReg.full_name,
+          p_preferred_name: pendingReg.preferred_name || "",
+          p_st_id: pendingReg.st_id || "",
+          p_level: parseInt(pendingReg.level, 10) || 1,
+          p_mobile: pendingReg.phone || "",
+          p_membership_status: isExec ? "executive" : "member",
+          p_member_function: isExec ? (pendingReg.executive_function || "") : (pendingReg.member_function || ""),
+          p_st_position: isExec ? (pendingReg.executive_manager || "") : "Member",
+          p_is_appeal: pendingReg.wants_appeal === "yes",
+        }).then((res) => {
+          if (res.error) {
+            console.error("Google registration failed:", res.error);
+            try { localStorage.setItem("adss-google-reg-error", res.error.message); } catch (_) {}
+            alert("Registration could not be saved: " + res.error.message);
+          }
+          return res;
+        });
+      }
+      if (window.__adssGoogleReg) {
+        await window.__adssGoogleReg;
+        pendingReg = pendingReg || { full_name: "done" };
+      }
+
       const { data } = await supabase
         .from("profiles")
         .select("id, email, full_name, preferred_name, role, st_id, status")
@@ -299,37 +374,96 @@ export default function App() {
         .maybeSingle();
 
       if (alive) {
-        let resolvedStId = (data?.st_id || "").trim();
-        const userEmail = (data?.email || user.email || "").trim();
-
-        // Fallback: If st_id is missing in profile, resolve from members table via email
-        if (!resolvedStId && userEmail) {
-          try {
-            const { data: memRecord } = await supabase
-              .from("members")
-              .select("st_id")
-              .ilike("email", userEmail)
-              .maybeSingle();
-            if (memRecord?.st_id) {
-              resolvedStId = memRecord.st_id.trim();
-              // Sync to profiles table in background so Postgres functions and RLS can also read it
-              supabase
-                .from("profiles")
-                .update({ st_id: resolvedStId })
-                .eq("id", user.id)
-                .then(() => {}, () => {});
-            }
-          } catch (_) {}
+        // Re-fetch profile if we just upserted registration data, to get the freshest row
+        let freshData = data;
+        if (pendingReg && pendingReg.full_name) {
+          const { data: refetched } = await supabase
+            .from("profiles")
+            .select("id, email, full_name, preferred_name, role, st_id, status")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (refetched) freshData = refetched;
         }
 
-        const userRole = data?.role || "member";
-        const userStatus = data?.status || "approved";
+        const profileStId = (freshData?.st_id || "").trim();
+        let resolvedStId = profileStId;
+        const userEmail = (freshData?.email || user.email || "").trim();
+        const userRole = freshData?.role || "member";
+
+        // Verify email and Student ID against members directory
+        let memRecord = null;
+        let memCheckError = null;
+        if (userEmail) {
+          try {
+            const { data: memData, error: memErr } = await supabase
+              .from("members")
+              .select("st_id, email")
+              .ilike("email", userEmail)
+              .maybeSingle();
+            memRecord = memData || null;
+            memCheckError = memErr || null;
+          } catch (err) {
+            memCheckError = err;
+          }
+        }
+
+        if (!resolvedStId && memRecord?.st_id) {
+          resolvedStId = memRecord.st_id.trim();
+          // Sync to profiles table via server-side RPC (profiles.st_id is locked against direct client edits)
+          supabase
+            .rpc("sync_own_profile_st_id")
+            .then(() => {}, () => {});
+        }
+
+        const hasEmailAndStIdMismatch =
+          userRole === "member" &&
+          !memCheckError &&
+          (
+            !memRecord?.st_id ||
+            !resolvedStId ||
+            (profileStId && profileStId.toLowerCase() !== memRecord.st_id.trim().toLowerCase())
+          );
+
+        const isUnregisteredMemberSession =
+          userRole === "member" &&
+          (
+            (isGoogleUser && (hasEmailAndStIdMismatch || !resolvedStId)) ||
+            (!resolvedStId && (freshData?.status === "pending" || !freshData))
+          );
+
+        if (isUnregisteredMemberSession) {
+          const loginErrPayload = {
+            message: "You are not registered, or your email does not match a registered Student ID. Please use the correct registered email or register first.",
+            showRegister: true,
+          };
+          try {
+            sessionStorage.setItem("adss-login-error", JSON.stringify(loginErrPayload));
+          } catch (_) {}
+          try {
+            await supabase.rpc("cleanup_unregistered_google_user");
+          } catch (_) {}
+          clearCachedProfile();
+          try {
+            await supabase.auth.signOut();
+          } catch (_) {}
+          if (alive) {
+            setSession({ role: "guest", stId: "", name: "", email: "", userId: "" });
+            setViewAsMember(false);
+            setAuthLoading(false);
+            window.history.replaceState({}, "", "/login");
+            window.dispatchEvent(new Event("popstate"));
+            window.dispatchEvent(new CustomEvent("adss-login-error", { detail: loginErrPayload }));
+          }
+          return;
+        }
+
+        const userStatus = freshData?.status || (pendingReg ? "pending" : "approved");
         const profileData = {
           role: userRole,
           stId: resolvedStId,
-          name: data?.preferred_name || data?.full_name || user.email || "",
-          fullName: data?.full_name || "",
-          preferredName: data?.preferred_name || "",
+          name: freshData?.preferred_name || freshData?.full_name || user.email || "",
+          fullName: freshData?.full_name || "",
+          preferredName: freshData?.preferred_name || "",
           email: userEmail,
           userId: user.id,
           status: userStatus,
@@ -1119,3 +1253,4 @@ export default function App() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { resizeImage } from "../utils/imageOptimizer";
 import { useCycle } from "../context/CycleContext";
@@ -41,8 +41,6 @@ export default function Register({
   theme,
 }) {
   const isDark = theme ? theme === "dark" : (typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true);
-  const [roleMode, setRoleMode] = useState("member"); // "member" | "staff"
-  const [staffRole, setStaffRole] = useState("editor"); // "editor" | "admin"
   const { activeCycle } = useCycle();
 
   // Form fields
@@ -75,7 +73,9 @@ export default function Register({
 
   // Multi-step Wizard State
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = roleMode === "member" && memberType === "member" ? 3 : 2;
+  const baseSteps = memberType === "member" ? 3 : 2;
+  const contactStep = baseSteps;          // Photo & Mobile
+  const totalSteps = baseSteps + 1;       // + final Sign Up step (Email & password)
 
   // Clamp currentStep if totalSteps changes
   useEffect(() => {
@@ -188,15 +188,17 @@ export default function Register({
     };
   }, []);
 
-  const stepLabels = totalSteps === 3
+  const stepLabels = baseSteps === 3
     ? [
         { num: 1, title: "Identity & Function", desc: "Academic & function" },
         { num: 2, title: "Make an Appeal", desc: "Optional appeal" },
-        { num: 3, title: "Credentials", desc: "Photo & account" },
+        { num: 3, title: "Photo & Mobile", desc: "Pass photo & contact" },
+        { num: 4, title: "Sign Up", desc: "Email & password" },
       ]
     : [
         { num: 1, title: "Identity", desc: "Academic & role" },
-        { num: 2, title: "Credentials", desc: "Photo & account" },
+        { num: 2, title: "Photo & Mobile", desc: "Pass photo & contact" },
+        { num: 3, title: "Sign Up", desc: "Email & password" },
       ];
 
   // Password visibility
@@ -359,39 +361,37 @@ export default function Register({
       if (!name.trim()) {
         errs.name = "Full Name is required.";
       }
-      if (roleMode === "member") {
-        if (!trimmedStId) {
-          errs.stId = "Student ID is required.";
-        } else if (!isValidStIdFormat) {
-          errs.stId = "Invalid Student ID format. Expected format: SC/2022/12984";
+      if (!trimmedStId) {
+        errs.stId = "Student ID is required.";
+      } else if (!isValidStIdFormat) {
+        errs.stId = "Invalid Student ID format. Expected format: SC/2022/12984";
+      }
+      if (memberType === null) {
+        errs.memberType = "Please select whether you are an executive or a member.";
+      } else if (memberType === "executive" && !executiveRegEnabled) {
+        errs.memberType = "Executive registration is currently closed by administrator.";
+      } else if (memberType === "member" && !memberRegEnabled) {
+        errs.memberType = "Member registration is currently closed by administrator.";
+      } else if (memberType === "executive") {
+        const validPositions = getValidExecutivePositions(executiveFunction);
+        if (!executiveFunction) {
+          errs.executiveFunction = "Please select your Executive Board Function.";
         }
-        if (memberType === null) {
-          errs.memberType = "Please select whether you are an executive or a member.";
-        } else if (memberType === "executive" && !executiveRegEnabled) {
-          errs.memberType = "Executive registration is currently closed by administrator.";
-        } else if (memberType === "member" && !memberRegEnabled) {
-          errs.memberType = "Member registration is currently closed by administrator.";
-        } else if (memberType === "executive") {
-          const validPositions = getValidExecutivePositions(executiveFunction);
-          if (!executiveFunction) {
-            errs.executiveFunction = "Please select your Executive Board Function.";
-          }
-          if (!executiveManager) {
-            errs.executiveManager =
-              executiveTier === "vice_president"
-                ? "Please select your Vice President role."
-                : "Please select your Manager or Vice President role.";
-          } else if (!validPositions.includes(executiveManager)) {
-            errs.executiveManager = "Selected role does not belong to the chosen function.";
-          }
-        } else if (memberType === "member") {
-          if (!memberFunction) {
-            errs.memberFunction = "Please register for an available function below.";
-          } else {
-            const avail = functionAvailability[memberFunction];
-            if (avail && (avail.isFull || avail.filled >= avail.capacity)) {
-              errs.memberFunction = "Selected function is currently full. Please choose an available function.";
-            }
+        if (!executiveManager) {
+          errs.executiveManager =
+            executiveTier === "vice_president"
+              ? "Please select your Vice President role."
+              : "Please select your Manager or Vice President role.";
+        } else if (!validPositions.includes(executiveManager)) {
+          errs.executiveManager = "Selected role does not belong to the chosen function.";
+        }
+      } else if (memberType === "member") {
+        if (!memberFunction) {
+          errs.memberFunction = "Please register for an available function below.";
+        } else {
+          const avail = functionAvailability[memberFunction];
+          if (avail && (avail.isFull || avail.filled >= avail.capacity)) {
+            errs.memberFunction = "Selected function is currently full. Please choose an available function.";
           }
         }
       }
@@ -406,7 +406,7 @@ export default function Register({
       return true;
     }
 
-    if (totalSteps === 3 && currentStep === 2) {
+    if (baseSteps === 3 && currentStep === 2) {
       if (wantsAppeal === null) {
         errs.wantsAppeal = "Please select Yes or No to indicate whether you want to make an appeal.";
       } else if (wantsAppeal === "yes") {
@@ -430,6 +430,18 @@ export default function Register({
       return true;
     }
 
+    if (currentStep === contactStep) {
+      if (!phone.trim()) {
+        errs.phone = "Mobile / WhatsApp number is required.";
+        setValidationErrors(errs);
+        setErrorMessage(errs.phone);
+        scrollToFirstError(errs);
+        return false;
+      }
+      setValidationErrors({});
+      return true;
+    }
+
     return true;
   };
 
@@ -444,7 +456,7 @@ export default function Register({
       errs.email = "Please enter a valid email address.";
     }
 
-    if (roleMode === "member" && !phone.trim()) {
+    if (!phone.trim()) {
       errs.phone = "Mobile / WhatsApp number is required.";
     }
 
@@ -521,7 +533,7 @@ export default function Register({
       return;
     }
 
-    const targetRole = roleMode === "member" ? "member" : staffRole;
+    const targetRole = "member";
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
     const cleanPreferredName = preferredName.trim() || null;
@@ -546,41 +558,39 @@ export default function Register({
       return;
     }
 
-    if (roleMode === "member") {
-      if (memberType === null) {
-        setErrorMessage("Please answer the required question: Are you an executive or a member?");
+    if (memberType === null) {
+      setErrorMessage("Please answer the required question: Are you an executive or a member?");
+      return;
+    }
+
+    if (memberType === "executive") {
+      const validPositions = getValidExecutivePositions(executiveFunction);
+      if (!executiveFunction || !executiveManager || !validPositions.includes(executiveManager)) {
+        setErrorMessage("Please select a valid Executive Board Function and corresponding Manager or Vice President role.");
         return;
       }
-
-      if (memberType === "executive") {
-        const validPositions = getValidExecutivePositions(executiveFunction);
-        if (!executiveFunction || !executiveManager || !validPositions.includes(executiveManager)) {
-          setErrorMessage("Please select a valid Executive Board Function and corresponding Manager or Vice President role.");
+    } else {
+      if (!memberFunction) {
+        setErrorMessage("Please select an available function under Function-wise information.");
+        return;
+      }
+      const avail = functionAvailability[memberFunction];
+      if (avail && (avail.isFull || avail.filled >= avail.capacity)) {
+        setErrorMessage("The selected function is full. Please choose an available function.");
+        return;
+      }
+      if (wantsAppeal === null) {
+        setErrorMessage("Please indicate whether you want to make an appeal.");
+        return;
+      }
+      if (wantsAppeal === "yes") {
+        if (!appealFunction || appealFunction === memberFunction) {
+          setErrorMessage("Please select a valid target function for your appeal.");
           return;
         }
-      } else {
-        if (!memberFunction) {
-          setErrorMessage("Please select an available function under Function-wise information.");
+        if (!appealReason || appealReason.trim().length < 5) {
+          setErrorMessage("Please explain your skills and reason for appeal (minimum 5 characters).");
           return;
-        }
-        const avail = functionAvailability[memberFunction];
-        if (avail && (avail.isFull || avail.filled >= avail.capacity)) {
-          setErrorMessage("The selected function is full. Please choose an available function.");
-          return;
-        }
-        if (wantsAppeal === null) {
-          setErrorMessage("Please indicate whether you want to make an appeal.");
-          return;
-        }
-        if (wantsAppeal === "yes") {
-          if (!appealFunction || appealFunction === memberFunction) {
-            setErrorMessage("Please select a valid target function for your appeal.");
-            return;
-          }
-          if (!appealReason || appealReason.trim().length < 5) {
-            setErrorMessage("Please explain your skills and reason for appeal (minimum 5 characters).");
-            return;
-          }
         }
       }
     }
@@ -620,9 +630,7 @@ export default function Register({
 
       // 3. Check if registration is closed for the selected track (or globally)
       const selectedTrackOpen =
-        roleMode !== "member"
-          ? regEnabled
-          : memberType === "executive"
+        memberType === "executive"
           ? executiveRegEnabled
           : memberRegEnabled;
       if ((!regEnabled || !selectedTrackOpen) && !isPreRegistered && !canRegisterStaff) {
@@ -631,7 +639,7 @@ export default function Register({
             ? "Executive registration is currently closed by administrator."
             : memberType === "member"
             ? "Member registration is currently closed by administrator."
-            : "General membership registration is currently closed. If you are authorized staff, ensure your invite is active."
+            : "General membership registration is currently closed."
         );
         setLoading(false);
         return;
@@ -731,8 +739,8 @@ export default function Register({
       }
 
       const finalLevel = level || "1";
-      const isExecutive = roleMode === "member" && memberType === "executive";
-      const isMemberAppeal = roleMode === "member" && memberType === "member" && wantsAppeal === "yes";
+      const isExecutive = memberType === "executive";
+      const isMemberAppeal = memberType === "member" && wantsAppeal === "yes";
 
       const applicantStatus = isExecutive
         ? (executiveAutoApprove ? "approved" : "pending")
@@ -851,36 +859,31 @@ export default function Register({
           }
         }
 
-        // Persist Executive or Appeal metadata cleanly if session is active
-        if (roleMode === "member") {
-          const profilePatch = {
-            membership_status: membershipStatusValue,
-            skills_assessment: assessmentPayload,
-            contribution_note: isMemberAppeal ? appealReason.trim() : null,
-          };
-          if (isMemberAppeal) {
-            profilePatch.status = "pending_editor_review";
-          }
+        // Persist non-sensitive Appeal metadata cleanly if session is active
+        // (status and membership_status are set authoritatively server-side by handle_new_user)
+        const profilePatch = {
+          skills_assessment: assessmentPayload,
+          contribution_note: isMemberAppeal ? appealReason.trim() : null,
+        };
+        try {
+          await supabase
+            .from("profiles")
+            .update(profilePatch)
+            .eq("id", data.user.id);
+        } catch (_) {}
+
+        if (finalStId && !isPreRegistered) {
           try {
             await supabase
-              .from("profiles")
-              .update(profilePatch)
-              .eq("id", data.user.id);
+              .from("members")
+              .update({
+                member_function: finalMemberFunction,
+                st_position: finalStPosition,
+                membership_status: membershipStatusValue,
+                skills_assessment: assessmentPayload,
+              })
+              .eq("st_id", finalStId);
           } catch (_) {}
-
-          if (finalStId && !isPreRegistered) {
-            try {
-              await supabase
-                .from("members")
-                .update({
-                  member_function: finalMemberFunction,
-                  st_position: finalStPosition,
-                  membership_status: membershipStatusValue,
-                  skills_assessment: assessmentPayload,
-                })
-                .eq("st_id", finalStId);
-            } catch (_) {}
-          }
         }
 
         const { data: profile } = await supabase
@@ -926,7 +929,7 @@ export default function Register({
           photoDeferred: photoUploadDeferred,
           pendingEditorReview: isMemberAppeal,
           autoApproved: !isMemberAppeal && (isPreRegistered || (isExecutive ? executiveAutoApprove : memberAutoApprove)),
-          memberType: roleMode === "member" ? memberType : "staff",
+          memberType,
           appealFunction: isMemberAppeal ? appealFunction : null,
           assignedFunction: memberType === "member" ? memberFunction : executiveFunction,
           executiveManager: isExecutive ? executiveManager : null,
@@ -1098,115 +1101,48 @@ export default function Register({
               </div>
             ) : (
               <>
-                {/* Top Badge & Cycle */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-[4px] border text-[11px] font-berkeley-mono tracking-wider ${
+                {/* Top Metadata Header */}
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-[5px] border text-[11px] font-berkeley-mono tracking-wider ${
                     isDark ? "bg-[#161718] border-[#23252a] text-[#8a8f98]" : "bg-gray-100 border-gray-200 text-gray-600"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${isDark ? "bg-[#e4f222]" : "bg-lime-500"}`} />
                     <span>ONBOARDING // {activeCycle?.name || "2024/2025"} CYCLE</span>
                   </div>
-                  <span className={`text-[11px] font-berkeley-mono ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>
-                    STUDENT REGISTRY
-                  </span>
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[5px] border text-[11px] font-berkeley-mono tracking-wider ${
+                    isDark ? "bg-[#161718]/70 border-[#23252a]/80 text-[#8a8f98]" : "bg-gray-50 border-gray-200 text-gray-600"
+                  }`}>
+                    <GraduationCap className={`w-3.5 h-3.5 ${isDark ? "text-[#e4f222]" : "text-gray-700"}`} />
+                    <span>STUDENT REGISTRY</span>
+                  </div>
                 </div>
 
                 {/* Title & Subtitle */}
-                <h1 className={`text-[24px] sm:text-[28px] font-[510] tracking-[-0.022em] leading-tight mb-2 ${
-                  isDark ? "text-white" : "text-gray-900 font-semibold"
-                }`}>
-                  Join ADSS Ruhuna
-                </h1>
-                <p className={`text-[13.5px] font-[400] leading-relaxed mb-6 ${
-                  isDark ? "text-[#8a8f98]" : "text-gray-600"
-                }`}>
-                  Create your student member identity to receive your digital membership pass, access attendance telemetry, and join society operations.
-                </p>
+                <div className="mb-6">
+                  <h1 className={`text-[24px] sm:text-[28px] font-[510] tracking-[-0.022em] leading-tight mb-2 ${
+                    isDark ? "text-white" : "text-gray-900 font-semibold"
+                  }`}>
+                    Join ADSS Ruhuna
+                  </h1>
+                  <p className={`text-[13.5px] font-[400] leading-relaxed ${
+                    isDark ? "text-[#8a8f98]" : "text-gray-600"
+                  }`}>
+                    Create your student member identity to receive your digital membership pass, access attendance telemetry, and join society operations.
+                  </p>
+                </div>
 
                 {/* General Registration Closed Notice */}
-                {!regEnabled && roleMode === "member" && (
-                  <div className={`mb-5 p-3.5 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
+                {!regEnabled && (
+                  <div className={`mb-5 p-3.5 rounded-[8px] border text-[13px] flex items-start gap-2.5 ${
                     isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
                   }`}>
                     <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     <div>
                       <strong className="font-[510] block mb-0.5">General Registration Closed</strong>
                       <span>
-                        Undergraduate registration is currently offline. If you have been appointed as society staff or faculty, switch to Staff Invite below.
+                        Undergraduate registration is currently offline. Please check back later or contact society administrators for assistance.
                       </span>
                     </div>
-                  </div>
-                )}
-
-                {/* Role Mode Selector Tabs */}
-                <div className={`grid grid-cols-2 gap-2 p-1 rounded-[8px] border mb-6 ${
-                  isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-100 border-gray-200"
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRoleMode("member");
-                      setErrorMessage("");
-                    }}
-                    className={`py-2 px-3 rounded-[6px] text-[13px] font-[510] transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                      roleMode === "member"
-                        ? isDark
-                          ? "bg-[#0f1011] text-white border border-[#23252a] shadow-sm"
-                          : "bg-white text-gray-900 shadow-sm border border-gray-200 font-semibold"
-                        : isDark
-                          ? "text-[#8a8f98] hover:text-white"
-                          : "text-gray-500 hover:text-gray-900"
-                    }`}
-                  >
-                    <GraduationCap className="w-4 h-4" />
-                    <span>Student Member</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRoleMode("staff");
-                      setErrorMessage("");
-                    }}
-                    className={`py-2 px-3 rounded-[6px] text-[13px] font-[510] transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                      roleMode === "staff"
-                        ? isDark
-                          ? "bg-[#0f1011] text-white border border-[#23252a] shadow-sm"
-                          : "bg-white text-gray-900 shadow-sm border border-gray-200 font-semibold"
-                        : isDark
-                          ? "text-[#8a8f98] hover:text-white"
-                          : "text-gray-500 hover:text-gray-900"
-                    }`}
-                  >
-                    <Briefcase className="w-4 h-4" />
-                    <span>Staff / Executive</span>
-                  </button>
-                </div>
-
-                {/* Staff Role Specific Selector */}
-                {roleMode === "staff" && (
-                  <div className={`mb-6 p-3 rounded-[6px] border flex items-center justify-between ${
-                    isDark ? "bg-[#161718] border-[#23252a]" : "bg-gray-50 border-gray-200"
-                  }`}>
-                    <div>
-                      <span className={`text-[13px] font-[510] block ${isDark ? "text-white" : "text-gray-900 font-semibold"}`}>
-                        Assigned Staff Role
-                      </span>
-                      <span className={`text-[11.5px] ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
-                        Requires an authorized invitation in system records
-                      </span>
-                    </div>
-                    <select
-                      value={staffRole}
-                      onChange={(e) => setStaffRole(e.target.value)}
-                      className={`px-3 py-1.5 rounded-[6px] border text-[13px] focus:outline-none ${
-                        isDark 
-                          ? "bg-[#08090a] border-[#23252a] text-[#d0d6e0] focus:border-[#d0d6e0]" 
-                          : "bg-white border-gray-200 text-gray-800 shadow-sm focus:border-gray-900"
-                      }`}
-                    >
-                      <option value="editor">Editor / Executive</option>
-                      <option value="admin">Administrator</option>
-                    </select>
                   </div>
                 )}
 
@@ -1222,36 +1158,38 @@ export default function Register({
 
                 {/* Registration Multi-Step Form */}
                 <form onSubmit={handleFormSubmit} className="space-y-6">
-                  {/* Stepper Progress Bar */}
-                  <div className="space-y-2.5 pb-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider font-semibold px-2 py-0.5 rounded-[4px] border ${
+                  {/* Redesigned Professional Stepper Progress Module */}
+                  <div className={`p-3.5 sm:p-4 rounded-[10px] border space-y-3 ${
+                    isDark ? "bg-[#131416]/85 border-[#23252a]" : "bg-gray-50/90 border-gray-200"
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className={`text-[10.5px] font-berkeley-mono uppercase tracking-wider font-semibold px-2 py-0.5 rounded-[4px] border flex-shrink-0 ${
                           isDark
-                            ? "bg-[#161718] border-[#23252a] text-[#e4f222]"
+                            ? "bg-[#161718] border-[#27292e] text-[#e4f222]"
                             : "bg-lime-50 border-lime-200 text-lime-800"
                         }`}>
                           STEP {currentStep} OF {totalSteps}
                         </span>
-                        <span className={`text-[13px] font-[510] ${isDark ? "text-white" : "text-gray-900"}`}>
+                        <span className={`text-[13.5px] font-[550] truncate ${isDark ? "text-white" : "text-gray-900"}`}>
                           {stepLabels[currentStep - 1]?.title}
                         </span>
                       </div>
-                      <span className={`text-[11.5px] font-berkeley-mono ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
-                        {Math.round((currentStep / totalSteps) * 100)}% Complete
+                      <span className={`text-[11.5px] font-berkeley-mono flex-shrink-0 ${isDark ? "text-[#8a8f98]" : "text-gray-500"}`}>
+                        {Math.round((currentStep / totalSteps) * 100)}%
                       </span>
                     </div>
 
                     {/* Progress Bar Track */}
-                    <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? "bg-[#161718]" : "bg-gray-100"}`}>
+                    <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? "bg-[#1c1e22]" : "bg-gray-200/80"}`}>
                       <div
-                        className="h-full bg-gradient-to-r from-[#e4f222] to-emerald-400 transition-all duration-300 ease-out"
+                        className="h-full bg-gradient-to-r from-[#e4f222] to-emerald-400 transition-all duration-300 ease-out rounded-full"
                         style={{ width: `${(currentStep / totalSteps) * 100}%` }}
                       />
                     </div>
 
                     {/* Segmented Step Buttons */}
-                    <div className={`grid ${totalSteps === 3 ? "grid-cols-3" : "grid-cols-2"} gap-1.5 pt-1`}>
+                    <div className={`grid ${totalSteps === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"} gap-1.5 pt-0.5`}>
                       {stepLabels.map((s) => {
                         const isPast = s.num < currentStep;
                         const isCurrent = s.num === currentStep;
@@ -1261,18 +1199,18 @@ export default function Register({
                             type="button"
                             onClick={() => handleJumpToStep(s.num)}
                             disabled={!isPast && !isCurrent}
-                            className={`text-left py-1.5 px-2 rounded-[5px] border transition-all text-[11px] truncate flex items-center gap-1.5 ${
+                            className={`text-left py-1.5 px-2.5 rounded-[6px] border transition-all text-[11px] truncate flex items-center gap-1.5 ${
                               isCurrent
                                 ? isDark
-                                  ? "bg-[#161718] border-[#e4f222]/50 text-white font-[510]"
+                                  ? "bg-[#191b1f] border-[#e4f222]/50 text-white font-[510] shadow-sm"
                                   : "bg-white border-lime-500 text-gray-900 shadow-sm font-semibold"
                                 : isPast
                                 ? isDark
                                   ? "bg-[#0f1011] border-[#23252a] text-[#27a644] hover:border-[#383b3f] cursor-pointer"
-                                  : "bg-gray-50 border-gray-200 text-emerald-600 hover:border-gray-300 cursor-pointer"
+                                  : "bg-white/70 border-gray-200 text-emerald-600 hover:border-gray-300 cursor-pointer"
                                 : isDark
-                                ? "bg-transparent border-transparent text-[#62666d] cursor-not-allowed opacity-50"
-                                : "bg-transparent border-transparent text-gray-400 cursor-not-allowed opacity-50"
+                                ? "bg-transparent border-transparent text-[#62666d] cursor-not-allowed opacity-55"
+                                : "bg-transparent border-transparent text-gray-400 cursor-not-allowed opacity-55"
                             }`}
                           >
                             {isPast ? (
@@ -1369,9 +1307,7 @@ export default function Register({
                       </div>
 
                       {/* Member Specific Fields: ST ID & Level */}
-                      {roleMode === "member" && (
-                        <>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {/* Student ID */}
                             <div id="field-stId">
                               <div className="flex items-center justify-between mb-1.5">
@@ -1903,8 +1839,6 @@ export default function Register({
                               )}
                             </div>
                           )}
-                        </>
-                      )}
 
                       {/* Step 1 Inline Error Banner */}
                       {errorMessage && (
@@ -1924,9 +1858,9 @@ export default function Register({
                           className="linear-btn-primary px-5 py-2.5 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
                         >
                           <span>
-                            {roleMode === "member" && memberType === "member"
+                            {memberType === "member"
                               ? "Next: Make an Appeal"
-                              : "Next: Pass Photo & Credentials"}
+                              : "Next: Photo & Mobile"}
                           </span>
                           <ArrowRight className="w-4 h-4" />
                         </button>
@@ -1935,7 +1869,7 @@ export default function Register({
                   )}
 
                   {/* ── STEP 2 (when Member flow = 3 steps): Make an Appeal ── */}
-                  {totalSteps === 3 && currentStep === 2 && (
+                  {baseSteps === 3 && currentStep === 2 && (
                     <div className="space-y-5 animate-in fade-in-50 duration-200">
                       <div className={`flex items-center justify-between pb-1 border-b ${
                         isDark ? "border-[#23252a]/60" : "border-gray-200"
@@ -2225,7 +2159,7 @@ export default function Register({
                             onClick={handleNextStep}
                             className="linear-btn-primary px-5 py-2 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
                           >
-                            <span>Next: Pass Photo & Credentials</span>
+                            <span>Next: Photo & Mobile</span>
                             <ArrowRight className="w-4 h-4" />
                           </button>
                         )}
@@ -2233,8 +2167,8 @@ export default function Register({
                     </div>
                   )}
 
-                  {/* ── FINAL STEP: Digital Pass Photo & Account Credentials ── */}
-                  {currentStep === totalSteps && (
+                  {/* ── CONTACT STEP: Digital Pass Photo & Mobile ── */}
+                  {currentStep === contactStep && (
                     <div className="space-y-5 animate-in fade-in-50 duration-200">
                       {/* Photo Section */}
                       <div className="space-y-3">
@@ -2244,7 +2178,7 @@ export default function Register({
                           <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
                             isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
                           }`}>
-                            {totalSteps === 3 ? "03" : "02"} // Member Photo (For Digital Pass)
+                            {String(contactStep).padStart(2, "0")} // Member Photo (For Digital Pass)
                           </span>
                         </div>
 
@@ -2317,12 +2251,94 @@ export default function Register({
                           <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
                             isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
                           }`}>
-                            Contact & Credentials
+                            Contact
                           </span>
                         </div>
 
-                        {/* Email & Phone */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                        {/* Phone */}
+                        <div id="field-phone">
+                          <label className={`block text-[13px] font-[510] mb-1.5 ${
+                            isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
+                          }`}>
+                            Mobile / WhatsApp{" "}
+                            <span className="text-[#eb5757]">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="tel"
+                              required
+                              placeholder="+94 77 123 4567"
+                              value={phone}
+                              onChange={(e) => {
+                                setPhone(e.target.value);
+                                if (validationErrors.phone) {
+                                  setValidationErrors((prev) => ({ ...prev, phone: null }));
+                                }
+                              }}
+                              className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
+                                validationErrors.phone
+                                  ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
+                                  : isDark
+                                  ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
+                                  : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
+                              }`}
+                            />
+                          </div>
+                          {validationErrors.phone && (
+                            <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span>{validationErrors.phone}</span>
+                            </p>
+                          )}
+                        </div>
+
+                      </div>
+
+                      {/* Contact step navigation */}
+                      <div className={`pt-4 flex items-center justify-between border-t ${
+                        isDark ? "border-[#23252a]/60" : "border-gray-200"
+                      } gap-3`}>
+                        <button
+                          type="button"
+                          onClick={handlePrevStep}
+                          className={`px-4 py-2.5 rounded-[6px] border text-[13px] font-[510] flex items-center gap-2 cursor-pointer transition-colors ${
+                            isDark
+                              ? "bg-[#161718] border-[#23252a] text-[#d0d6e0] hover:text-white hover:border-[#383b3f]"
+                              : "bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:bg-gray-50 shadow-sm"
+                          }`}
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          <span>Back</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="linear-btn-primary px-5 py-2 text-[13.5px] font-[510] flex items-center gap-2 cursor-pointer"
+                        >
+                          <span>Next: Sign Up</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── FINAL STEP: Sign up with Email ── */}
+                  {currentStep === totalSteps && (
+                    <div className="space-y-5 animate-in fade-in-50 duration-200">
+                      <div className="space-y-4 pt-1">
+                        <div className={`flex items-center gap-2 pb-1 border-b ${
+                          isDark ? "border-[#23252a]/60" : "border-gray-200"
+                        }`}>
+                          <span className={`text-[11px] font-berkeley-mono uppercase tracking-wider ${
+                            isDark ? "text-[#8a8f98]" : "text-gray-500 font-semibold"
+                          }`}>
+                            {String(totalSteps).padStart(2, "0")} // Sign Up
+                          </span>
+                        </div>
+
+                        {/* Email */}
+                        <div className="grid grid-cols-1 gap-4">
                           {/* Email */}
                           <div id="field-email">
                             <label className={`block text-[13px] font-[510] mb-1.5 ${
@@ -2360,44 +2376,6 @@ export default function Register({
                             )}
                           </div>
 
-                          {/* Phone */}
-                          <div id="field-phone">
-                            <label className={`block text-[13px] font-[510] mb-1.5 ${
-                              isDark ? "text-[#d0d6e0]" : "text-gray-700 font-medium"
-                            }`}>
-                              Mobile / WhatsApp{" "}
-                              {roleMode === "member" && (
-                                <span className="text-[#eb5757]">*</span>
-                              )}
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="tel"
-                                required={roleMode === "member"}
-                                placeholder="+94 77 123 4567"
-                                value={phone}
-                                onChange={(e) => {
-                                  setPhone(e.target.value);
-                                  if (validationErrors.phone) {
-                                    setValidationErrors((prev) => ({ ...prev, phone: null }));
-                                  }
-                                }}
-                                className={`w-full px-3 py-2 rounded-[6px] border text-[13.5px] transition-colors focus:outline-none ${
-                                  validationErrors.phone
-                                    ? "border-[#eb5757] focus:border-[#eb5757] ring-1 ring-[#eb5757] bg-rose-500/5"
-                                    : isDark
-                                    ? "bg-[rgba(255,255,255,0.02)] border-[#23252a] hover:border-[#383b3f] focus:border-[#d0d6e0] focus:bg-[#0f1011] text-[#d0d6e0] placeholder:text-[#62666d]"
-                                    : "bg-gray-50/80 border-gray-200 hover:border-gray-300 focus:border-gray-900 focus:bg-white text-gray-900 placeholder:text-gray-400 shadow-sm"
-                                }`}
-                              />
-                            </div>
-                            {validationErrors.phone && (
-                              <p className="text-[11.5px] text-[#eb5757] mt-1 font-berkeley-mono flex items-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                                <span>{validationErrors.phone}</span>
-                              </p>
-                            )}
-                          </div>
                         </div>
 
                         {/* Password & Confirm Password */}
@@ -2643,7 +2621,7 @@ export default function Register({
                       </div>
 
                       {/* Appeal Notice Banner (when Member selected Yes to Make an appeal) */}
-                      {roleMode === "member" && memberType === "member" && wantsAppeal === "yes" && (
+                      {memberType === "member" && wantsAppeal === "yes" && (
                         <div className={`p-3.5 rounded-[8px] border text-[13px] flex items-start gap-2.5 ${
                           isDark
                             ? "bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]"
@@ -2692,10 +2670,9 @@ export default function Register({
                           type="submit"
                           disabled={
                             loading ||
-                            (roleMode === "member" &&
-                              (!regEnabled ||
-                                (memberType === "executive" && !executiveRegEnabled) ||
-                                (memberType === "member" && !memberRegEnabled)))
+                            !regEnabled ||
+                            (memberType === "executive" && !executiveRegEnabled) ||
+                            (memberType === "member" && !memberRegEnabled)
                           }
                           className="linear-btn-primary flex-1 py-2.5 text-[14px] font-[510] tracking-[-0.011em] disabled:opacity-50 disabled:cursor-not-allowed justify-center"
                         >
@@ -2707,7 +2684,7 @@ export default function Register({
                           ) : (
                             <>
                               <span>
-                                {roleMode === "member" && memberType === "member" && wantsAppeal === "yes"
+                                {memberType === "member" && wantsAppeal === "yes"
                                   ? "Submit Registration & Appeal"
                                   : "Complete Registration"}
                               </span>
@@ -2716,6 +2693,7 @@ export default function Register({
                           )}
                         </button>
                       </div>
+
                     </div>
                   )}
                 </form>
@@ -2775,3 +2753,4 @@ export default function Register({
     </div>
   );
 }
+

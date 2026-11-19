@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import {
   ArrowLeft,
@@ -15,13 +15,54 @@ import {
   ShieldCheck
 } from "lucide-react";
 
+// Google "G" SVG icon (official colour logo)
+function GoogleIcon({ className = "w-5 h-5" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
 export default function Login({ onNavigate, onLoginSuccess, theme }) {
   const isDark = theme ? theme === "dark" : (typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showRegisterCta, setShowRegisterCta] = useState(false);
+
+  useEffect(() => {
+    const consumeLoginError = (detail) => {
+      let payload = detail;
+      if (!payload) {
+        try {
+          const raw = sessionStorage.getItem("adss-login-error");
+          if (raw) {
+            payload = JSON.parse(raw);
+            sessionStorage.removeItem("adss-login-error");
+          }
+        } catch (_) {}
+      } else {
+        try { sessionStorage.removeItem("adss-login-error"); } catch (_) {}
+      }
+      if (payload?.message) {
+        setErrorMessage(payload.message);
+        setShowRegisterCta(!!payload.showRegister);
+      }
+    };
+
+    consumeLoginError();
+
+    const handleCustomError = (e) => consumeLoginError(e.detail);
+    window.addEventListener("adss-login-error", handleCustomError);
+    return () => window.removeEventListener("adss-login-error", handleCustomError);
+  }, []);
 
   // Password Reset Drawer / Modal state
   const [showResetModal, setShowResetModal] = useState(false);
@@ -51,6 +92,7 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
+    setShowRegisterCta(false);
 
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
@@ -67,7 +109,52 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
       });
 
       if (error) {
-        setErrorMessage(error.message || "Invalid credentials. Please verify your email and password.");
+        const rawMsg = error.message || "";
+        if (/invalid login credentials/i.test(rawMsg)) {
+          let resolvedMsg = "";
+          let shouldShowRegister = false;
+
+          try {
+            const { data: emailStatus, error: statusErr } = await supabase.rpc("check_login_email_status", {
+              p_email: trimmedEmail,
+            });
+
+            if (!statusErr && emailStatus) {
+              if (emailStatus === "not_registered") {
+                resolvedMsg = "Email is not registered. Please check your email address or register first.";
+                shouldShowRegister = true;
+              } else if (emailStatus === "google_only") {
+                resolvedMsg = "This email is registered with Google. Please click 'Sign in with Google' below.";
+              } else if (emailStatus === "password_registered") {
+                resolvedMsg = "Incorrect password. Please check your password and try again, or use 'Forgot password?'.";
+              }
+            }
+          } catch (_) {}
+
+          if (!resolvedMsg) {
+            try {
+              const [{ data: memberRows, error: memberErr }, { data: isAdminInvite }, { data: isEditorInvite }] = await Promise.all([
+                supabase.rpc("get_member_by_email", { p_email: trimmedEmail }),
+                supabase.rpc("can_register_staff", { p_email: trimmedEmail, p_role: "admin" }),
+                supabase.rpc("can_register_staff", { p_email: trimmedEmail, p_role: "editor" }),
+              ]);
+              if (!memberErr && (!memberRows || memberRows.length === 0) && !isAdminInvite && !isEditorInvite) {
+                resolvedMsg = "Email is not registered. Please check your email address or register first.";
+                shouldShowRegister = true;
+              } else if (!memberErr) {
+                resolvedMsg = "Incorrect password, or this account has not completed registration yet. Please check your password or register.";
+                shouldShowRegister = true;
+              }
+            } catch (_) {}
+          }
+
+          setErrorMessage(resolvedMsg || "Incorrect email or password. Please verify your credentials and try again.");
+          setShowRegisterCta(shouldShowRegister);
+        } else if (/email not confirmed/i.test(rawMsg)) {
+          setErrorMessage("Your email address is not confirmed yet. Please check your inbox for the verification link.");
+        } else {
+          setErrorMessage(rawMsg || "Invalid credentials. Please verify your email and password.");
+        }
         setLoading(false);
         return;
       }
@@ -110,6 +197,33 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
       setErrorMessage(err.message || "An unexpected error occurred during sign in.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage("");
+    setShowRegisterCta(false);
+    setGoogleLoading(true);
+    try {
+      sessionStorage.setItem("adss-google-signin-attempt", "1");
+    } catch (_) {}
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/",
+        },
+      });
+      if (error) {
+        try { sessionStorage.removeItem("adss-google-signin-attempt"); } catch (_) {}
+        setErrorMessage(error.message || "Google sign-in failed. Please try again.");
+        setGoogleLoading(false);
+      }
+      // On success: Supabase redirects the browser — no further action needed here.
+    } catch (err) {
+      try { sessionStorage.removeItem("adss-google-signin-attempt"); } catch (_) {}
+      setErrorMessage(err.message || "An unexpected error occurred.");
+      setGoogleLoading(false);
     }
   };
 
@@ -242,11 +356,27 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
 
             {/* Error Notification Banner */}
             {errorMessage && (
-              <div className={`mb-5 p-3 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
+              <div className={`mb-5 p-3.5 rounded-[6px] border text-[13px] flex items-start gap-2.5 ${
                 isDark ? "bg-[#eb5757]/10 border-[#eb5757]/30 text-[#eb5757]" : "bg-rose-50 border-rose-200 text-rose-700"
               }`}>
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <div className="leading-snug">{errorMessage}</div>
+                <div className="flex-1 leading-snug">
+                  <div>{errorMessage}</div>
+                  {showRegisterCta && (
+                    <button
+                      type="button"
+                      onClick={handleNavigateRegister}
+                      className={`mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] text-[12.5px] font-[550] transition-colors cursor-pointer ${
+                        isDark
+                          ? "bg-[#eb5757] text-white hover:bg-[#d94848]"
+                          : "bg-rose-600 text-white hover:bg-rose-700"
+                      }`}
+                    >
+                      <span>Register</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -334,7 +464,7 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
               {/* Primary Acid Lime CTA Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="linear-btn-primary w-full mt-6 py-2.5 text-[14px] font-[510] tracking-[-0.011em] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
@@ -350,6 +480,39 @@ export default function Login({ onNavigate, onLoginSuccess, theme }) {
                 )}
               </button>
             </form>
+
+            {/* ── OR Divider ─────────────────────────────────────── */}
+            <div className={`flex items-center gap-3 my-5`}>
+              <div className={`flex-1 h-px ${isDark ? "bg-[#23252a]" : "bg-gray-200"}`} />
+              <span className={`text-[11px] font-berkeley-mono tracking-widest uppercase ${isDark ? "text-[#62666d]" : "text-gray-400"}`}>
+                or continue with
+              </span>
+              <div className={`flex-1 h-px ${isDark ? "bg-[#23252a]" : "bg-gray-200"}`} />
+            </div>
+
+            {/* ── Google OAuth Button ─────────────────────────────── */}
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading || googleLoading}
+              className={`w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-[6px] border text-[14px] font-[510] transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                isDark
+                  ? "bg-[rgba(255,255,255,0.03)] border-[#23252a] hover:border-[#383b3f] hover:bg-[rgba(255,255,255,0.06)] text-[#d0d6e0]"
+                  : "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 shadow-sm"
+              }`}
+            >
+              {googleLoading ? (
+                <>
+                  <span className={`w-4 h-4 border-2 ${isDark ? "border-[#8a8f98]" : "border-gray-400"} border-t-transparent rounded-full animate-spin`} />
+                  <span>Redirecting to Google...</span>
+                </>
+              ) : (
+                <>
+                  <GoogleIcon className="w-4 h-4 flex-shrink-0" />
+                  <span>Sign in with Google</span>
+                </>
+              )}
+            </button>
 
             {/* Switch to Register */}
             <div className={`border-t mt-6 pt-5 text-center ${isDark ? "border-[#23252a]" : "border-gray-100"}`}>

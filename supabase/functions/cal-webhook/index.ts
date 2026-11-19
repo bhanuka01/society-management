@@ -260,7 +260,7 @@ serve(async (req) => {
                 ocPosition: positionName,
                 interviewDate: formattedDate,
                 interviewLink: meetingLink,
-                customMessage: `Candidate <strong>${candidateName}</strong> (${candidateEmail}) has booked their interview slot for <strong>${positionName}</strong>.`
+                customMessage: `Candidate ${candidateName} (${candidateEmail}) has booked their interview slot for ${positionName}.`
               }
             }
           }).then(() => {
